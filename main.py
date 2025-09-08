@@ -8564,7 +8564,7 @@ def make_serializable(obj):
     return obj
 
 if __name__ == '__main__':
-    flask_port = int(os.getenv('FLASK_PORT', '8000'))
+    flask_port = int(os.getenv('FLASK_PORT', '8084'))
     flask_host = os.getenv('FLASK_HOST', '0.0.0.0')
     
     print(f" Starting Flask app with SocketIO on {flask_host}:{flask_port}...")
