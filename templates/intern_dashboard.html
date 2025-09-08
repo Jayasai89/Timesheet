@@ -1,0 +1,1000 @@
+{% extends "base.html" %}
+{% block content %}
+
+<!-- Intern Dashboard Header -->
+<div class="bg-gradient-to-r from-blue-600 to-purple-600 rounded-xl shadow-lg p-6 text-white mb-6">
+    <div class="flex items-center justify-between">
+        <div>
+            <h1 class="text-2xl font-bold">{{ user }} ({{ role }})</h1>
+            <p class="text-blue-100 mt-1">Intern Dashboard - Complete Management System</p>
+        </div>
+        <div class="flex items-center space-x-4">
+            <div class="bg-white bg-opacity-20 rounded-lg p-3">
+                <p class="text-sm opacity-90">Today</p>
+                <p class="text-lg font-semibold">{{ today }}</p>
+            </div>
+            <button onclick="window.history.back()" class="bg-white bg-opacity-20 hover:bg-opacity-30 px-4 py-2 rounded-lg transition-colors">
+                <i class="fas fa-arrow-left mr-2"></i>Back to Dashboard
+            </button>
+            <a href="{{ url_for('logout') }}" class="bg-white bg-opacity-20 hover:bg-opacity-30 px-4 py-2 rounded-lg transition-colors">
+                <i class="fas fa-sign-out-alt mr-2"></i>Logout
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- Flash Messages -->
+{% with messages = get_flashed_messages() %}
+    {% if messages %}
+        <div class="space-y-2 mb-6">
+            {% for message in messages %}
+                <div class="bg-blue-100 border border-blue-400 text-blue-700 px-4 py-3 rounded relative" role="alert">
+                    <span class="block sm:inline">{{ message }}</span>
+                    <span class="absolute top-0 bottom-0 right-0 px-4 py-3 cursor-pointer" onclick="this.parentElement.style.display='none'">×</span>
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+{% endwith %}
+
+<!-- Stats Cards - Updated for correct leave types -->
+<div class="grid grid-cols-3 gap-4 mb-6">
+    <div class="bg-green-500 rounded-xl p-4 text-white">
+        <div class="flex items-center justify-between">
+            <div>
+                <h3 class="text-sm font-medium opacity-90">Sick Leave</h3>
+                <h3 class="text-3xl font-bold">{{ remaining_leaves.sick if remaining_leaves else 12 }}</h3>
+                <p class="text-green-100 text-sm">days available</p>
+            </div>
+            <div class="bg-white bg-opacity-20 rounded-lg p-2">
+                <i class="fas fa-user-md text-2xl"></i>
+            </div>
+        </div>
+    </div>
+
+    <div class="bg-blue-500 rounded-xl p-4 text-white">
+        <div class="flex items-center justify-between">
+            <div>
+                <h3 class="text-sm font-medium opacity-90">Vacation/Personal</h3>
+                <h3 class="text-3xl font-bold">{{ remaining_leaves.paid if remaining_leaves else 18 }}</h3>
+                <p class="text-blue-100 text-sm">days available</p>
+            </div>
+            <div class="bg-white bg-opacity-20 rounded-lg p-2">
+                <i class="fas fa-plane text-2xl"></i>
+            </div>
+        </div>
+    </div>
+
+    <div class="bg-purple-500 rounded-xl p-4 text-white">
+        <div class="flex items-center justify-between">
+            <div>
+                <h3 class="text-sm font-medium opacity-90">Casual/Other</h3>
+                <h3 class="text-3xl font-bold">{{ remaining_leaves.casual if remaining_leaves else 6 }}</h3>
+                <p class="text-purple-100 text-sm">days available</p>
+            </div>
+            <div class="bg-white bg-opacity-20 rounded-lg p-2">
+                <i class="fas fa-coffee text-2xl"></i>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Tab Navigation -->
+<div class="bg-white rounded-lg shadow-sm border border-gray-200 mb-6">
+    <div class="border-b border-gray-200">
+        <nav class="flex space-x-8 px-6" aria-label="Tabs">
+            <button class="tab-button active py-4 px-1 border-b-2 font-medium text-sm text-blue-600 border-blue-600" data-tab="timesheet">
+                <i class="fas fa-clock mr-2"></i>Timesheet Management
+            </button>
+            <button class="tab-button py-4 px-1 border-b-2 font-medium text-sm text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300" data-tab="leave">
+                <i class="fas fa-calendar-alt mr-2"></i>Leave Management
+            </button>
+            <button class="tab-button py-4 px-1 border-b-2 font-medium text-sm text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300" data-tab="work">
+                <i class="fas fa-tasks mr-2"></i>Work Assignments
+            </button>
+            <button class="tab-button py-4 px-1 border-b-2 font-medium text-sm text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300" data-tab="history">
+                <i class="fas fa-history mr-2"></i>Complete History
+            </button>
+        </nav>
+    </div>
+
+    <!-- Tab Content -->
+    <div class="p-6">
+        <!-- Timesheet Management Tab -->
+        <div id="timesheet" class="tab-content">
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <!-- Main Timesheet Form -->
+                <div class="lg:col-span-2 space-y-6">
+                    <div class="bg-white rounded-lg shadow-sm border border-gray-200">
+                        <div class="px-6 py-4 border-b border-gray-200">
+                            <h2 class="text-lg font-semibold text-gray-800">
+                                <i class="fas fa-clock text-blue-600 mr-2"></i>Submit Daily Timesheet
+                            </h2>
+                        </div>
+                        <div class="p-6">
+                            <form method="post" action="{{ url_for('submit_timesheet_action') }}" class="space-y-4">
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-2">Project *</label>
+                                        <select name="project" required class="form-select w-full rounded-lg border-gray-300">
+                                            <option value="">Select Project</option>
+                                            {% if proj_list %}
+                                                {% for project in proj_list %}
+                                                    <option value="{{ project }}">{{ project }}</option>
+                                                {% endfor %}
+                                            {% endif %}
+                                        </select>
+                                    </div>
+                                    
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-2">Date *</label>
+                                        <input type="date" name="work_date" value="{{ today }}" required
+                                               class="form-input w-full rounded-lg border-gray-300">
+                                    </div>
+                                </div>
+                                
+                                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-2">Start Time *</label>
+                                        <input type="time" name="start_t" required
+                                               class="form-input w-full rounded-lg border-gray-300">
+                                    </div>
+                                    
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-2">End Time *</label>
+                                        <input type="time" name="end_t" required
+                                               class="form-input w-full rounded-lg border-gray-300">
+                                    </div>
+                                    
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-2">Break (hrs)</label>
+                                        <input type="number" name="brk" value="0" step="0.5" min="0" max="8"
+                                               class="form-input w-full rounded-lg border-gray-300">
+                                    </div>
+                                </div>
+                                
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Work Description *</label>
+                                    <textarea name="desc" rows="4" placeholder="Describe the work completed today in detail..." required
+                                              class="form-textarea w-full rounded-lg border-gray-300"></textarea>
+                                </div>
+                                
+                                <button type="submit" 
+                                        class="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-4 rounded-lg transition-colors">
+                                    <i class="fas fa-paper-plane mr-2"></i>Submit Timesheet
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Timesheet Sidebar -->
+                <div class="space-y-6">
+                    <div class="bg-white rounded-lg shadow-sm border border-gray-200">
+                        <div class="px-6 py-4 border-b border-gray-200">
+                            <h2 class="text-lg font-semibold text-gray-800">
+                                <i class="fas fa-bell text-yellow-600 mr-2"></i>Recent Timesheets
+                            </h2>
+                        </div>
+                        <div class="p-6">
+                            <div class="space-y-3">
+                                {% if work_history %}
+                                    {% for entry in work_history[:5] %}
+                                    <div class="flex items-center space-x-3 text-sm">
+                                        <div class="flex-shrink-0">
+                                            {% if entry.rm_status|lower == 'approved' %}
+                                                <div class="w-2 h-2 bg-green-500 rounded-full"></div>
+                                            {% elif entry.rm_status|lower == 'pending' %}
+                                                <div class="w-2 h-2 bg-yellow-500 rounded-full"></div>
+                                            {% else %}
+                                                <div class="w-2 h-2 bg-red-500 rounded-full"></div>
+                                            {% endif %}
+                                        </div>
+                                        <div class="flex-1">
+                                            <p class="text-gray-800">{{ entry.work_date }} - {{ entry.hours }}h</p>
+                                            <p class="text-gray-500 text-xs">{{ entry.rm_status|title }}</p>
+                                            {% if entry.get('rm_rejection_reason') and entry.rm_status|lower == 'rejected' %}
+                                            <p class="text-xs text-red-600 mt-1">
+                                                <i class="fas fa-exclamation-triangle mr-1"></i>{{ entry.rm_rejection_reason|truncate(30) }}
+                                            </p>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                    {% endfor %}
+                                {% else %}
+                                    <div class="text-center py-4">
+                                        <i class="fas fa-clock text-2xl text-gray-300 mb-2"></i>
+                                        <p class="text-gray-500 text-sm">No timesheets submitted</p>
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Leave Management Tab - Updated with correct leave types -->
+        <div id="leave" class="tab-content hidden">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div class="bg-white rounded-lg shadow-sm border border-gray-200">
+                    <div class="px-6 py-4 border-b border-gray-200">
+                        <h2 class="text-lg font-semibold text-gray-800">
+                            <i class="fas fa-calendar-plus text-purple-600 mr-2"></i>Request New Leave
+                        </h2>
+                    </div>
+                    <div class="p-6">
+                        <form method="post" action="{{ url_for('request_leave_action') }}" enctype="multipart/form-data" 
+                              x-data="{ leaveType: '', showDocUpload: false, startDate: '', endDate: '' }" class="space-y-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Leave Type *</label>
+                                <select name="leave_type" x-model="leaveType" required
+                                        @change="showDocUpload = (leaveType === 'Sick')"
+                                        class="form-select w-full rounded-lg border-gray-300">
+                                    <option value="">Select type</option>
+                                    <option value="Sick">Sick Leave ({{ remaining_leaves.sick if remaining_leaves else 0 }} left)</option>
+                                    <option value="Vacation">Vacation Leave ({{ remaining_leaves.paid if remaining_leaves else 0 }} left)</option>
+                                    <option value="Personal">Personal Leave ({{ remaining_leaves.paid if remaining_leaves else 0 }} left)</option>
+                                    <option value="Casual">Casual Leave ({{ remaining_leaves.casual if remaining_leaves else 0 }} left)</option>
+                                    <option value="Other">Other Leave ({{ remaining_leaves.casual if remaining_leaves else 0 }} left)</option>
+                                </select>
+                            </div>
+                            
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">From *</label>
+                                    <input type="date" name="start_d" x-model="startDate" required
+                                           class="form-input w-full rounded-lg border-gray-300">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">To *</label>
+                                    <input type="date" name="end_d" x-model="endDate" required
+                                           class="form-input w-full rounded-lg border-gray-300">
+                                </div>
+                            </div>
+                            
+                            <div x-show="startDate && endDate" class="text-sm text-gray-600 bg-gray-50 p-3 rounded">
+                                <i class="fas fa-info-circle mr-1"></i>
+                                <span x-text="startDate && endDate ? 'Duration: ' + (Math.ceil((new Date(endDate) - new Date(startDate)) / (1000 * 60 * 60 * 24)) + 1) + ' day(s)' : ''"></span>
+                            </div>
+                            
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Reason *</label>
+                                <textarea name="description" rows="3" placeholder="Brief reason for leave..." required
+                                          class="form-textarea w-full rounded-lg border-gray-300"></textarea>
+                            </div>
+                            
+                            <div x-show="showDocUpload" x-transition class="bg-blue-50 p-3 rounded-lg border border-blue-200">
+                                <label class="block text-sm font-medium text-blue-800 mb-2">
+                                    <i class="fas fa-file-medical mr-1"></i>Medical Certificate
+                                </label>
+                                <input type="file" name="doc" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" 
+                                       class="form-input w-full text-sm rounded-lg border-blue-300">
+                                <p class="text-xs text-blue-600 mt-1">Required for sick leave > 2 days</p>
+                            </div>
+                            
+                            <button type="submit" 
+                                    class="w-full bg-purple-600 hover:bg-purple-700 text-white font-medium py-3 px-4 rounded-lg transition-colors">
+                                <i class="fas fa-paper-plane mr-2"></i>Submit Leave Request
+                            </button>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Recent Leave Requests -->
+                <div class="bg-white rounded-lg shadow-sm border border-gray-200">
+                    <div class="px-6 py-4 border-b border-gray-200">
+                        <h2 class="text-lg font-semibold text-gray-800">
+                            <i class="fas fa-history text-indigo-600 mr-2"></i>Recent Leave Requests
+                        </h2>
+                    </div>
+                    <div class="p-6">
+                        <div class="space-y-3">
+                            {% if leaves %}
+                                {% for leave in leaves[:5] %}
+                                <div class="border border-gray-200 rounded-lg p-3">
+                                    <div class="flex justify-between items-start mb-2">
+                                        <div>
+                                            <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium
+                                                {% if leave.leave_type == 'Sick' %}bg-green-100 text-green-800
+                                                {% elif leave.leave_type == 'Vacation' %}bg-blue-100 text-blue-800
+                                                {% elif leave.leave_type == 'Personal' %}bg-indigo-100 text-indigo-800
+                                                {% elif leave.leave_type == 'Casual' %}bg-purple-100 text-purple-800
+                                                {% elif leave.leave_type == 'Other' %}bg-gray-100 text-gray-800
+                                                {% endif %}">
+                                                {{ leave.leave_type }}
+                                            </span>
+                                            <p class="text-xs text-gray-600 mt-1">{{ leave.start_date }} to {{ leave.end_date }}</p>
+                                        </div>
+                                        {% if leave.rm_status|lower == 'pending' %}
+                                            <span class="inline-flex px-2 py-1 text-xs font-semibold bg-yellow-100 text-yellow-800 rounded-full">
+                                                <i class="fas fa-clock mr-1"></i>Pending
+                                            </span>
+                                        {% elif leave.rm_status|lower == 'approved' %}
+                                            <span class="inline-flex px-2 py-1 text-xs font-semibold bg-green-100 text-green-800 rounded-full">
+                                                <i class="fas fa-check mr-1"></i>Approved
+                                            </span>
+                                        {% elif leave.rm_status|lower == 'rejected' %}
+                                            <span class="inline-flex px-2 py-1 text-xs font-semibold bg-red-100 text-red-800 rounded-full">
+                                                <i class="fas fa-times mr-1"></i>Rejected
+                                            </span>
+                                        {% endif %}
+                                    </div>
+                                    <p class="text-xs text-gray-700">{{ leave.description|truncate(50) }}</p>
+                                    {% if leave.get('rm_rejection_reason') and leave.rm_status|lower == 'rejected' %}
+                                    <div class="mt-2 p-2 bg-red-50 border border-red-200 rounded">
+                                        <p class="text-xs text-red-700 font-medium">
+                                            <i class="fas fa-exclamation-triangle mr-1"></i>
+                                            <strong>Rejection:</strong> {{ leave.rm_rejection_reason }}
+                                        </p>
+                                    </div>
+                                    {% endif %}
+                                    {% if leave.rm_status|lower == 'rejected' %}
+                                    <div class="mt-2">
+                                        <a href="{{ url_for('edit_leave_form', leave_id=leave.id) }}" 
+                                           class="text-orange-600 hover:text-orange-800 text-xs">
+                                            <i class="fas fa-redo mr-1"></i>Resubmit
+                                        </a>
+                                    </div>
+                                    {% endif %}
+                                </div>
+                                {% endfor %}
+                            {% else %}
+                                <div class="text-center py-4">
+                                    <i class="fas fa-calendar-alt text-2xl text-gray-300 mb-2"></i>
+                                    <p class="text-gray-500 text-sm">No leave requests submitted</p>
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Work Assignments Tab -->
+        <div id="work" class="tab-content hidden">
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200">
+                <div class="px-6 py-4 border-b border-gray-200">
+                    <h2 class="text-lg font-semibold text-gray-800">
+                        <i class="fas fa-tasks text-orange-600 mr-2"></i>Current Work Assignments
+                    </h2>
+                </div>
+                <div class="p-6">
+                    {% if assigned_work %}
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            {% for work in assigned_work %}
+                            <div class="bg-orange-50 border border-orange-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+                                <div class="flex justify-between items-start mb-3">
+                                    <span class="text-xs text-orange-600 bg-orange-100 px-2 py-1 rounded font-medium">
+                                        {{ work.project_name or 'General Task' }}
+                                    </span>
+                                    <div class="flex items-center text-xs text-gray-500">
+                                        <i class="fas fa-calendar mr-1"></i>
+                                        {{ work.due_date or 'No deadline' }}
+                                    </div>
+                                </div>
+                                <h4 class="font-medium text-gray-800 text-sm mb-2">
+                                    {{ work.task_desc }}
+                                </h4>
+                                <div class="flex items-center justify-between text-xs text-gray-600">
+                                    <div class="flex items-center">
+                                        <i class="fas fa-user mr-1"></i>
+                                        <span>Assigned by: {{ work.assigned_by }}</span>
+                                    </div>
+                                </div>
+                                <div class="mt-3 pt-2 border-t border-orange-200">
+                                    <p class="text-xs text-gray-600">
+                                        <i class="fas fa-calendar-plus mr-1"></i>
+                                        Start: {{ work.start_date or 'Immediate' }}
+                                    </p>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="text-center py-12">
+                            <i class="fas fa-clipboard-list text-4xl text-gray-300 mb-4"></i>
+                            <h3 class="text-lg font-medium text-gray-800 mb-2">No Work Assignments</h3>
+                            <p class="text-gray-500">You don't have any assigned tasks at the moment. Check back later or contact your supervisor.</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Complete History Tab -->
+        <div id="history" class="tab-content hidden">
+            <div class="space-y-6">
+                <!-- Timesheet History with Separate Rejection Reason Column -->
+                {% if work_history_cols and work_history_rows %}
+                <div class="bg-white rounded-lg shadow-sm border border-gray-200">
+                    <div class="px-6 py-4 border-b border-gray-200">
+                        <h2 class="text-lg font-semibold text-gray-800">
+                            <i class="fas fa-clock text-green-600 mr-2"></i>Timesheet History & Management
+                        </h2>
+                    </div>
+                    <div class="p-6 overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    {% for col in work_history_cols %}
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        {{ col.replace('_', ' ').title() }}
+                                    </th>
+                                    {% endfor %}
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white divide-y divide-gray-200">
+                                {% for row in work_history_rows %}
+                                <tr class="hover:bg-gray-50">
+                                    {% for col in work_history_cols %}
+                                    <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+                                        {% if col == 'rm_status' %}
+                                            {% if row[col]|lower == 'pending' %}
+                                                <span class="inline-flex px-2 py-1 text-xs font-semibold bg-yellow-100 text-yellow-800 rounded-full">
+                                                    <i class="fas fa-clock mr-1"></i>Pending
+                                                </span>
+                                            {% elif row[col]|lower == 'approved' %}
+                                                <span class="inline-flex px-2 py-1 text-xs font-semibold bg-green-100 text-green-800 rounded-full">
+                                                    <i class="fas fa-check mr-1"></i>Approved
+                                                </span>
+                                            {% elif row[col]|lower == 'rejected' %}
+                                                <span class="inline-flex px-2 py-1 text-xs font-semibold bg-red-100 text-red-800 rounded-full">
+                                                    <i class="fas fa-times mr-1"></i>Rejected
+                                                </span>
+                                            {% else %}
+                                                {{ row[col] or '' }}
+                                            {% endif %}
+                                        {% elif col == 'rm_rejection_reason' %}
+                                            {% if row[col] %}
+                                                <div class="max-w-xs">
+                                                    <div class="bg-red-50 border border-red-200 rounded p-2">
+                                                        <p class="text-xs text-red-700 font-medium">
+                                                            <i class="fas fa-exclamation-triangle mr-1"></i>
+                                                            {{ row[col] }}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            {% else %}
+                                                <span class="text-gray-400 text-xs">-</span>
+                                            {% endif %}
+                                        {% else %}
+                                            {{ row[col] or '' }}
+                                        {% endif %}
+                                    </td>
+                                    {% endfor %}
+                                    <td class="px-4 py-4 whitespace-nowrap text-sm font-medium">
+                                        {% if row['rm_status']|lower == 'pending' %}
+                                            <a href="{{ url_for('edit_timesheet_form', timesheet_id=row['id']) }}" 
+                                               class="text-blue-600 hover:text-blue-800 text-xs mr-2">
+                                                <i class="fas fa-edit mr-1"></i>Edit
+                                            </a>
+                                            <button onclick="deleteTimesheet({{ row['id'] }})" 
+                                                    class="text-red-600 hover:text-red-800 text-xs">
+                                                <i class="fas fa-trash mr-1"></i>Delete
+                                            </button>
+                                        {% elif row['rm_status']|lower == 'rejected' %}
+                                            <a href="{{ url_for('edit_timesheet_form', timesheet_id=row['id']) }}" 
+                                               class="text-orange-600 hover:text-orange-800 text-xs mr-2">
+                                                <i class="fas fa-redo mr-1"></i>Resubmit
+                                            </a>
+                                        {% elif row['rm_status']|lower == 'approved' %}
+                                            <span class="text-xs text-green-600">
+                                                <i class="fas fa-check mr-1"></i>Completed
+                                            </span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- Leave History with Separate Rejection Reason Column -->
+                {% if leave_cols and leave_rows %}
+                <div class="bg-white rounded-lg shadow-sm border border-gray-200">
+                    <div class="px-6 py-4 border-b border-gray-200">
+                        <h2 class="text-lg font-semibold text-gray-800">
+                            <i class="fas fa-calendar-alt text-indigo-600 mr-2"></i>Leave History & Management
+                        </h2>
+                    </div>
+                    <div class="p-6 overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    {% for col in leave_cols %}
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        {{ col.replace('_', ' ').title() }}
+                                    </th>
+                                    {% endfor %}
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white divide-y divide-gray-200">
+                                {% for row in leave_rows %}
+                                <tr class="hover:bg-gray-50">
+                                    {% for col in leave_cols %}
+                                    <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+                                        {% if col == 'rm_status' %}
+                                            {% if row[col]|lower == 'pending' %}
+                                                <span class="inline-flex px-2 py-1 text-xs font-semibold bg-yellow-100 text-yellow-800 rounded-full">
+                                                    <i class="fas fa-clock mr-1"></i>Pending
+                                                </span>
+                                            {% elif row[col]|lower == 'approved' %}
+                                                {% if row.get('cancellation_requested') %}
+                                                    <span class="inline-flex px-2 py-1 text-xs font-semibold bg-orange-100 text-orange-800 rounded-full">
+                                                        <i class="fas fa-hourglass-half mr-1"></i>Cancel Pending
+                                                    </span>
+                                                {% else %}
+                                                    <span class="inline-flex px-2 py-1 text-xs font-semibold bg-green-100 text-green-800 rounded-full">
+                                                        <i class="fas fa-check mr-1"></i>Approved
+                                                    </span>
+                                                {% endif %}
+                                            {% elif row[col]|lower == 'rejected' %}
+                                                <span class="inline-flex px-2 py-1 text-xs font-semibold bg-red-100 text-red-800 rounded-full">
+                                                    <i class="fas fa-times mr-1"></i>Rejected
+                                                </span>
+                                            {% else %}
+                                                {{ row[col] or '' }}
+                                            {% endif %}
+                                        {% elif col == 'leave_type' %}
+                                            <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium
+                                                {% if row[col] == 'Sick' %}bg-green-100 text-green-800
+                                                {% elif row[col] == 'Vacation' %}bg-blue-100 text-blue-800
+                                                {% elif row[col] == 'Personal' %}bg-indigo-100 text-indigo-800
+                                                {% elif row[col] == 'Casual' %}bg-purple-100 text-purple-800
+                                                {% elif row[col] == 'Other' %}bg-gray-100 text-gray-800
+                                                {% endif %}">
+                                                {{ row[col] }}
+                                            </span>
+                                        {% elif col == 'rm_rejection_reason' %}
+                                            {% if row[col] %}
+                                                <div class="max-w-xs">
+                                                    <div class="bg-red-50 border border-red-200 rounded p-2">
+                                                        <p class="text-xs text-red-700 font-medium">
+                                                            <i class="fas fa-exclamation-triangle mr-1"></i>
+                                                            {{ row[col] }}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            {% else %}
+                                                <span class="text-gray-400 text-xs">-</span>
+                                            {% endif %}
+                                        {% else %}
+                                            {{ row[col] or '' }}
+                                        {% endif %}
+                                    </td>
+                                    {% endfor %}
+                                    <td class="px-4 py-4 whitespace-nowrap text-sm font-medium">
+                                        {% if row['rm_status']|lower == 'pending' %}
+                                            <a href="{{ url_for('edit_leave_form', leave_id=row['id']) }}" 
+                                               class="text-blue-600 hover:text-blue-800 text-xs mr-2">
+                                                <i class="fas fa-edit mr-1"></i>Edit
+                                            </a>
+                                            <button onclick="cancelLeave({{ row['id'] }})" 
+                                                    class="text-red-600 hover:text-red-900 text-xs">
+                                                <i class="fas fa-times mr-1"></i>Cancel
+                                            </button>
+                                        {% elif row['rm_status']|lower == 'approved' and not row.get('cancellation_requested') %}
+                                            <button onclick="requestCancellation({{ row['id'] }})" 
+                                                    class="text-orange-600 hover:text-orange-900 text-xs mr-2">
+                                                <i class="fas fa-undo mr-1"></i>Request Cancel
+                                            </button>
+                                        {% elif row['rm_status']|lower == 'rejected' %}
+                                            <a href="{{ url_for('edit_leave_form', leave_id=row['id']) }}" 
+                                               class="text-orange-600 hover:text-orange-800 text-xs mr-2">
+                                                <i class="fas fa-redo mr-1"></i>Resubmit
+                                            </a>
+                                            <button onclick="deleteLeave({{ row['id'] }})" 
+                                                    class="text-red-600 hover:text-red-800 text-xs mr-2">
+                                                <i class="fas fa-trash mr-1"></i>Delete
+                                            </button>
+                                        {% elif row['rm_status']|lower == 'approved' %}
+                                            <span class="text-xs text-green-600">
+                                                <i class="fas fa-check mr-1"></i>Completed
+                                            </span>
+                                        {% endif %}
+                                        {% if row.get('document_path') or row.get('health_document') %}
+                                            <a href="/download-leave-doc/{{ row['id'] }}" 
+                                               class="text-blue-600 hover:text-blue-900 text-xs ml-2">
+                                                <i class="fas fa-download mr-1"></i>Doc
+                                            </a>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- Fallback displays for object lists -->
+                {% if work_history and not work_history_cols %}
+                <div class="bg-white rounded-lg shadow-sm border border-gray-200">
+                    <div class="px-6 py-4 border-b border-gray-200">
+                        <h2 class="text-lg font-semibold text-gray-800">
+                            <i class="fas fa-history text-green-600 mr-2"></i>Work History Overview
+                        </h2>
+                    </div>
+                    <div class="p-6">
+                        <div class="space-y-4">
+                            {% for entry in work_history %}
+                            <div class="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors">
+                                <div class="flex justify-between items-start mb-2">
+                                    <div>
+                                        <h4 class="font-medium text-gray-800">{{ entry.work_date }}</h4>
+                                        <p class="text-sm text-gray-600">{{ entry.project_name or '(non-project)' }} • {{ entry.hours }}h</p>
+                                        {% if entry.get('rm_rejection_reason') and entry.rm_status|lower == 'rejected' %}
+                                        <div class="mt-2 p-2 bg-red-50 border border-red-200 rounded">
+                                            <p class="text-xs text-red-700 font-medium">
+                                                <i class="fas fa-exclamation-triangle mr-1"></i>
+                                                <strong>Rejection Reason:</strong> {{ entry.rm_rejection_reason }}
+                                            </p>
+                                        </div>
+                                        {% endif %}
+                                    </div>
+                                    {% if entry.rm_status|lower == 'pending' %}
+                                        <span class="inline-flex px-3 py-1 text-xs font-semibold bg-yellow-100 text-yellow-800 rounded-full">
+                                            <i class="fas fa-clock mr-1"></i>Pending
+                                        </span>
+                                    {% elif entry.rm_status|lower == 'approved' %}
+                                        <span class="inline-flex px-3 py-1 text-xs font-semibold bg-green-100 text-green-800 rounded-full">
+                                            <i class="fas fa-check mr-1"></i>Approved
+                                        </span>
+                                    {% elif entry.rm_status|lower == 'rejected' %}
+                                        <span class="inline-flex px-3 py-1 text-xs font-semibold bg-red-100 text-red-800 rounded-full">
+                                            <i class="fas fa-times mr-1"></i>Rejected
+                                        </span>
+                                    {% endif %}
+                                </div>
+                                <p class="text-sm text-gray-700 mb-3">{{ entry.work_desc }}</p>
+                                {% if entry.rm_status|lower == 'pending' %}
+                                <div class="flex space-x-2">
+                                    <a href="{{ url_for('edit_timesheet_form', timesheet_id=entry.id) }}" 
+                                       class="text-blue-600 hover:text-blue-800 text-xs">
+                                        <i class="fas fa-edit mr-1"></i>Edit
+                                    </a>
+                                    <button onclick="deleteTimesheet({{ entry.id }})" 
+                                            class="text-red-600 hover:text-red-800 text-xs">
+                                        <i class="fas fa-trash mr-1"></i>Delete
+                                    </button>
+                                </div>
+                                {% elif entry.rm_status|lower == 'rejected' %}
+                                <div class="flex space-x-2">
+                                    <a href="{{ url_for('edit_timesheet_form', timesheet_id=entry.id) }}" 
+                                       class="text-orange-600 hover:text-orange-800 text-xs">
+                                        <i class="fas fa-redo mr-1"></i>Resubmit
+                                    </a>
+                                </div>
+                                {% endif %}
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+
+                {% if leaves and not leave_cols %}
+                <div class="bg-white rounded-lg shadow-sm border border-gray-200">
+                    <div class="px-6 py-4 border-b border-gray-200">
+                        <h2 class="text-lg font-semibold text-gray-800">
+                            <i class="fas fa-calendar-alt text-indigo-600 mr-2"></i>Leave History Overview
+                        </h2>
+                    </div>
+                    <div class="p-6">
+                        <div class="space-y-4">
+                            {% for leave in leaves %}
+                            <div class="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors">
+                                <div class="flex justify-between items-start mb-2">
+                                    <div>
+                                        <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium mb-2
+                                            {% if leave.leave_type == 'Sick' %}bg-green-100 text-green-800
+                                            {% elif leave.leave_type == 'Vacation' %}bg-blue-100 text-blue-800
+                                            {% elif leave.leave_type == 'Personal' %}bg-indigo-100 text-indigo-800
+                                            {% elif leave.leave_type == 'Casual' %}bg-purple-100 text-purple-800
+                                            {% elif leave.leave_type == 'Other' %}bg-gray-100 text-gray-800
+                                            {% endif %}">
+                                            {{ leave.leave_type }} Leave
+                                        </span>
+                                        <p class="text-sm text-gray-600">{{ leave.start_date }} to {{ leave.end_date }}</p>
+                                        {% if leave.get('rm_rejection_reason') and leave.rm_status|lower == 'rejected' %}
+                                        <div class="mt-2 p-2 bg-red-50 border border-red-200 rounded">
+                                            <p class="text-xs text-red-700 font-medium">
+                                                <i class="fas fa-exclamation-triangle mr-1"></i>
+                                                <strong>Rejection Reason:</strong> {{ leave.rm_rejection_reason }}
+                                            </p>
+                                        </div>
+                                        {% endif %}
+                                    </div>
+                                    {% if leave.rm_status|lower == 'pending' %}
+                                        <span class="inline-flex px-3 py-1 text-xs font-semibold bg-yellow-100 text-yellow-800 rounded-full">
+                                            <i class="fas fa-clock mr-1"></i>Pending
+                                        </span>
+                                    {% elif leave.rm_status|lower == 'approved' %}
+                                        <span class="inline-flex px-3 py-1 text-xs font-semibold bg-green-100 text-green-800 rounded-full">
+                                            <i class="fas fa-check mr-1"></i>Approved
+                                        </span>
+                                    {% elif leave.rm_status|lower == 'rejected' %}
+                                        <span class="inline-flex px-3 py-1 text-xs font-semibold bg-red-100 text-red-800 rounded-full">
+                                            <i class="fas fa-times mr-1"></i>Rejected
+                                        </span>
+                                    {% endif %}
+                                </div>
+                                <p class="text-sm text-gray-700 mb-3">{{ leave.description }}</p>
+                                <div class="flex space-x-2">
+                                    {% if leave.rm_status|lower == 'pending' %}
+                                        <a href="{{ url_for('edit_leave_form', leave_id=leave.id) }}" 
+                                           class="text-blue-600 hover:text-blue-800 text-xs">
+                                            <i class="fas fa-edit mr-1"></i>Edit
+                                        </a>
+                                        <button onclick="cancelLeave({{ leave.id }})" 
+                                                class="text-red-600 hover:text-red-900 text-xs">
+                                            <i class="fas fa-times mr-1"></i>Cancel
+                                        </button>
+                                    {% elif leave.rm_status|lower == 'approved' and not leave.get('cancellation_requested') %}
+                                        <button onclick="requestCancellation({{ leave.id }})" 
+                                                class="text-orange-600 hover:text-orange-900 text-xs">
+                                            <i class="fas fa-undo mr-1"></i>Request Cancel
+                                        </button>
+                                    {% elif leave.rm_status|lower == 'rejected' %}
+                                        <a href="{{ url_for('edit_leave_form', leave_id=leave.id) }}" 
+                                           class="text-orange-600 hover:text-orange-800 text-xs">
+                                            <i class="fas fa-redo mr-1"></i>Resubmit
+                                        </a>
+                                        <button onclick="deleteLeave({{ leave.id }})" 
+                                                class="text-red-600 hover:text-red-800 text-xs">
+                                            <i class="fas fa-trash mr-1"></i>Delete
+                                        </button>
+                                    {% endif %}
+                                    {% if leave.get('document_path') or leave.get('health_document') %}
+                                        <a href="/download-leave-doc/{{ leave.id }}" 
+                                           class="text-blue-600 hover:text-blue-900 text-xs">
+                                            <i class="fas fa-download mr-1"></i>Document
+                                        </a>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Confirmation Modal -->
+<div id="confirmModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden z-50">
+    <div class="flex items-center justify-center min-h-screen px-4">
+        <div class="bg-white rounded-lg shadow-xl max-w-md w-full">
+            <div class="p-6">
+                <div class="flex items-center mb-4">
+                    <div class="flex-shrink-0">
+                        <i class="fas fa-exclamation-triangle text-yellow-500 text-2xl"></i>
+                    </div>
+                    <div class="ml-3">
+                        <h3 class="text-lg font-medium text-gray-900" id="modalTitle">Confirm Action</h3>
+                    </div>
+                </div>
+                <div class="mb-4">
+                    <p class="text-sm text-gray-600" id="modalMessage">Are you sure you want to perform this action?</p>
+                </div>
+                <div class="flex justify-end space-x-3">
+                    <button onclick="closeModal()" class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200">
+                        Cancel
+                    </button>
+                    <button id="confirmBtn" class="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700">
+                        Confirm
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+<script>
+// Tab functionality
+document.addEventListener('DOMContentLoaded', function() {
+    const tabButtons = document.querySelectorAll('.tab-button');
+    const tabContents = document.querySelectorAll('.tab-content');
+    
+    tabButtons.forEach(button => {
+        button.addEventListener('click', () => {
+            const tabId = button.getAttribute('data-tab');
+            
+            tabButtons.forEach(btn => {
+                btn.classList.remove('text-blue-600', 'border-blue-600', 'active');
+                btn.classList.add('text-gray-500', 'border-transparent');
+            });
+            
+            button.classList.add('text-blue-600', 'border-blue-600', 'active');
+            button.classList.remove('text-gray-500', 'border-transparent');
+            
+            tabContents.forEach(content => {
+                content.classList.add('hidden');
+            });
+            
+            document.getElementById(tabId).classList.remove('hidden');
+        });
+    });
+});
+
+// Action functions
+function deleteTimesheet(id) {
+    showModal(
+        'Delete Timesheet',
+        'Are you sure you want to delete this timesheet? This action cannot be undone.',
+        function() {
+            submitForm('/delete_timesheet', { timesheet_id: id });
+        }
+    );
+}
+
+function cancelLeave(id) {
+    showModal(
+        'Cancel Leave Request',
+        'Are you sure you want to cancel this leave request?',
+        function() {
+            submitForm('/cancel_leave_action', { id: id });
+        }
+    );
+}
+
+function requestCancellation(id) {
+    showModal(
+        'Request Leave Cancellation',
+        'Request cancellation for this approved leave? This will require manager approval and may affect your leave balance.',
+        function() {
+            submitForm('/request_leave_cancellation', { leave_id: id });
+        }
+    );
+}
+
+function deleteLeave(id) {
+    showModal(
+        'Delete Leave Request',
+        'Are you sure you want to delete this leave request? This action cannot be undone.',
+        function() {
+            submitForm('/delete_leave', { leave_id: id });
+        }
+    );
+}
+
+function showModal(title, message, confirmCallback) {
+    document.getElementById('modalTitle').textContent = title;
+    document.getElementById('modalMessage').textContent = message;
+    document.getElementById('confirmBtn').onclick = function() {
+        confirmCallback();
+        closeModal();
+    };
+    document.getElementById('confirmModal').classList.remove('hidden');
+}
+
+function closeModal() {
+    document.getElementById('confirmModal').classList.add('hidden');
+}
+
+function submitForm(action, data) {
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = action;
+    
+    for (const key in data) {
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = key;
+        input.value = data[key];
+        form.appendChild(input);
+    }
+    
+    document.body.appendChild(form);
+    form.submit();
+}
+
+// Close modals when clicking outside
+document.getElementById('confirmModal').addEventListener('click', function(e) {
+    if (e.target === this) {
+        closeModal();
+    }
+});
+</script>
+
+<style>
+.form-input, .form-select, .form-textarea {
+    display: block;
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid #d1d5db;
+    border-radius: 0.5rem;
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+    transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+}
+
+.form-input:focus, .form-select:focus, .form-textarea:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.tab-button.active {
+    border-bottom-color: #2563eb;
+    color: #2563eb;
+}
+
+.tab-button {
+    transition: all 0.2s;
+}
+
+.tab-button:hover {
+    color: #374151;
+    border-bottom-color: #d1d5db;
+}
+
+.transition-colors {
+    transition: background-color 0.15s ease-in-out, border-color 0.15s ease-in-out, color 0.15s ease-in-out;
+}
+
+.overflow-x-auto {
+    scrollbar-width: thin;
+    scrollbar-color: #cbd5e1 #f1f5f9;
+}
+
+.overflow-x-auto::-webkit-scrollbar { height: 6px; }
+.overflow-x-auto::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 3px; }
+.overflow-x-auto::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+.overflow-x-auto::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+tbody tr:hover {
+    background-color: #f9fafb;
+}
+
+.inline-flex {
+    animation: fadeIn 0.3s ease-in-out;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: scale(0.95); }
+    to { opacity: 1; transform: scale(1); }
+}
+
+button:hover {
+    transform: translateY(-1px);
+    transition: all 0.2s ease-in-out;
+}
+
+.bg-white:hover {
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+    transition: box-shadow 0.3s ease-in-out;
+}
+
+/* Status indicators with updated colors for new leave types */
+.bg-yellow-100 { background-color: #fef3c7; }
+.text-yellow-800 { color: #92400e; }
+.bg-green-100 { background-color: #dcfce7; }
+.text-green-800 { color: #166534; }
+.bg-red-100 { background-color: #fee2e2; }
+.text-red-800 { color: #991b1b; }
+.bg-orange-100 { background-color: #ffedd5; }
+.text-orange-800 { color: #9a3412; }
+.bg-blue-100 { background-color: #dbeafe; }
+.text-blue-800 { color: #1e40af; }
+.bg-indigo-100 { background-color: #e0e7ff; }
+.text-indigo-800 { color: #3730a3; }
+.bg-purple-100 { background-color: #f3e8ff; }
+.text-purple-800 { color: #6b21a8; }
+.bg-gray-100 { background-color: #f3f4f6; }
+.text-gray-800 { color: #1f2937; }
+
+/* Rejection reason column styling */
+.max-w-xs {
+    max-width: 20rem;
+}
+</style>
+
+{% endblock %}

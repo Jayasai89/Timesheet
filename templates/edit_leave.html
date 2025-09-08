@@ -1,0 +1,141 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="bg-gradient-to-r from-purple-600 to-pink-600 rounded-xl shadow-lg p-6 text-white mb-6">
+    <div class="flex items-center justify-between">
+        <div>
+            <h1 class="text-2xl font-bold">Edit Leave Request</h1>
+            <p class="text-purple-100 mt-1">Update your leave request details</p>
+        </div>
+        <div class="flex items-center space-x-4">
+            <a href="{{ url_for('dashboard') }}" class="bg-white bg-opacity-20 hover:bg-opacity-30 px-4 py-2 rounded-lg transition-colors">
+                <i class="fas fa-arrow-left mr-2"></i>Back to Dashboard
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- Flash Messages -->
+{% with messages = get_flashed_messages() %}
+    {% if messages %}
+        <div class="space-y-2 mb-6">
+            {% for message in messages %}
+                <div class="bg-blue-100 border border-blue-400 text-blue-700 px-4 py-3 rounded relative" role="alert">
+                    <span class="block sm:inline">{{ message }}</span>
+                    <span class="absolute top-0 bottom-0 right-0 px-4 py-3 cursor-pointer" onclick="this.parentElement.style.display='none'">×</span>
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+{% endwith %}
+
+<div class="max-w-md mx-auto">
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200">
+        <div class="px-6 py-4 border-b border-gray-200">
+            <h2 class="text-lg font-semibold text-gray-800">
+                <i class="fas fa-edit text-purple-600 mr-2"></i>Edit Leave Request
+            </h2>
+            {% if leave.rm_rejection_reason %}
+            <div class="mt-2 p-3 bg-red-50 border border-red-200 rounded-lg">
+                <p class="text-sm text-red-700">
+                    <i class="fas fa-exclamation-triangle mr-1"></i>
+                    <strong>Rejection Reason:</strong> {{ leave.rm_rejection_reason }}
+                </p>
+            </div>
+            {% endif %}
+        </div>
+        <div class="p-6">
+            <form method="post" action="{{ url_for('resubmit_leave') }}" enctype="multipart/form-data" 
+                  x-data="{ leaveType: '{{ leave.leave_type }}', showDocUpload: false, startDate: '{{ leave.start_date }}', endDate: '{{ leave.end_date }}' }" 
+                  class="space-y-4">
+                <input type="hidden" name="leave_id" value="{{ leave.id }}">
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Leave Type</label>
+                    <select name="leave_type" x-model="leaveType" required
+                            @change="showDocUpload = (leaveType === 'Sick')"
+                            class="form-select w-full rounded-lg border-gray-300">
+                        <option value="">Select type</option>
+                        <option value="Sick" {% if leave.leave_type == 'Sick' %}selected{% endif %}>
+                            Sick ({{ remaining_leaves.sick if remaining_leaves else 0 }} left)
+                        </option>
+                        <option value="Paid" {% if leave.leave_type == 'Paid' %}selected{% endif %}>
+                            Paid ({{ remaining_leaves.paid if remaining_leaves else 0 }} left)
+                        </option>
+                        <option value="Casual" {% if leave.leave_type == 'Casual' %}selected{% endif %}>
+                            Casual ({{ remaining_leaves.casual if remaining_leaves else 0 }} left)
+                        </option>
+                    </select>
+                </div>
+                
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">From</label>
+                        <input type="date" name="start_d" x-model="startDate" value="{{ leave.start_date }}" required
+                               class="form-input w-full rounded-lg border-gray-300">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">To</label>
+                        <input type="date" name="end_d" x-model="endDate" value="{{ leave.end_date }}" required
+                               class="form-input w-full rounded-lg border-gray-300">
+                    </div>
+                </div>
+                
+                <div x-show="startDate && endDate" class="text-sm text-gray-600 bg-gray-50 p-2 rounded">
+                    <span x-text="startDate && endDate ? 'Duration: ' + (Math.ceil((new Date(endDate) - new Date(startDate)) / (1000 * 60 * 60 * 24)) + 1) + ' day(s)' : ''"></span>
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Reason</label>
+                    <textarea name="description" rows="3" required
+                              class="form-textarea w-full rounded-lg border-gray-300">{{ leave.description }}</textarea>
+                </div>
+                
+                <div x-show="showDocUpload" x-transition class="bg-blue-50 p-3 rounded-lg">
+                    <label class="block text-sm font-medium text-blue-800 mb-2">Medical Certificate</label>
+                    <input type="file" name="doc" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" 
+                           class="form-input w-full text-sm rounded-lg border-blue-300">
+                    <p class="text-xs text-blue-600 mt-1">Required for sick leave > 2 days</p>
+                </div>
+                
+                <div class="flex space-x-4">
+                    <button type="submit" 
+                            class="flex-1 bg-purple-600 hover:bg-purple-700 text-white font-medium py-3 px-4 rounded-lg transition-colors">
+                        <i class="fas fa-save mr-2"></i>Save Changes
+                    </button>
+                    <a href="{{ url_for('dashboard') }}" 
+                       class="flex-1 bg-gray-500 hover:bg-gray-600 text-white font-medium py-3 px-4 rounded-lg transition-colors text-center">
+                        <i class="fas fa-times mr-2"></i>Cancel
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+
+<style>
+.form-input, .form-select, .form-textarea {
+    display: block;
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid #d1d5db;
+    border-radius: 0.5rem;
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+    transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+}
+
+.form-input:focus, .form-select:focus, .form-textarea:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.transition-colors {
+    transition: background-color 0.15s ease-in-out, border-color 0.15s ease-in-out, color 0.15s ease-in-out;
+}
+</style>
+
+{% endblock %}
