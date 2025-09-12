@@ -6,16 +6,13 @@
     <div class="flex items-center justify-between">
         <div>
             <h1 class="text-2xl font-bold">{{ user }} ({{ role }})</h1>
-            <p class="text-blue-100 mt-1">Employee Dashboard</p>
+            <p class="text-blue-100 mt-1">Employee Dashboard - Complete Management System</p>
         </div>
         <div class="flex items-center space-x-4">
             <div class="bg-white bg-opacity-20 rounded-lg p-3">
                 <p class="text-sm opacity-90">Today</p>
                 <p class="text-lg font-semibold">{{ today }}</p>
             </div>
-            <button onclick="window.history.back()" class="bg-white bg-opacity-20 hover:bg-opacity-30 px-4 py-2 rounded-lg transition-colors">
-                <i class="fas fa-arrow-left mr-2"></i>Back
-            </button>
             <a href="{{ url_for('logout') }}" class="bg-white bg-opacity-20 hover:bg-opacity-30 px-4 py-2 rounded-lg transition-colors">
                 <i class="fas fa-sign-out-alt mr-2"></i>Logout
             </a>
@@ -55,7 +52,7 @@
     <div class="bg-blue-500 rounded-xl p-4 text-white">
         <div class="flex items-center justify-between">
             <div>
-                <h3 class="text-sm font-medium opacity-90">Paid Leave</h3>
+                <h3 class="text-sm font-medium opacity-90">Vacation/Personal</h3>
                 <h3 class="text-3xl font-bold">{{ remaining_leaves.paid if remaining_leaves else 18 }}</h3>
                 <p class="text-blue-100 text-sm">days available</p>
             </div>
@@ -68,7 +65,7 @@
     <div class="bg-purple-500 rounded-xl p-4 text-white">
         <div class="flex items-center justify-between">
             <div>
-                <h3 class="text-sm font-medium opacity-90">Casual Leave</h3>
+                <h3 class="text-sm font-medium opacity-90">Casual/Other</h3>
                 <h3 class="text-3xl font-bold">{{ remaining_leaves.casual if remaining_leaves else 6 }}</h3>
                 <p class="text-purple-100 text-sm">days available</p>
             </div>
@@ -79,48 +76,29 @@
     </div>
 </div>
 
-<!-- Main Container with Alpine.js -->
-<div x-data="{
-    activeTab: '{{ request.args.get('activeTab', 'timesheet') }}',
-    teamTab: '{{ request.args.get('teamTab', 'work') }}'
-}" class="bg-white rounded-lg shadow-sm border border-gray-200 mb-6">
-    <!-- Tab Navigation -->
+<!-- Main Container with Tab Navigation -->
+<div class="bg-white rounded-lg shadow-sm border border-gray-200 mb-6">
     <div class="border-b border-gray-200">
         <nav class="flex space-x-8 px-6" aria-label="Tabs">
-            <button 
-                :class="activeTab === 'timesheet' ? 'text-blue-600 border-blue-600' : 'text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300'"
-                class="py-4 px-1 border-b-2 font-medium text-sm transition-colors"
-                @click="activeTab = 'timesheet'"
-            >
-                <i class="fas fa-clock mr-2"></i>Timesheet
+            <button class="tab-button active py-4 px-1 border-b-2 font-medium text-sm text-blue-600 border-blue-600" data-tab="timesheet">
+                <i class="fas fa-clock mr-2"></i>Timesheet Management
             </button>
-            <button 
-                :class="activeTab === 'leave' ? 'text-blue-600 border-blue-600' : 'text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300'"
-                class="py-4 px-1 border-b-2 font-medium text-sm transition-colors"
-                @click="activeTab = 'leave'"
-            >
+            <button class="tab-button py-4 px-1 border-b-2 font-medium text-sm text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300" data-tab="leave">
                 <i class="fas fa-calendar-alt mr-2"></i>Leave Management
             </button>
-            <button 
-                :class="activeTab === 'work' ? 'text-blue-600 border-blue-600' : 'text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300'"
-                class="py-4 px-1 border-b-2 font-medium text-sm transition-colors"
-                @click="activeTab = 'work'"
-            >
-                <i class="fas fa-tasks mr-2"></i>Work Assignment
+            <button class="tab-button py-4 px-1 border-b-2 font-medium text-sm text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300" data-tab="work">
+                <i class="fas fa-tasks mr-2"></i>Work Assignments
+                {% if assigned_work and assigned_work|length > 0 %}
+                <span class="ml-2 bg-orange-500 text-white text-xs rounded-full px-2 py-1">
+                    {{ assigned_work|length }}
+                </span>
+                {% endif %}
             </button>
-            <button 
-                :class="activeTab === 'history' ? 'text-blue-600 border-blue-600' : 'text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300'"
-                class="py-4 px-1 border-b-2 font-medium text-sm transition-colors"
-                @click="activeTab = 'history'"
-            >
-                <i class="fas fa-history mr-2"></i>My History
+            <button class="tab-button py-4 px-1 border-b-2 font-medium text-sm text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300" data-tab="history">
+                <i class="fas fa-history mr-2"></i>Complete History
             </button>
             {% if is_rm %}
-            <button 
-                :class="activeTab === 'team-approvals' ? 'text-blue-600 border-blue-600' : 'text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300'"
-                class="py-4 px-1 border-b-2 font-medium text-sm transition-colors"
-                @click="activeTab = 'team-approvals'"
-            >
+            <button class="tab-button py-4 px-1 border-b-2 font-medium text-sm text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300" data-tab="team-approvals">
                 <i class="fas fa-users-check mr-2"></i>Team Approvals
                 {% if pending_timesheets or pending_leaves %}
                 <span class="ml-2 bg-red-500 text-white text-xs rounded-full px-2 py-1">
@@ -128,11 +106,7 @@
                 </span>
                 {% endif %}
             </button>
-            <button 
-                :class="activeTab === 'team-history' ? 'text-blue-600 border-blue-600' : 'text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300'"
-                class="py-4 px-1 border-b-2 font-medium text-sm transition-colors"
-                @click="activeTab = 'team-history'"
-            >
+            <button class="tab-button py-4 px-1 border-b-2 font-medium text-sm text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300" data-tab="team-history">
                 <i class="fas fa-users-cog mr-2"></i>Team History
             </button>
             {% endif %}
@@ -141,23 +115,22 @@
 
     <!-- Tab Content -->
     <div class="p-6">
-        <!-- Timesheet Tab -->
-        <div x-show="activeTab === 'timesheet'" x-transition>
+        <!-- Timesheet Management Tab -->
+        <div id="timesheet" class="tab-content">
             <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <!-- Main Content Area -->
+                <!-- Main Timesheet Form -->
                 <div class="lg:col-span-2 space-y-6">
-                    <!-- Timesheet Submission -->
                     <div class="bg-white rounded-lg shadow-sm border border-gray-200">
                         <div class="px-6 py-4 border-b border-gray-200">
                             <h2 class="text-lg font-semibold text-gray-800">
-                                <i class="fas fa-clock text-blue-600 mr-2"></i>Submit Today's Timesheet
+                                <i class="fas fa-clock text-blue-600 mr-2"></i>Submit Daily Timesheet
                             </h2>
                         </div>
                         <div class="p-6">
                             <form method="post" action="{{ url_for('submit_timesheet_action') }}" class="space-y-4">
                                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div>
-                                        <label class="block text-sm font-medium text-gray-700 mb-2">Project</label>
+                                        <label class="block text-sm font-medium text-gray-700 mb-2">Project *</label>
                                         <select name="project" required class="form-select w-full rounded-lg border-gray-300">
                                             <option value="">Select Project</option>
                                             {% if proj_list %}
@@ -169,21 +142,22 @@
                                     </div>
                                     
                                     <div>
-                                        <label class="block text-sm font-medium text-gray-700 mb-2">Date</label>
-                                        <input type="date" name="work_date" value="{{ today }}" required
+                                        <label class="block text-sm font-medium text-gray-700 mb-2">Date *</label>
+                                        <input type="date" name="work_date" value="{{ today }}" 
+                                               max="{{ today }}" required
                                                class="form-input w-full rounded-lg border-gray-300">
                                     </div>
                                 </div>
                                 
                                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                                     <div>
-                                        <label class="block text-sm font-medium text-gray-700 mb-2">Start Time</label>
+                                        <label class="block text-sm font-medium text-gray-700 mb-2">Start Time *</label>
                                         <input type="time" name="start_t" required
                                                class="form-input w-full rounded-lg border-gray-300">
                                     </div>
                                     
                                     <div>
-                                        <label class="block text-sm font-medium text-gray-700 mb-2">End Time</label>
+                                        <label class="block text-sm font-medium text-gray-700 mb-2">End Time *</label>
                                         <input type="time" name="end_t" required
                                                class="form-input w-full rounded-lg border-gray-300">
                                     </div>
@@ -196,33 +170,32 @@
                                 </div>
                                 
                                 <div>
-                                    <label class="block text-sm font-medium text-gray-700 mb-2">Work Description</label>
-                                    <textarea name="desc" rows="3" placeholder="Describe the work completed today..." required
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Work Description *</label>
+                                    <textarea name="desc" rows="4" placeholder="Describe the work completed today in detail..." required
                                               class="form-textarea w-full rounded-lg border-gray-300"></textarea>
                                 </div>
                                 
                                 <button type="submit" 
                                         class="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-4 rounded-lg transition-colors">
-                                    <i class="fas fa-paper-plane mr-2"></i>Submit
+                                    <i class="fas fa-paper-plane mr-2"></i>Submit Timesheet
                                 </button>
                             </form>
                         </div>
                     </div>
                 </div>
 
-                <!-- Right Sidebar -->
+                <!-- Timesheet Sidebar -->
                 <div class="space-y-6">
-                    <!-- Recent Activity -->
                     <div class="bg-white rounded-lg shadow-sm border border-gray-200">
                         <div class="px-6 py-4 border-b border-gray-200">
                             <h2 class="text-lg font-semibold text-gray-800">
-                                <i class="fas fa-bell text-yellow-600 mr-2"></i>Recent Activity
+                                <i class="fas fa-bell text-yellow-600 mr-2"></i>Recent Timesheets
                             </h2>
                         </div>
                         <div class="p-6">
                             <div class="space-y-3">
                                 {% if work_history_rows %}
-                                    {% for entry in work_history_rows[:3] %}
+                                    {% for entry in work_history_rows[:5] %}
                                     <div class="flex items-center space-x-3 text-sm">
                                         <div class="flex-shrink-0">
                                             {% if entry.rm_status == 'Approved' %}
@@ -234,55 +207,23 @@
                                             {% endif %}
                                         </div>
                                         <div class="flex-1">
-                                            <p class="text-gray-800">Timesheet {{ entry.rm_status or 'Submitted' }}</p>
-                                            <p class="text-gray-500 text-xs">{{ entry.work_date|dateformat or 'N/A' }}</p>
+                                            <p class="text-gray-800">{{ entry.work_date|dateformat or 'N/A' }} - {{ entry.hours or 0 }}h</p>
+                                            <p class="text-gray-500 text-xs">{{ entry.rm_status or 'Submitted' }}</p>
+                                            {% if entry.get('rm_rejection_reason') and entry.rm_status == 'Rejected' %}
+                                            <p class="text-xs text-red-600 mt-1">
+                                                <i class="fas fa-exclamation-triangle mr-1"></i>{{ entry.rm_rejection_reason|truncate(30) }}
+                                            </p>
+                                            {% endif %}
                                         </div>
                                     </div>
                                     {% endfor %}
                                 {% else %}
                                     <div class="text-center py-4">
-                                        <i class="fas fa-bell text-2xl text-gray-300 mb-2"></i>
-                                        <p class="text-gray-500 text-sm">No recent activity</p>
+                                        <i class="fas fa-clock text-2xl text-gray-300 mb-2"></i>
+                                        <p class="text-gray-500 text-sm">No timesheets submitted</p>
                                     </div>
                                 {% endif %}
                             </div>
-                        </div>
-                    </div>
-
-                    <!-- Quick Actions -->
-                    <div class="bg-white rounded-lg shadow-sm border border-gray-200">
-                        <div class="px-6 py-4 border-b border-gray-200">
-                            <h2 class="text-lg font-semibold text-gray-800">
-                                <i class="fas fa-bolt text-yellow-600 mr-2"></i>Quick Actions
-                            </h2>
-                        </div>
-                        <div class="p-6 space-y-3">
-                            <button onclick="downloadReport()" 
-                                    class="w-full flex items-center justify-between p-3 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors">
-                                <div class="flex items-center">
-                                    <i class="fas fa-download text-gray-600 mr-3"></i>
-                                    <span class="text-sm font-medium text-gray-700">Download Report</span>
-                                </div>
-                                <i class="fas fa-chevron-right text-gray-400"></i>
-                            </button>
-                            
-                            <button onclick="changePassword()" 
-                                    class="w-full flex items-center justify-between p-3 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors">
-                                <div class="flex items-center">
-                                    <i class="fas fa-lock text-gray-600 mr-3"></i>
-                                    <span class="text-sm font-medium text-gray-700">Change Password</span>
-                                </div>
-                                <i class="fas fa-chevron-right text-gray-400"></i>
-                            </button>
-                            
-                            <button onclick="viewProfile()" 
-                                    class="w-full flex items-center justify-between p-3 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors">
-                                <div class="flex items-center">
-                                    <i class="fas fa-user text-gray-600 mr-3"></i>
-                                    <span class="text-sm font-medium text-gray-700">View Profile</span>
-                                </div>
-                                <i class="fas fa-chevron-right text-gray-400"></i>
-                            </button>
                         </div>
                     </div>
                 </div>
@@ -290,57 +231,59 @@
         </div>
 
         <!-- Leave Management Tab -->
-        <div x-show="activeTab === 'leave'" x-cloak x-transition>
-            <div class="max-w-md mx-auto">
-                <!-- Leave Request Form -->
+        <div id="leave" class="tab-content hidden">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <div class="bg-white rounded-lg shadow-sm border border-gray-200">
                     <div class="px-6 py-4 border-b border-gray-200">
                         <h2 class="text-lg font-semibold text-gray-800">
-                            <i class="fas fa-calendar-plus text-purple-600 mr-2"></i>Request Leave
+                            <i class="fas fa-calendar-plus text-purple-600 mr-2"></i>Request New Leave
                         </h2>
                     </div>
                     <div class="p-6">
                         <form method="post" action="{{ url_for('request_leave_action') }}" enctype="multipart/form-data" 
                               x-data="{ leaveType: '', showDocUpload: false, startDate: '', endDate: '' }" class="space-y-4">
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">Leave Type</label>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Leave Type *</label>
                                 <select name="leave_type" x-model="leaveType" required
                                         @change="showDocUpload = (leaveType === 'Sick')"
                                         class="form-select w-full rounded-lg border-gray-300">
                                     <option value="">Select type</option>
-                                    <option value="Sick">Sick ({{ remaining_leaves.sick if remaining_leaves else 0 }} left)</option>
-                                    <option value="Vacation">Vacation ({{ remaining_leaves.paid if remaining_leaves else 0 }} left)</option>
-                                    <option value="Personal">Personal ({{ remaining_leaves.paid if remaining_leaves else 0 }} left)</option>
-                                    <option value="Casual">Casual ({{ remaining_leaves.casual if remaining_leaves else 0 }} left)</option>
-                                    <option value="Other">Other ({{ remaining_leaves.casual if remaining_leaves else 0 }} left)</option>
+                                    <option value="Sick">Sick Leave ({{ remaining_leaves.sick if remaining_leaves else 0 }} left)</option>
+                                    <option value="Vacation">Vacation Leave ({{ remaining_leaves.paid if remaining_leaves else 0 }} left)</option>
+                                    <option value="Personal">Personal Leave ({{ remaining_leaves.paid if remaining_leaves else 0 }} left)</option>
+                                    <option value="Casual">Casual Leave ({{ remaining_leaves.casual if remaining_leaves else 0 }} left)</option>
+                                    <option value="Other">Other Leave ({{ remaining_leaves.casual if remaining_leaves else 0 }} left)</option>
                                 </select>
                             </div>
                             
                             <div class="grid grid-cols-2 gap-3">
                                 <div>
-                                    <label class="block text-sm font-medium text-gray-700 mb-2">From</label>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">From *</label>
                                     <input type="date" name="start_d" x-model="startDate" required
                                            class="form-input w-full rounded-lg border-gray-300">
                                 </div>
                                 <div>
-                                    <label class="block text-sm font-medium text-gray-700 mb-2">To</label>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">To *</label>
                                     <input type="date" name="end_d" x-model="endDate" required
                                            class="form-input w-full rounded-lg border-gray-300">
                                 </div>
                             </div>
                             
-                            <div x-show="startDate && endDate" class="text-sm text-gray-600 bg-gray-50 p-2 rounded">
+                            <div x-show="startDate && endDate" class="text-sm text-gray-600 bg-gray-50 p-3 rounded">
+                                <i class="fas fa-info-circle mr-1"></i>
                                 <span x-text="startDate && endDate ? 'Duration: ' + (Math.ceil((new Date(endDate) - new Date(startDate)) / (1000 * 60 * 60 * 24)) + 1) + ' day(s)' : ''"></span>
                             </div>
                             
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">Reason</label>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Reason *</label>
                                 <textarea name="description" rows="3" placeholder="Brief reason for leave..." required
                                           class="form-textarea w-full rounded-lg border-gray-300"></textarea>
                             </div>
                             
-                            <div x-show="showDocUpload" x-transition class="bg-blue-50 p-3 rounded-lg">
-                                <label class="block text-sm font-medium text-blue-800 mb-2">Medical Certificate</label>
+                            <div x-show="showDocUpload" x-transition class="bg-blue-50 p-3 rounded-lg border border-blue-200">
+                                <label class="block text-sm font-medium text-blue-800 mb-2">
+                                    <i class="fas fa-file-medical mr-1"></i>Medical Certificate
+                                </label>
                                 <input type="file" name="doc" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" 
                                        class="form-input w-full text-sm rounded-lg border-blue-300">
                                 <p class="text-xs text-blue-600 mt-1">Required for sick leave > 2 days</p>
@@ -348,229 +291,484 @@
                             
                             <button type="submit" 
                                     class="w-full bg-purple-600 hover:bg-purple-700 text-white font-medium py-3 px-4 rounded-lg transition-colors">
-                                <i class="fas fa-paper-plane mr-2"></i>Submit Request
+                                <i class="fas fa-paper-plane mr-2"></i>Submit Leave Request
                             </button>
                         </form>
                     </div>
                 </div>
-            </div>
-        </div>
 
-        <!-- Work Assignment Tab -->
-        <div x-show="activeTab === 'work'" x-cloak x-transition>
-            <div class="bg-white rounded-lg shadow-sm border border-gray-200">
-                <div class="px-6 py-4 border-b border-gray-200">
-                    <h2 class="text-lg font-semibold text-gray-800">
-                        <i class="fas fa-tasks text-orange-600 mr-2"></i>Assigned Work
-                    </h2>
-                </div>
-                <div class="p-6">
-                    {% if assigned_work %}
-                        <div class="overflow-x-auto">
-                            <table class="min-w-full divide-y divide-gray-200">
-                                <thead class="bg-gray-50">
-                                    <tr>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Assigned By</th>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Project</th>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Task Description</th>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Start Date</th>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Due Date</th>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                                    </tr>
-                                </thead>
-                                <tbody class="bg-white divide-y divide-gray-200">
-                                    {% for work in assigned_work %}
-                                    <tr class="hover:bg-gray-50 transition-colors">
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                                            #{{ work.id }}
-                                        </td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-blue-600 font-medium">
-                                            {{ work.assigned_by }}
-                                        </td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
-                                                <i class="fas fa-project-diagram mr-1"></i>
-                                                {{ work.project_name or 'General' }}
-                                            </span>
-                                        </td>
-                                        <td class="px-6 py-4 text-sm text-gray-900 max-w-xs">
-                                            <div class="truncate" title="{{ work.task_desc }}">
-                                                {{ work.task_desc }}
-                                            </div>
-                                            {% if work.task_desc|length > 50 %}
-                                                <span class="text-xs text-gray-500 cursor-pointer" onclick="this.previousElementSibling.classList.toggle('truncate')">
-                                                    Click to expand
-                                                </span>
-                                            {% endif %}
-                                        </td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                            {% if work.start_date %}
-                                                <div class="flex items-center">
-                                                    <i class="fas fa-calendar-plus text-green-500 mr-1"></i>
-                                                    {{ work.start_date|dateformat }}
-                                                </div>
-                                            {% else %}
-                                                <span class="text-gray-400">Not set</span>
-                                            {% endif %}
-                                        </td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                            {% if work.due_date %}
-                                                <div class="flex items-center">
-                                                    <i class="fas fa-calendar-times text-red-500 mr-1"></i>
-                                                    {{ work.due_date|dateformat }}
-                                                </div>
-                                            {% else %}
-                                                <span class="text-gray-400">No deadline</span>
-                                            {% endif %}
-                                        </td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm">
-                                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                                                <i class="fas fa-tasks mr-1"></i>Active
-                                            </span>
-                                        </td>
-                                    </tr>
-                                    {% endfor %}
-                                </tbody>
-                            </table>
-                        </div>
-                        
-                        <!-- Summary Statistics -->
-                        <div class="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
-                            <div class="bg-blue-50 rounded-lg p-4">
-                                <div class="flex items-center">
-                                    <div class="flex-shrink-0">
-                                        <i class="fas fa-tasks text-blue-600 text-lg"></i>
-                                    </div>
-                                    <div class="ml-3">
-                                        <p class="text-sm font-medium text-blue-800">Total Tasks</p>
-                                        <p class="text-lg font-semibold text-blue-900">{{ assigned_work|length }}</p>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <div class="bg-green-50 rounded-lg p-4">
-                                <div class="flex items-center">
-                                    <div class="flex-shrink-0">
-                                        <i class="fas fa-check-circle text-green-600 text-lg"></i>
-                                    </div>
-                                    <div class="ml-3">
-                                        <p class="text-sm font-medium text-green-800">Active Tasks</p>
-                                        <p class="text-lg font-semibold text-green-900">{{ assigned_work|length }}</p>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <div class="bg-orange-50 rounded-lg p-4">
-                                <div class="flex items-center">
-                                    <div class="flex-shrink-0">
-                                        <i class="fas fa-clock text-orange-600 text-lg"></i>
-                                    </div>
-                                    <div class="ml-3">
-                                        <p class="text-sm font-medium text-orange-800">Due Soon</p>
-                                        <p class="text-lg font-semibold text-orange-900">0</p>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    {% else %}
-                        <div class="text-center py-12">
-                            <i class="fas fa-clipboard-list text-4xl text-gray-300 mb-4"></i>
-                            <h3 class="text-lg font-medium text-gray-800 mb-2">No Work Assignments</h3>
-                            <p class="text-gray-500">You don't have any assigned tasks at the moment.</p>
-                        </div>
-                    {% endif %}
-                </div>
-            </div>
-
-            {% if is_rm %}
-            <!-- RM Work Assignment Form - Shows ALL team members -->
-            <div class="mt-8 bg-gradient-to-br from-green-50 to-emerald-100 rounded-xl p-6">
-                <h3 class="text-xl font-bold text-gray-800 mb-6 flex items-center">
-                    <i class="fas fa-user-plus text-green-600 mr-3"></i>
-                    Assign Work to Team ({{ employees|length }} members available)
-                </h3>
-                
-                <form method="post" action="{{ url_for('rm_assign_work_action') }}" class="space-y-4">
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-sm font-semibold text-gray-700 mb-2">
-                                Assign to Team Members 
-                                <span class="text-xs text-gray-500">({{ employees|length }} available)</span>
-                            </label>
-                            <div class="relative">
-                                <select name="employee_username" multiple class="form-select w-full rounded-lg border-gray-300 h-40" required>
-                                    {% if employees %}
-                                        {% for employee in employees %}
-                                            <option value="{{ employee.username }}" title="{{ employee.role }}">
-                                                {{ employee.name or employee.username }} ({{ employee.username }})
-                                                {% if employee.role %} - {{ employee.role }}{% endif %}
-                                            </option>
-                                        {% endfor %}
-                                    {% else %}
-                                        <option value="" disabled>No team members found</option>
-                                    {% endif %}
-                                </select>
-                                <p class="text-xs text-gray-500 mt-1">
-                                    <i class="fas fa-info-circle mr-1"></i>
-                                    Hold Ctrl/Cmd to select multiple employees. Showing all team members in your hierarchy.
-                                </p>
-                            </div>
-                        </div>
-                        
-                        <div>
-                            <label class="block text-sm font-semibold text-gray-700 mb-2">Project</label>
-                            <select name="project_name" class="form-select w-full rounded-lg border-gray-300">
-                                <option value="">Select Project (Optional)</option>
-                                {% for project in proj_list %}
-                                    <option value="{{ project }}">{{ project }}</option>
-                                {% endfor %}
-                            </select>
-                        </div>
-                    </div>
-                    
-                    <div class="grid grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-sm font-semibold text-gray-700 mb-2">Due Date</label>
-                            <input type="date" name="due_date" class="form-input w-full rounded-lg border-gray-300">
-                        </div>
-                        
-                        <div>
-                            <label class="block text-sm font-semibold text-gray-700 mb-2">Priority</label>
-                            <select name="priority" class="form-select w-full rounded-lg border-gray-300">
-                                <option value="Low">Low</option>
-                                <option value="Medium" selected>Medium</option>
-                                <option value="High">High</option>
-                            </select>
-                        </div>
-                    </div>
-                    
-                    <div>
-                        <label class="block text-sm font-semibold text-gray-700 mb-2">Task Description</label>
-                        <textarea name="task_desc" rows="3" placeholder="Describe the task..." required
-                                  class="form-textarea w-full rounded-lg border-gray-300"></textarea>
-                    </div>
-                    
-                    <div class="flex justify-end">
-                        <button type="submit" 
-                                class="bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-6 rounded-lg">
-                            <i class="fas fa-user-plus mr-2"></i>Assign Work to Selected Members
-                        </button>
-                    </div>
-                </form>
-            </div>
-            {% endif %}
-        </div>
-
-        <!-- My History Tab -->
-        <div x-show="activeTab === 'history'" x-cloak x-transition>
-            <div class="space-y-6">
-                <!-- Work History Table -->
-                {% if work_history_rows %}
+                <!-- Recent Leave Requests -->
                 <div class="bg-white rounded-lg shadow-sm border border-gray-200">
                     <div class="px-6 py-4 border-b border-gray-200">
                         <h2 class="text-lg font-semibold text-gray-800">
-                            <i class="fas fa-history text-green-600 mr-2"></i>My Work History
+                            <i class="fas fa-history text-indigo-600 mr-2"></i>Recent Leave Requests
+                        </h2>
+                    </div>
+                    <div class="p-6">
+                        <div class="space-y-3">
+                            {% if leave_rows %}
+                                {% for leave in leave_rows[:5] %}
+                                <div class="border border-gray-200 rounded-lg p-3">
+                                    <div class="flex justify-between items-start mb-2">
+                                        <div>
+                                            <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium
+                                                {% if leave.leave_type == 'Sick' %}bg-green-100 text-green-800
+                                                {% elif leave.leave_type == 'Vacation' %}bg-blue-100 text-blue-800
+                                                {% elif leave.leave_type == 'Personal' %}bg-indigo-100 text-indigo-800
+                                                {% elif leave.leave_type == 'Casual' %}bg-purple-100 text-purple-800
+                                                {% elif leave.leave_type == 'Other' %}bg-gray-100 text-gray-800
+                                                {% endif %}">
+                                                {{ leave.leave_type }}
+                                            </span>
+                                            <p class="text-xs text-gray-600 mt-1">{{ leave.start_date|dateformat }} to {{ leave.end_date|dateformat }}</p>
+                                        </div>
+                                        {% if leave.rm_status == 'Pending' %}
+                                            <span class="inline-flex px-2 py-1 text-xs font-semibold bg-yellow-100 text-yellow-800 rounded-full">
+                                                <i class="fas fa-clock mr-1"></i>Pending
+                                            </span>
+                                        {% elif leave.rm_status == 'Approved' %}
+                                            <span class="inline-flex px-2 py-1 text-xs font-semibold bg-green-100 text-green-800 rounded-full">
+                                                <i class="fas fa-check mr-1"></i>Approved
+                                            </span>
+                                        {% elif leave.rm_status == 'Rejected' %}
+                                            <span class="inline-flex px-2 py-1 text-xs font-semibold bg-red-100 text-red-800 rounded-full">
+                                                <i class="fas fa-times mr-1"></i>Rejected
+                                            </span>
+                                        {% endif %}
+                                    </div>
+                                    <p class="text-xs text-gray-700">{{ leave.description|truncate(50) }}</p>
+                                    {% if leave.get('rm_rejection_reason') and leave.rm_status == 'Rejected' %}
+                                    <div class="mt-2 p-2 bg-red-50 border border-red-200 rounded">
+                                        <p class="text-xs text-red-700 font-medium">
+                                            <i class="fas fa-exclamation-triangle mr-1"></i>
+                                            <strong>Rejection:</strong> {{ leave.rm_rejection_reason }}
+                                        </p>
+                                    </div>
+                                    {% endif %}
+                                    {% if leave.rm_status == 'Rejected' %}
+                                    <div class="mt-2">
+                                        <a href="{{ url_for('edit_leave_form', leave_id=leave.id) }}" 
+                                           class="text-orange-600 hover:text-orange-800 text-xs">
+                                            <i class="fas fa-redo mr-1"></i>Resubmit
+                                        </a>
+                                    </div>
+                                    {% endif %}
+                                </div>
+                                {% endfor %}
+                            {% else %}
+                                <div class="text-center py-4">
+                                    <i class="fas fa-calendar-alt text-2xl text-gray-300 mb-2"></i>
+                                    <p class="text-gray-500 text-sm">No leave requests submitted</p>
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Work Assignments Tab -->
+        <div id="work" class="tab-content hidden">
+            <!-- Nested tabs for work assignment -->
+            <div class="mb-6">
+                <div class="border-b border-gray-200">
+                    <nav class="flex space-x-8" aria-label="Work Tabs">
+                        <button class="work-tab-button active py-2 px-1 border-b-2 font-medium text-sm text-orange-600 border-orange-600" data-work-tab="assigned-to-me">
+                            <i class="fas fa-inbox mr-2"></i>Assigned to Me
+                            {% if assigned_work and assigned_work|length > 0 %}
+                            <span class="ml-2 bg-orange-100 text-orange-800 text-xs px-2 py-1 rounded-full">
+                                {{ assigned_work|length }}
+                            </span>
+                            {% endif %}
+                        </button>
+                        
+                        {% if is_rm %}
+                        <button class="work-tab-button py-2 px-1 border-b-2 font-medium text-sm text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300" data-work-tab="assign-work">
+                            <i class="fas fa-user-plus mr-2"></i>Assign New Work
+                        </button>
+                        
+                        <button class="work-tab-button py-2 px-1 border-b-2 font-medium text-sm text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300" data-work-tab="my-assignments">
+                            <i class="fas fa-tasks mr-2"></i>My Assignments
+                            {% if my_assigned_work and my_assigned_work|length > 0 %}
+                            <span class="ml-2 bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full">
+                                {{ my_assigned_work|length }}
+                            </span>
+                            {% endif %}
+                        </button>
+                        {% endif %}
+                    </nav>
+                </div>
+            </div>
+
+            <!-- Work Tab Content -->
+            <div class="space-y-6">
+                
+                <!-- Assigned to Me Tab Content -->
+                <div id="assigned-to-me" class="work-tab-content">
+                    <div class="bg-white rounded-lg shadow-sm border border-gray-200">
+                        <div class="px-6 py-4 border-b border-gray-200">
+                            <h2 class="text-lg font-semibold text-gray-800">
+                                <i class="fas fa-tasks text-orange-600 mr-2"></i>My Assigned Work
+                                {% if assigned_work and assigned_work|length > 0 %}
+                                <span class="ml-2 bg-orange-100 text-orange-800 text-sm font-medium px-2 py-1 rounded-full">
+                                    {{ assigned_work|length }} active
+                                </span>
+                                {% endif %}
+                            </h2>
+                        </div>
+                        <div class="p-6">
+                            {% if assigned_work and assigned_work|length > 0 %}
+                                <div class="overflow-x-auto">
+                                    <table class="min-w-full divide-y divide-gray-200">
+                                        <thead class="bg-gray-50">
+                                            <tr>
+                                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
+                                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Assigned By</th>
+                                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Project</th>
+                                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Task Description</th>
+                                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Start Date</th>
+                                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Due Date</th>
+                                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody class="bg-white divide-y divide-gray-200">
+                                            {% for work in assigned_work %}
+                                            <tr class="hover:bg-gray-50 transition-colors">
+                                                <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+                                                    #{{ work.id or loop.index }}
+                                                </td>
+                                                <td class="px-4 py-4 whitespace-nowrap text-sm text-blue-600 font-medium">
+                                                    {{ work.assigned_by }}
+                                                </td>
+                                                <td class="px-4 py-4 whitespace-nowrap text-sm">
+                                                    <div class="flex items-center">
+                                                        <i class="fas fa-project-diagram text-orange-500 mr-2"></i>
+                                                        <span class="text-gray-900">{{ work.project_name or 'General Task' }}</span>
+                                                    </div>
+                                                </td>
+                                                <td class="px-4 py-4 text-sm text-gray-900 max-w-md">
+                                                    <div class="truncate" title="{{ work.task_desc }}">
+                                                        {{ work.task_desc }}
+                                                    </div>
+                                                    {% if work.task_desc|length > 50 %}
+                                                        <span class="text-xs text-gray-500 cursor-pointer" onclick="this.previousElementSibling.classList.toggle('truncate')">
+                                                            Click to expand
+                                                        </span>
+                                                    {% endif %}
+                                                </td>
+                                                <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                    <div class="flex items-center">
+                                                        <i class="fas fa-calendar-plus text-green-500 mr-1"></i>
+                                                        {{ work.start_date|dateformat if work.start_date else 'Immediate' }}
+                                                    </div>
+                                                </td>
+                                                <td class="px-4 py-4 whitespace-nowrap text-sm">
+                                                    {% if work.due_date %}
+                                                        <div class="flex items-center">
+                                                            <i class="fas fa-calendar-times text-red-500 mr-1"></i>
+                                                            {{ work.due_date|dateformat }}
+                                                            {% if work.urgency_status == 'Overdue' %}
+                                                                <span class="ml-2 bg-red-100 text-red-800 text-xs px-2 py-1 rounded-full">
+                                                                    Overdue
+                                                                </span>
+                                                            {% elif work.urgency_status == 'Due Soon' %}
+                                                                <span class="ml-2 bg-yellow-100 text-yellow-800 text-xs px-2 py-1 rounded-full">
+                                                                    Due Soon
+                                                                </span>
+                                                            {% endif %}
+                                                        </div>
+                                                    {% else %}
+                                                        <span class="text-gray-400 text-xs">No deadline</span>
+                                                    {% endif %}
+                                                </td>
+                                                <td class="px-4 py-4 whitespace-nowrap text-sm">
+                                                    <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                                        <div class="w-2 h-2 bg-green-500 rounded-full mr-1"></div>
+                                                        Active
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                                
+                                <!-- Statistics Cards Below Table -->
+                                <div class="mt-6 grid grid-cols-3 gap-4">
+                                    <div class="bg-blue-50 rounded-lg p-4 border border-blue-200">
+                                        <div class="flex items-center">
+                                            <div class="flex-shrink-0">
+                                                <div class="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
+                                                    <i class="fas fa-tasks text-blue-600"></i>
+                                                </div>
+                                            </div>
+                                            <div class="ml-4">
+                                                <p class="text-sm font-medium text-blue-900">Total Tasks</p>
+                                                <p class="text-2xl font-bold text-blue-600">{{ assigned_work|length }}</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="bg-green-50 rounded-lg p-4 border border-green-200">
+                                        <div class="flex items-center">
+                                            <div class="flex-shrink-0">
+                                                <div class="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center">
+                                                    <i class="fas fa-check-circle text-green-600"></i>
+                                                </div>
+                                            </div>
+                                            <div class="ml-4">
+                                                <p class="text-sm font-medium text-green-900">Active Tasks</p>
+                                                <p class="text-2xl font-bold text-green-600">{{ assigned_work|length }}</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="bg-yellow-50 rounded-lg p-4 border border-yellow-200">
+                                        <div class="flex items-center">
+                                            <div class="flex-shrink-0">
+                                                <div class="w-8 h-8 bg-yellow-100 rounded-lg flex items-center justify-center">
+                                                    <i class="fas fa-clock text-yellow-600"></i>
+                                                </div>
+                                            </div>
+                                            <div class="ml-4">
+                                                <p class="text-sm font-medium text-yellow-900">Due Soon</p>
+                                                <p class="text-2xl font-bold text-yellow-600">
+                                                    {% set due_soon_count = 0 %}
+                                                    {% for work in assigned_work %}
+                                                        {% if work.urgency_status in ['Overdue', 'Due Soon'] %}
+                                                            {% set due_soon_count = due_soon_count + 1 %}
+                                                        {% endif %}
+                                                    {% endfor %}
+                                                    {{ due_soon_count }}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            {% else %}
+                                <div class="text-center py-12">
+                                    <i class="fas fa-clipboard-list text-4xl text-gray-300 mb-4"></i>
+                                    <h3 class="text-lg font-medium text-gray-800 mb-2">No Work Assignments</h3>
+                                    <p class="text-gray-500">You don't have any assigned tasks at the moment. Check back later or contact your supervisor.</p>
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Assign New Work Tab Content (for RMs) -->
+                {% if is_rm %}
+                <div id="assign-work" class="work-tab-content hidden">
+                    {% if employees and employees|length > 0 %}
+                    <div class="bg-gradient-to-br from-green-50 to-emerald-100 rounded-xl p-6">
+                        <h3 class="text-xl font-bold text-gray-800 mb-6 flex items-center">
+                            <i class="fas fa-user-plus text-green-600 mr-3"></i>
+                            Assign Work to Team Members
+                            <span class="ml-2 bg-green-100 text-green-800 text-sm font-medium px-2 py-1 rounded-full">
+                                {{ employees|length }} members available
+                            </span>
+                        </h3>
+                        
+                        <form method="post" action="{{ url_for('rm_assign_work_action') }}" class="space-y-4">
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-sm font-semibold text-gray-700 mb-2">
+                                        Assign to Team Members *
+                                        <span class="text-xs text-gray-500">({{ employees|length }} available)</span>
+                                    </label>
+                                    <div class="relative">
+                                        <select name="employee_username" multiple class="form-select w-full rounded-lg border-gray-300 h-40" required>
+                                            {% for employee in employees %}
+                                                <option value="{{ employee.username }}" title="{{ employee.role }}">
+                                                    {{ employee.name or employee.username }} ({{ employee.username }})
+                                                    {% if employee.role %} - {{ employee.role }}{% endif %}
+                                                </option>
+                                            {% endfor %}
+                                        </select>
+                                        <p class="text-xs text-gray-500 mt-1">
+                                            <i class="fas fa-info-circle mr-1"></i>
+                                            Hold Ctrl/Cmd to select multiple employees. Showing all team members in your hierarchy.
+                                        </p>
+                                    </div>
+                                </div>
+                                
+                                <div>
+                                    <label class="block text-sm font-semibold text-gray-700 mb-2">Project</label>
+                                    <select name="project_name" class="form-select w-full rounded-lg border-gray-300">
+                                        <option value="">Select Project (Optional)</option>
+                                        {% for project in proj_list %}
+                                            <option value="{{ project }}">{{ project }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-sm font-semibold text-gray-700 mb-2">Due Date</label>
+                                    <input type="date" name="due_date" class="form-input w-full rounded-lg border-gray-300">
+                                </div>
+                                
+                                <div>
+                                    <label class="block text-sm font-semibold text-gray-700 mb-2">Priority</label>
+                                    <select name="priority" class="form-select w-full rounded-lg border-gray-300">
+                                        <option value="Low">Low</option>
+                                        <option value="Medium" selected>Medium</option>
+                                        <option value="High">High</option>
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-2">Task Description *</label>
+                                <textarea name="task_desc" rows="3" placeholder="Describe the task..." required
+                                          class="form-textarea w-full rounded-lg border-gray-300"></textarea>
+                            </div>
+                            
+                            <div class="flex justify-end">
+                                <button type="submit" 
+                                        class="bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-6 rounded-lg">
+                                    <i class="fas fa-user-plus mr-2"></i>Assign Work to Selected Members
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                    {% else %}
+                    <div class="bg-yellow-50 rounded-lg p-6 border border-yellow-200">
+                        <div class="flex items-center">
+                            <i class="fas fa-info-circle text-yellow-600 text-2xl mr-3"></i>
+                            <div>
+                                <h3 class="text-lg font-medium text-yellow-800">No Team Members Found</h3>
+                                <p class="text-yellow-700 text-sm">You don't have any team members assigned to you yet. Contact your admin to set up your team hierarchy.</p>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+                
+                <!-- My Assignments Tab Content -->
+                <div id="my-assignments" class="work-tab-content hidden">
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-200">
+                        <div class="px-6 py-4 border-b border-gray-200">
+                            <h3 class="text-xl font-semibold text-gray-800 flex items-center">
+                                <i class="fas fa-clipboard-list text-blue-600 mr-2"></i>
+                                Work I Have Assigned
+                                {% if my_assigned_work and my_assigned_work|length > 0 %}
+                                <span class="ml-2 bg-blue-100 text-blue-800 text-sm font-medium px-2 py-1 rounded-full">
+                                    {{ my_assigned_work|length }} assignments
+                                </span>
+                                {% endif %}
+                            </h3>
+                            <p class="text-sm text-gray-600 mt-1">Track all work assignments you have made to your team members</p>
+                        </div>
+
+                        {% if my_assigned_work and my_assigned_work|length > 0 %}
+                        <div class="p-6">
+                            <div class="overflow-x-auto">
+                                <table class="min-w-full divide-y divide-gray-200">
+                                    <thead class="bg-gray-50">
+                                        <tr>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Employee</th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Task Description</th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Project</th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Assigned Date</th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Due Date</th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="bg-white divide-y divide-gray-200">
+                                        {% for assignment in my_assigned_work %}
+                                        <tr class="hover:bg-gray-50 transition-colors">
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm">
+                                                <div class="flex items-center">
+                                                    <div class="flex-shrink-0 h-8 w-8">
+                                                        <div class="h-8 w-8 rounded-full bg-blue-500 flex items-center justify-center">
+                                                            <span class="text-white text-xs font-medium">
+                                                                {{ (assignment.assigned_to_name or assignment.assigned_to)[:2].upper() }}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                    <div class="ml-3">
+                                                        <p class="text-sm font-medium text-gray-900">
+                                                            {{ assignment.assigned_to_name or assignment.assigned_to }}
+                                                        </p>
+                                                        <p class="text-sm text-gray-500">{{ assignment.assigned_to }}</p>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td class="px-6 py-4 text-sm text-gray-900">
+                                                <div class="max-w-xs truncate" title="{{ assignment.task_desc }}">
+                                                    {{ assignment.task_desc }}
+                                                </div>
+                                            </td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                                {% if assignment.project_name %}
+                                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                                        {{ assignment.project_name }}
+                                                    </span>
+                                                {% else %}
+                                                    <span class="text-gray-400">No project</span>
+                                                {% endif %}
+                                            </td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                                {% if assignment.assigned_on %}
+                                                    <div class="flex items-center">
+                                                        <i class="fas fa-calendar-plus text-green-500 mr-1"></i>
+                                                        {{ assignment.assigned_on|dateformat }}
+                                                    </div>
+                                                {% else %}
+                                                    <span class="text-gray-400">Not set</span>
+                                                {% endif %}
+                                            </td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                                {% if assignment.due_date %}
+                                                    <div class="flex items-center">
+                                                        <i class="fas fa-calendar-times text-red-500 mr-1"></i>
+                                                        {{ assignment.due_date|dateformat }}
+                                                    </div>
+                                                {% else %}
+                                                    <span class="text-gray-400">No deadline</span>
+                                                {% endif %}
+                                            </td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm">
+                                                {% if assignment.rm_status == 'Completed' %}
+                                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                                        <i class="fas fa-check mr-1"></i>Completed
+                                                    </span>
+                                                {% else %}
+                                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                                                        <i class="fas fa-clock mr-1"></i>Pending
+                                                    </span>
+                                                {% endif %}
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        {% else %}
+                        <div class="text-center py-12">
+                            <i class="fas fa-clipboard-list text-4xl text-gray-300 mb-4"></i>
+                            <h3 class="text-lg font-medium text-gray-800 mb-2">No Work Assigned Yet</h3>
+                            <p class="text-gray-500">You haven't assigned any work to your team members yet.</p>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Complete History Tab -->
+        <div id="history" class="tab-content hidden">
+            <div class="space-y-6">
+                <!-- Timesheet History -->
+                {% if work_history_cols and work_history_rows %}
+                <div class="bg-white rounded-lg shadow-sm border border-gray-200">
+                    <div class="px-6 py-4 border-b border-gray-200">
+                        <h2 class="text-lg font-semibold text-gray-800">
+                            <i class="fas fa-clock text-green-600 mr-2"></i>Timesheet History & Management
                         </h2>
                     </div>
                     <div class="p-6 overflow-x-auto">
@@ -614,6 +812,19 @@
                                             <span class="font-medium text-orange-600">{{ row[col] }}h</span>
                                         {% elif col == 'break_hours' %}
                                             {{ row[col] or 0 }}h
+                                        {% elif col == 'rm_rejection_reason' %}
+                                            {% if row[col] %}
+                                                <div class="max-w-xs">
+                                                    <div class="bg-red-50 border border-red-200 rounded p-2">
+                                                        <p class="text-xs text-red-700 font-medium">
+                                                            <i class="fas fa-exclamation-triangle mr-1"></i>
+                                                            {{ row[col] }}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            {% else %}
+                                                <span class="text-gray-400 text-xs">-</span>
+                                            {% endif %}
                                         {% else %}
                                             {{ row[col] or '' }}
                                         {% endif %}
@@ -631,13 +842,10 @@
                                                    class="text-blue-600 hover:text-blue-800 text-xs bg-blue-100 px-2 py-1 rounded">
                                                     <i class="fas fa-edit mr-1"></i>Edit
                                                 </a>
-                                                <form method="post" action="{{ url_for('delete_timesheet') }}" style="display:inline;">
-                                                    <input type="hidden" name="timesheet_id" value="{{ row.id }}">
-                                                    <button type="submit" class="text-red-600 hover:text-red-800 text-xs bg-red-100 px-2 py-1 rounded"
-                                                            onclick="return confirm('Are you sure you want to delete this timesheet?')">
-                                                        <i class="fas fa-trash mr-1"></i>Delete
-                                                    </button>
-                                                </form>
+                                                <button onclick="deleteTimesheet({{ row.id }})" 
+                                                        class="text-red-600 hover:text-red-800 text-xs bg-red-100 px-2 py-1 rounded">
+                                                    <i class="fas fa-trash mr-1"></i>Delete
+                                                </button>
                                             </div>
                                         {% else %}
                                             <span class="text-xs text-gray-400">No actions</span>
@@ -651,12 +859,12 @@
                 </div>
                 {% endif %}
 
-                <!-- Leave History Table -->
-                {% if leave_rows %}
+                <!-- Leave History -->
+                {% if leave_cols and leave_rows %}
                 <div class="bg-white rounded-lg shadow-sm border border-gray-200">
                     <div class="px-6 py-4 border-b border-gray-200">
                         <h2 class="text-lg font-semibold text-gray-800">
-                            <i class="fas fa-calendar-alt text-indigo-600 mr-2"></i>My Leave History
+                            <i class="fas fa-calendar-alt text-indigo-600 mr-2"></i>Leave History & Management
                         </h2>
                     </div>
                     <div class="p-6 overflow-x-auto">
@@ -679,9 +887,15 @@
                                     <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
                                         {% if col == 'rm_status' %}
                                             {% if row[col] == 'Approved' %}
-                                                <span class="inline-flex px-2 py-1 text-xs font-semibold bg-green-100 text-green-800 rounded-full">
-                                                    <i class="fas fa-check mr-1"></i>Approved
-                                                </span>
+                                                {% if row.get('cancellation_requested') %}
+                                                    <span class="inline-flex px-2 py-1 text-xs font-semibold bg-orange-100 text-orange-800 rounded-full">
+                                                        <i class="fas fa-hourglass-half mr-1"></i>Cancel Pending
+                                                    </span>
+                                                {% else %}
+                                                    <span class="inline-flex px-2 py-1 text-xs font-semibold bg-green-100 text-green-800 rounded-full">
+                                                        <i class="fas fa-check mr-1"></i>Approved
+                                                    </span>
+                                                {% endif %}
                                             {% elif row[col] == 'Pending' %}
                                                 <span class="inline-flex px-2 py-1 text-xs font-semibold bg-yellow-100 text-yellow-800 rounded-full">
                                                     <i class="fas fa-clock mr-1"></i>Pending
@@ -698,13 +912,28 @@
                                         {% elif col == 'leave_type' %}
                                             <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium
                                                 {% if row[col] == 'Sick' %}bg-green-100 text-green-800
-                                                {% elif row[col] in ['Vacation', 'Personal'] %}bg-blue-100 text-blue-800
+                                                {% elif row[col] == 'Vacation' %}bg-blue-100 text-blue-800
+                                                {% elif row[col] == 'Personal' %}bg-indigo-100 text-indigo-800
                                                 {% elif row[col] == 'Casual' %}bg-purple-100 text-purple-800
+                                                {% elif row[col] == 'Other' %}bg-gray-100 text-gray-800
                                                 {% endif %}">
                                                 {{ row[col] }}
                                             </span>
                                         {% elif col in ['start_date', 'end_date'] %}
                                             {{ row[col]|dateformat or '' }}
+                                        {% elif col == 'rm_rejection_reason' %}
+                                            {% if row[col] %}
+                                                <div class="max-w-xs">
+                                                    <div class="bg-red-50 border border-red-200 rounded p-2">
+                                                        <p class="text-xs text-red-700 font-medium">
+                                                            <i class="fas fa-exclamation-triangle mr-1"></i>
+                                                            {{ row[col] }}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            {% else %}
+                                                <span class="text-gray-400 text-xs">-</span>
+                                            {% endif %}
                                         {% else %}
                                             {{ row[col] or '' }}
                                         {% endif %}
@@ -719,38 +948,52 @@
                                         {% endif %}
                                     </td>
                                     <td class="px-4 py-4 whitespace-nowrap text-sm font-medium">
-                                        {% if row.rm_status == 'Rejected' %}
+                                        {% if row.rm_status == 'Pending' %}
                                             <a href="{{ url_for('edit_leave_form', leave_id=row.id) }}" 
-                                               class="text-blue-600 hover:text-blue-800 text-xs bg-blue-100 px-2 py-1 rounded">
-                                                <i class="fas fa-edit mr-1"></i>Resubmit
+                                               class="text-blue-600 hover:text-blue-800 text-xs mr-2">
+                                                <i class="fas fa-edit mr-1"></i>Edit
                                             </a>
-                                        {% elif row.rm_status == 'Pending' %}
-                                            <div class="flex space-x-2">
-                                                <a href="{{ url_for('edit_leave_form', leave_id=row.id) }}" 
-                                                   class="text-blue-600 hover:text-blue-800 text-xs bg-blue-100 px-2 py-1 rounded">
-                                                    <i class="fas fa-edit mr-1"></i>Edit
-                                                </a>
-                                                <form method="post" action="{{ url_for('withdraw_leave') }}" style="display:inline;">
-                                                    <input type="hidden" name="leave_id" value="{{ row.id }}">
-                                                    <button type="submit" class="text-red-600 hover:text-red-900 text-xs bg-red-100 px-2 py-1 rounded"
-                                                            onclick="return confirm('Are you sure you want to withdraw this leave request?')">
-                                                        <i class="fas fa-times mr-1"></i>Withdraw
-                                                    </button>
-                                                </form>
-                                            </div>
-                                        {% elif row.rm_status == 'Approved' and not row.cancellation_requested %}
-                                            <form method="post" action="{{ url_for('request_leave_cancellation') }}" style="display:inline;">
-                                                <input type="hidden" name="leave_id" value="{{ row.id }}">
-                                                <button type="submit" class="text-orange-600 hover:text-orange-900 text-xs bg-orange-100 px-2 py-1 rounded">
+                                            <form method="post" action="{{ url_for('cancel_leave_action') }}" style="display: inline;">
+                                                <input type="hidden" name="id" value="{{ row.id }}">
+                                                <button type="submit" 
+                                                        onclick="return confirm('Are you sure you want to cancel this leave request?')"
+                                                        class="text-red-600 hover:text-red-900 text-xs">
+                                                    <i class="fas fa-times mr-1"></i>Cancel
+                                                </button>
+                                            </form>
+                                        {% elif row.rm_status == 'Approved' and not row.get('cancellation_requested') %}
+                                            <form method="post" action="{{ url_for('cancel_leave_action') }}" style="display: inline;">
+                                                <input type="hidden" name="id" value="{{ row.id }}">
+                                                <button type="submit" 
+                                                        onclick="return confirm('Request cancellation for this approved leave? This will require manager approval and may affect your leave balance.')"
+                                                        class="text-orange-600 hover:text-orange-900 text-xs mr-2">
                                                     <i class="fas fa-undo mr-1"></i>Request Cancel
                                                 </button>
                                             </form>
-                                        {% elif row.cancellation_requested %}
-                                            <span class="text-xs text-orange-600 bg-orange-100 px-2 py-1 rounded">
-                                                <i class="fas fa-hourglass-half mr-1"></i>Cancel Pending
+                                        {% elif row.rm_status == 'Rejected' %}
+                                            <a href="{{ url_for('edit_leave_form', leave_id=row.id) }}" 
+                                               class="text-orange-600 hover:text-orange-800 text-xs mr-2">
+                                                <i class="fas fa-redo mr-1"></i>Resubmit
+                                            </a>
+                                            <form method="post" action="{{ url_for('delete_leave') }}" style="display: inline;">
+                                                <input type="hidden" name="leave_id" value="{{ row.id }}">
+                                                <button type="submit" 
+                                                        onclick="return confirm('Are you sure you want to delete this leave request? This action cannot be undone.')"
+                                                        class="text-red-600 hover:text-red-800 text-xs mr-2">
+                                                    <i class="fas fa-trash mr-1"></i>Delete
+                                                </button>
+                                            </form>
+                                        {% elif row.rm_status == 'Approved' %}
+                                            <span class="text-xs text-green-600">
+                                                <i class="fas fa-check mr-1"></i>Completed
                                             </span>
-                                        {% else %}
-                                            <span class="text-xs text-gray-400">No actions</span>
+                                        {% endif %}
+                                        
+                                        {% if row.get('health_document') or row.get('document_path') %}
+                                            <button onclick="viewEmployeeLeaveDocument({{ row.id }})" 
+                                                   class="text-blue-600 hover:text-blue-900 text-xs ml-2">
+                                                <i class="fas fa-eye mr-1"></i>View Doc
+                                            </button>
                                         {% endif %}
                                     </td>
                                 </tr>
@@ -763,9 +1006,9 @@
             </div>
         </div>
 
-        <!-- Team Approvals Tab (Only for RMs) - PENDING ITEMS ONLY -->
+        <!-- Team Approvals Tab (Only for RMs) -->
         {% if is_rm %}
-        <div x-show="activeTab === 'team-approvals'" x-cloak x-transition>
+        <div id="team-approvals" class="tab-content hidden">
             <h2 class="text-2xl font-bold text-gray-800 mb-6 flex items-center">
                 <i class="fas fa-users-check text-indigo-600 mr-3"></i>
                 Team Approvals - Pending Items Only
@@ -777,9 +1020,7 @@
             </h2>
 
             <div class="space-y-8">
-                <!-- Check if user actually has pending approvals -->
                 {% if pending_timesheets or pending_leaves %}
-                    
                     <!-- Pending Timesheet Approvals -->
                     {% if pending_timesheets %}
                     <div class="bg-white rounded-xl shadow-sm border border-gray-200">
@@ -855,11 +1096,11 @@
                     <!-- Pending Leave Approvals -->
                     {% if pending_leaves %}
                     <div class="bg-white rounded-xl shadow-sm border border-gray-200">
-                        <div class="px-6 py-4 border-b border-gray-200 bg-blue-50">
+                        <div class="px-6 py-4 border-b border-gray-200 bg-indigo-50">
                             <h3 class="text-xl font-semibold text-gray-800 flex items-center">
-                                <i class="fas fa-calendar-alt text-blue-600 mr-2"></i>
+                                <i class="fas fa-calendar-alt text-indigo-600 mr-2"></i>
                                 Pending Leave Approvals
-                                <span class="ml-2 bg-blue-100 text-blue-800 text-sm font-medium px-2 py-1 rounded-full">
+                                <span class="ml-2 bg-indigo-100 text-indigo-800 text-sm font-medium px-2 py-1 rounded-full">
                                     {{ pending_leaves|length }}
                                 </span>
                             </h3>
@@ -874,50 +1115,76 @@
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Start Date</th>
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">End Date</th>
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Duration</th>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Reason</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Document</th>
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody class="bg-white divide-y divide-gray-200">
                                     {% for leave in pending_leaves %}
-                                    <tr class="hover:bg-blue-50 transition-colors">
+                                    <tr class="hover:bg-indigo-50 transition-colors">
                                         <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-blue-600">
                                             <i class="fas fa-user mr-1"></i>{{ leave.username }}
                                         </td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm">
-                                            <span class="px-2 py-1 text-xs font-medium rounded-full
+                                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
                                                 {% if leave.leave_type == 'Sick' %}bg-red-100 text-red-800
                                                 {% elif leave.leave_type in ['Vacation', 'Personal'] %}bg-blue-100 text-blue-800
                                                 {% else %}bg-purple-100 text-purple-800{% endif %}">
-                                                <i class="fas fa-calendar mr-1"></i>{{ leave.leave_type }}
+                                                {% if leave.leave_type == 'Sick' %}
+                                                    <i class="fas fa-user-md mr-1"></i>
+                                                {% elif leave.leave_type in ['Vacation', 'Personal'] %}
+                                                    <i class="fas fa-plane mr-1"></i>
+                                                {% else %}
+                                                    <i class="fas fa-coffee mr-1"></i>
+                                                {% endif %}
+                                                {{ leave.leave_type }}
                                             </span>
                                         </td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                            <i class="fas fa-play text-green-500 mr-1"></i>{{ leave.start_date|dateformat }}
+                                            <i class="fas fa-calendar-plus text-green-500 mr-1"></i>{{ leave.start_date }}
                                         </td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                            <i class="fas fa-stop text-red-500 mr-1"></i>{{ leave.end_date|dateformat }}
+                                            <i class="fas fa-calendar-minus text-red-500 mr-1"></i>{{ leave.end_date }}
                                         </td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                            {% if leave.duration_days %}
-                                                <span class="font-bold text-orange-600">{{ leave.duration_days }} day(s)</span>
-                                            {% else %}
-                                                <span class="text-gray-500">N/A</span>
-                                            {% endif %}
+                                            <span class="font-bold text-indigo-600">{{ leave.duration_days }} day(s)</span>
                                         </td>
                                         <td class="px-6 py-4 text-sm text-gray-900">
                                             <div class="max-w-xs truncate" title="{{ leave.description }}">
-                                                {{ leave.description[:50] }}{% if leave.description|length > 50 %}...{% endif %}
+                                                {{ leave.description[:60] }}{% if leave.description|length > 60 %}...{% endif %}
                                             </div>
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                            {% if leave.health_document %}
+                                                <div class="flex space-x-1">
+                                                    <button onclick="viewTeamLeaveDocument({{ leave.id }})" 
+                                                            class="bg-blue-100 hover:bg-blue-200 text-blue-800 px-2 py-1 rounded text-xs transition-colors"
+                                                            title="View Document">
+                                                        <i class="fas fa-eye mr-1"></i>View
+                                                    </button>
+                                                    <button onclick="downloadTeamLeaveDocument({{ leave.id }})" 
+                                                            class="bg-green-100 hover:bg-green-200 text-green-800 px-2 py-1 rounded text-xs transition-colors"
+                                                            title="Download Document">
+                                                        <i class="fas fa-download mr-1"></i>DL
+                                                    </button>
+                                                </div>
+                                            {% else %}
+                                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs bg-gray-100 text-gray-500">
+                                                    <i class="fas fa-file-times mr-1"></i>No Doc
+                                                </span>
+                                            {% endif %}
                                         </td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
                                             <div class="flex space-x-2">
-                                                <form method="post" action="{{ url_for('approve_leave_action') }}" style="display: inline;">
+                                                <form method="POST" action="{{ url_for('approve_leave_action') }}" style="display:inline;">
                                                     <input type="hidden" name="id" value="{{ leave.id }}">
-                                                    <button type="submit" class="bg-green-500 hover:bg-green-600 text-white text-xs px-3 py-2 rounded-md shadow-sm transition-all duration-200 transform hover:scale-105">
+                                                    <button type="submit" class="bg-green-500 hover:bg-green-600 text-white text-xs px-3 py-2 rounded-md shadow-sm transition-all duration-200 transform hover:scale-105" 
+                                                            onclick="return confirm('Approve this leave request?')">
                                                         <i class="fas fa-check mr-1"></i>Approve
                                                     </button>
                                                 </form>
+                                                
                                                 <button onclick="showRejectModal('leave', {{ leave.id }})" 
                                                         class="bg-red-500 hover:bg-red-600 text-white text-xs px-3 py-2 rounded-md shadow-sm transition-all duration-200 transform hover:scale-105">
                                                     <i class="fas fa-times mr-1"></i>Reject
@@ -931,9 +1198,8 @@
                         </div>
                     </div>
                     {% endif %}
-
                 {% else %}
-                    <!-- No Pending Approvals - Enhanced Message -->
+                    <!-- No Pending Approvals -->
                     <div class="text-center py-16 bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl border border-gray-200">
                         <div class="max-w-md mx-auto">
                             <i class="fas fa-check-double text-6xl text-gray-300 mb-6"></i>
@@ -962,11 +1228,9 @@
                 {% endif %}
             </div>
         </div>
-        {% endif %}
 
-        <!-- Team History Tab (Only for RMs) - ALL HISTORICAL RECORDS -->
-        {% if is_rm %}
-        <div x-show="activeTab === 'team-history'" x-cloak x-transition>
+        <!-- Team History Tab -->
+        <div id="team-history" class="tab-content hidden">
             <h2 class="text-2xl font-bold text-gray-800 mb-6 flex items-center">
                 <i class="fas fa-users-cog text-purple-600 mr-3"></i>
                 Team History - Complete Historical Records
@@ -974,17 +1238,13 @@
 
             <!-- Nested Tab Navigation for Team History -->
             <div class="flex space-x-4 border-b border-gray-200 mb-6">
-                <button @click="teamTab='work'" 
-                        :class="teamTab === 'work' ? 'border-b-2 border-purple-600 font-semibold text-purple-600' : 'text-gray-500 hover:text-gray-700'" 
-                        class="pb-2 px-4 py-2 text-sm font-medium transition-colors">
+                <button class="team-history-tab-button active border-b-2 border-purple-600 font-semibold text-purple-600 pb-2 px-4 py-2 text-sm font-medium transition-colors" data-team-tab="work">
                     <i class="fas fa-briefcase mr-2"></i>Team Work History
                     <span class="ml-2 bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full">
                         {{ employee_history_rows|length if employee_history_rows else 0 }}
                     </span>
                 </button>
-                <button @click="teamTab='leave'" 
-                        :class="teamTab === 'leave' ? 'border-b-2 border-purple-600 font-semibold text-purple-600' : 'text-gray-500 hover:text-gray-700'" 
-                        class="pb-2 px-4 py-2 text-sm font-medium transition-colors">
+                <button class="team-history-tab-button text-gray-500 hover:text-gray-700 pb-2 px-4 py-2 text-sm font-medium transition-colors" data-team-tab="leave">
                     <i class="fas fa-calendar-times mr-2"></i>Team Leave History
                     <span class="ml-2 bg-indigo-100 text-indigo-800 text-xs px-2 py-1 rounded-full">
                         {{ team_leaves|length if team_leaves else 0 }}
@@ -994,178 +1254,61 @@
 
             <div class="space-y-8">
                 <!-- Team Work History -->
-                <div x-show="teamTab === 'work'" x-transition>
-                    <!-- Filter Form for Team Work History -->
-                    <div class="bg-gray-50 rounded-lg p-4 mb-6">
-                        <h4 class="text-sm font-semibold text-gray-700 mb-3 flex items-center">
-                            <i class="fas fa-filter mr-2"></i>Filter Team Work History
-                        </h4>
-                        <form method="GET" action="{{ url_for('dashboard') }}" class="grid grid-cols-1 md:grid-cols-7 gap-3">
-                            <!-- Maintain active tab state -->
-                            <input type="hidden" name="activeTab" value="team-history">
-                            <input type="hidden" name="teamTab" value="work">
-                            
-                            <div>
-                                <label class="block text-xs font-medium text-gray-600 mb-1">From Date</label>
-                                <input type="date" name="team_work_start" value="{{ team_start }}"
-                                       class="form-input w-full text-sm rounded border-gray-300">
-                            </div>
-                            
-                            <div>
-                                <label class="block text-xs font-medium text-gray-600 mb-1">To Date</label>
-                                <input type="date" name="team_work_end" value="{{ team_end }}"
-                                       class="form-input w-full text-sm rounded border-gray-300">
-                            </div>
-                            
-                            <div>
-                                <label class="block text-xs font-medium text-gray-600 mb-1">Team Member</label>
-                                <select name="team_work_emp" class="form-select w-full text-sm rounded border-gray-300">
-                                    <option value="">All Team Members</option>
-                                    {% if employees %}
-                                        {% for employee in employees %}
-                                            <option value="{{ employee.username }}" 
-                                                    {% if team_user == employee.username %}selected{% endif %}>
-                                                {{ employee.name or employee.username }}
-                                            </option>
-                                        {% endfor %}
-                                    {% endif %}
-                                </select>
-                            </div>
-                            
-                            <div>
-                                <label class="block text-xs font-medium text-gray-600 mb-1">Project</label>
-                                <select name="team_work_proj" class="form-select w-full text-sm rounded border-gray-300">
-                                    <option value="">All Projects</option>
-                                    {% for project in proj_list %}
-                                        <option value="{{ project }}" 
-                                                {% if team_proj == project %}selected{% endif %}>
-                                            {{ project }}
-                                        </option>
-                                    {% endfor %}
-                                </select>
-                            </div>
-                            
-                            <div>
-                                <label class="block text-xs font-medium text-gray-600 mb-1">Description</label>
-                                <input type="text" name="team_work_desc" value="{{ team_desc }}" 
-                                       placeholder="Search description..."
-                                       class="form-input w-full text-sm rounded border-gray-300">
-                            </div>
-                            
-                            <div>
-                                <label class="block text-xs font-medium text-gray-600 mb-1">Status</label>
-                                <select name="team_work_status" class="form-select w-full text-sm rounded border-gray-300">
-                                    <option value="">All Status</option>
-                                    <option value="Pending" {% if team_status == 'Pending' %}selected{% endif %}>Pending</option>
-                                    <option value="Approved" {% if team_status == 'Approved' %}selected{% endif %}>Approved</option>
-                                    <option value="Rejected" {% if team_status == 'Rejected' %}selected{% endif %}>Rejected</option>
-                                </select>
-                            </div>
-                            
-                            <div class="flex items-end space-x-2">
-                                <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white text-sm px-4 py-2 rounded flex items-center">
-                                    <i class="fas fa-search mr-1"></i>Apply Filters
-                                </button>
-                                <a href="{{ url_for('dashboard', activeTab='team-history', teamTab='work') }}" 
-                                   class="bg-gray-500 hover:bg-gray-600 text-white text-sm px-4 py-2 rounded flex items-center">
-                                    <i class="fas fa-redo mr-1"></i>Clear All
-                                </a>
-                            </div>
-                        </form>
-                        
-                        <!-- Show active filters -->
-                        {% if team_start or team_end or team_user or team_proj or team_desc or team_status %}
-                        <div class="mt-3 p-2 bg-blue-50 rounded">
-                            <p class="text-xs text-blue-800 font-medium mb-1">Active Filters:</p>
-                            <div class="flex flex-wrap gap-2">
-                                {% if team_start %}
-                                <span class="inline-flex items-center px-2 py-1 rounded-full text-xs bg-blue-100 text-blue-800">
-                                    From: {{ team_start }}
-                                </span>
-                                {% endif %}
-                                {% if team_end %}
-                                <span class="inline-flex items-center px-2 py-1 rounded-full text-xs bg-blue-100 text-blue-800">
-                                    To: {{ team_end }}
-                                </span>
-                                {% endif %}
-                                {% if team_user %}
-                                <span class="inline-flex items-center px-2 py-1 rounded-full text-xs bg-blue-100 text-blue-800">
-                                    Employee: {{ team_user }}
-                                </span>
-                                {% endif %}
-                                {% if team_proj %}
-                                <span class="inline-flex items-center px-2 py-1 rounded-full text-xs bg-blue-100 text-blue-800">
-                                    Project: {{ team_proj }}
-                                </span>
-                                {% endif %}
-                                {% if team_desc %}
-                                <span class="inline-flex items-center px-2 py-1 rounded-full text-xs bg-blue-100 text-blue-800">
-                                    Description: {{ team_desc }}
-                                </span>
-                                {% endif %}
-                                {% if team_status %}
-                                <span class="inline-flex items-center px-2 py-1 rounded-full text-xs bg-blue-100 text-blue-800">
-                                    Status: {{ team_status }}
-                                </span>
-                                {% endif %}
-                            </div>
-                        </div>
-                        {% endif %}
-                    </div>
-
+                <div id="team-work" class="team-history-tab-content">
                     {% if employee_history_rows %}
                     <div class="bg-white rounded-xl shadow-sm border border-gray-200">
                         <div class="px-6 py-4 border-b border-gray-200">
                             <h3 class="text-xl font-semibold text-gray-800 flex items-center">
                                 <i class="fas fa-clock text-green-600 mr-2"></i>
-                                Complete Team Timesheet History
+                                Team Work History
                                 <span class="ml-2 bg-green-100 text-green-800 text-sm font-medium px-2 py-1 rounded-full">
                                     {{ employee_history_rows|length }} records found
                                 </span>
                             </h3>
                             <p class="text-sm text-gray-600 mt-1">All timesheet submissions from your team members</p>
                         </div>
-                        <div class="overflow-x-auto" style="max-height: 28rem;">
+
+                        <div class="overflow-x-auto max-h-96 border rounded-lg">
                             <table class="min-w-full divide-y divide-gray-200">
                                 <thead class="bg-gray-50 sticky top-0">
                                     <tr>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Employee</th>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Project</th>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Hours</th>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Break</th>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Overtime</th>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Employee</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Project</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Hours</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Break</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Overtime</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                                     </tr>
                                 </thead>
                                 <tbody class="bg-white divide-y divide-gray-200">
                                     {% for work in employee_history_rows %}
                                     <tr class="hover:bg-gray-50 transition-colors">
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-blue-600">
+                                        <td class="px-4 py-4 whitespace-nowrap text-sm font-medium text-blue-600">
                                             {{ work.username }}
                                         </td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ work.work_date|dateformat }}</td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ work.project_name or 'N/A' }}</td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                        <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">{{ work.work_date|dateformat }}</td>
+                                        <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">{{ work.project_name or 'N/A' }}</td>
+                                        <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
                                             <span class="font-medium">{{ work.hours }}h</span>
                                         </td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                        <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
                                             {{ work.break_hours or 0 }}h
                                         </td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                        <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
                                             {% if work.overtime_hours and work.overtime_hours > 0 %}
                                                 <span class="font-medium text-orange-600">{{ work.overtime_hours }}h</span>
                                             {% else %}
                                                 <span class="text-gray-400">0h</span>
                                             {% endif %}
                                         </td>
-                                        <td class="px-6 py-4 text-sm text-gray-900">
+                                        <td class="px-4 py-4 text-sm text-gray-900">
                                             <div class="max-w-xs truncate" title="{{ work.work_desc }}">
                                                 {{ work.work_desc[:80] }}{% if work.work_desc|length > 80 %}...{% endif %}
                                             </div>
                                         </td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm">
+                                        <td class="px-4 py-4 whitespace-nowrap text-sm">
                                             {% if work.rm_status == 'Approved' %}
                                                 <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
                                                     <i class="fas fa-check-circle mr-1 text-green-600"></i>Approved
@@ -1189,172 +1332,64 @@
                                 </tbody>
                             </table>
                         </div>
+                        <div class="px-6 py-4 text-sm text-gray-500">
+                            <i class="fas fa-info-circle mr-1"></i>
+                            Showing {{ employee_history_rows|length }} work records from all team members
+                        </div>
                     </div>
                     {% else %}
                     <div class="text-center py-16 bg-gray-50 rounded-xl">
                         <i class="fas fa-search text-4xl text-gray-300 mb-4"></i>
                         <p class="text-xl text-gray-500 mb-2">No work history found</p>
-                        <p class="text-gray-400">
-                            {% if team_start or team_end or team_user or team_proj or team_desc or team_status %}
-                                Try adjusting your filter criteria above.
-                            {% else %}
-                                Your team members' timesheet submissions will appear here.
-                            {% endif %}
-                        </p>
+                        <p class="text-gray-400">Your team members' timesheet submissions will appear here.</p>
                     </div>
                     {% endif %}
                 </div>
 
                 <!-- Team Leave History -->
-                <div x-show="teamTab === 'leave'" x-transition>
-                    <!-- Filter Form for Team Leave History -->
-                    <div class="bg-gray-50 rounded-lg p-4 mb-6">
-                        <h4 class="text-sm font-semibold text-gray-700 mb-3 flex items-center">
-                            <i class="fas fa-filter mr-2"></i>Filter Team Leave History
-                        </h4>
-                        <form method="GET" action="{{ url_for('dashboard') }}" class="grid grid-cols-1 md:grid-cols-7 gap-3">
-                            <input type="hidden" name="activeTab" value="team-history">
-                            <input type="hidden" name="teamTab" value="leave">
-                            
-                            <div>
-                                <label class="block text-xs font-medium text-gray-600 mb-1">From Date</label>
-                                <input type="date" name="team_leave_start" value="{{ team_leaves_start }}"
-                                       class="form-input w-full text-sm rounded border-gray-300">
-                            </div>
-                            
-                            <div>
-                                <label class="block text-xs font-medium text-gray-600 mb-1">To Date</label>
-                                <input type="date" name="team_leave_end" value="{{ team_leaves_end }}"
-                                       class="form-input w-full text-sm rounded border-gray-300">
-                            </div>
-                            
-                            <div>
-                                <label class="block text-xs font-medium text-gray-600 mb-1">Team Member</label>
-                                <select name="team_leave_emp" class="form-select w-full text-sm rounded border-gray-300">
-                                    <option value="">All Team Members</option>
-                                    {% if employees %}
-                                        {% for employee in employees %}
-                                            <option value="{{ employee.username }}" 
-                                                    {% if team_leaves_user == employee.username %}selected{% endif %}>
-                                                {{ employee.name or employee.username }}
-                                            </option>
-                                        {% endfor %}
-                                    {% endif %}
-                                </select>
-                            </div>
-                            
-                            <div>
-                                <label class="block text-xs font-medium text-gray-600 mb-1">Leave Type</label>
-                                <select name="team_leave_type" class="form-select w-full text-sm rounded border-gray-300">
-                                    <option value="">All Types</option>
-                                    <option value="Sick" {% if team_leaves_type == 'Sick' %}selected{% endif %}>Sick</option>
-                                    <option value="Vacation" {% if team_leaves_type == 'Vacation' %}selected{% endif %}>Vacation</option>
-                                    <option value="Personal" {% if team_leaves_type == 'Personal' %}selected{% endif %}>Personal</option>
-                                    <option value="Casual" {% if team_leaves_type == 'Casual' %}selected{% endif %}>Casual</option>
-                                    <option value="Other" {% if team_leaves_type == 'Other' %}selected{% endif %}>Other</option>
-                                </select>
-                            </div>
-                            
-                            <div>
-                                <label class="block text-xs font-medium text-gray-600 mb-1">Description</label>
-                                <input type="text" name="team_leave_desc" value="{{ team_leaves_desc }}" 
-                                       placeholder="Search reason..."
-                                       class="form-input w-full text-sm rounded border-gray-300">
-                            </div>
-                            
-                            <div>
-                                <label class="block text-xs font-medium text-gray-600 mb-1">Status</label>
-                                <select name="team_leave_status" class="form-select w-full text-sm rounded border-gray-300">
-                                    <option value="">All Status</option>
-                                    <option value="Pending" {% if team_leaves_status == 'Pending' %}selected{% endif %}>Pending</option>
-                                    <option value="Approved" {% if team_leaves_status == 'Approved' %}selected{% endif %}>Approved</option>
-                                    <option value="Rejected" {% if team_leaves_status == 'Rejected' %}selected{% endif %}>Rejected</option>
-                                </select>
-                            </div>
-                            
-                            <div class="flex items-end space-x-2">
-                                <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white text-sm px-4 py-2 rounded flex items-center">
-                                    <i class="fas fa-search mr-1"></i>Apply Filters
-                                </button>
-                                <a href="{{ url_for('dashboard', activeTab='team-history', teamTab='leave') }}" 
-                                   class="bg-gray-500 hover:bg-gray-600 text-white text-sm px-4 py-2 rounded flex items-center">
-                                    <i class="fas fa-redo mr-1"></i>Clear All
-                                </a>
-                            </div>
-                        </form>
-                        
-                        <!-- Show active filters -->
-                        {% if team_leaves_start or team_leaves_end or team_leaves_user or team_leaves_type or team_leaves_desc or team_leaves_status %}
-                        <div class="mt-3 p-2 bg-blue-50 rounded">
-                            <p class="text-xs text-blue-800 font-medium mb-1">Active Filters:</p>
-                            <div class="flex flex-wrap gap-2">
-                                {% if team_leaves_start %}
-                                <span class="inline-flex items-center px-2 py-1 rounded-full text-xs bg-blue-100 text-blue-800">
-                                    From: {{ team_leaves_start }}
-                                </span>
-                                {% endif %}
-                                {% if team_leaves_end %}
-                                <span class="inline-flex items-center px-2 py-1 rounded-full text-xs bg-blue-100 text-blue-800">
-                                    To: {{ team_leaves_end }}
-                                </span>
-                                {% endif %}
-                                {% if team_leaves_user %}
-                                <span class="inline-flex items-center px-2 py-1 rounded-full text-xs bg-blue-100 text-blue-800">
-                                    Employee: {{ team_leaves_user }}
-                                </span>
-                                {% endif %}
-                                {% if team_leaves_type %}
-                                <span class="inline-flex items-center px-2 py-1 rounded-full text-xs bg-blue-100 text-blue-800">
-                                    Type: {{ team_leaves_type }}
-                                </span>
-                                {% endif %}
-                                {% if team_leaves_desc %}
-                                <span class="inline-flex items-center px-2 py-1 rounded-full text-xs bg-blue-100 text-blue-800">
-                                    Description: {{ team_leaves_desc }}
-                                </span>
-                                {% endif %}
-                                {% if team_leaves_status %}
-                                <span class="inline-flex items-center px-2 py-1 rounded-full text-xs bg-blue-100 text-blue-800">
-                                    Status: {{ team_leaves_status }}
-                                </span>
-                                {% endif %}
-                            </div>
-                        </div>
-                        {% endif %}
-                    </div>
-
+                <div id="team-leave" class="team-history-tab-content hidden">
                     {% if team_leaves %}
                     <div class="bg-white rounded-xl shadow-sm border border-gray-200">
                         <div class="px-6 py-4 border-b border-gray-200">
                             <h3 class="text-xl font-semibold text-gray-800 flex items-center">
                                 <i class="fas fa-calendar-alt text-indigo-600 mr-2"></i>
-                                Complete Team Leave History
+                                Team Leave History
                                 <span class="ml-2 bg-indigo-100 text-indigo-800 text-sm font-medium px-2 py-1 rounded-full">
                                     {{ team_leaves|length }} records found
                                 </span>
                             </h3>
                             <p class="text-sm text-gray-600 mt-1">All leave requests from your team members</p>
                         </div>
-                        <div class="overflow-x-auto" style="max-height: 28rem;">
+
+                        <div class="overflow-x-auto max-h-96 border rounded-lg">
                             <table class="min-w-full divide-y divide-gray-200">
                                 <thead class="bg-gray-50 sticky top-0">
                                     <tr>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Employee</th>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Leave Type</th>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Start Date</th>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">End Date</th>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Duration</th>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Reason</th>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Employee</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Start Date</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">End Date</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Duration</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Leave Type</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Reason</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                                     </tr>
                                 </thead>
                                 <tbody class="bg-white divide-y divide-gray-200">
                                     {% for leave in team_leaves %}
                                     <tr class="hover:bg-gray-50 transition-colors">
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-blue-600">
+                                        <td class="px-4 py-4 whitespace-nowrap text-sm font-medium text-blue-600">
                                             {{ leave.username }}
                                         </td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm">
+                                        <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">{{ leave.start_date|dateformat }}</td>
+                                        <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">{{ leave.end_date|dateformat }}</td>
+                                        <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+                                            {% if leave.duration_days %}
+                                                <span class="font-medium">{{ leave.duration_days }} day(s)</span>
+                                            {% else %}
+                                                <span class="text-gray-500">N/A</span>
+                                            {% endif %}
+                                        </td>
+                                        <td class="px-4 py-4 whitespace-nowrap text-sm">
                                             <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
                                                 {% if leave.leave_type == 'Sick' %}bg-red-100 text-red-800
                                                 {% elif leave.leave_type in ['Vacation', 'Personal'] %}bg-blue-100 text-blue-800
@@ -1365,21 +1400,12 @@
                                                 {{ leave.leave_type }}
                                             </span>
                                         </td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ leave.start_date|dateformat }}</td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ leave.end_date|dateformat }}</td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                            {% if leave.duration_days %}
-                                                <span class="font-medium">{{ leave.duration_days }} day(s)</span>
-                                            {% else %}
-                                                <span class="text-gray-500">N/A</span>
-                                            {% endif %}
-                                        </td>
-                                        <td class="px-6 py-4 text-sm text-gray-900">
+                                        <td class="px-4 py-4 text-sm text-gray-900">
                                             <div class="max-w-xs truncate" title="{{ leave.description }}">
                                                 {{ leave.description[:50] }}{% if leave.description|length > 50 %}...{% endif %}
                                             </div>
                                         </td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm">
+                                        <td class="px-4 py-4 whitespace-nowrap text-sm">
                                             {% if leave.rm_status == 'Approved' %}
                                                 <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
                                                     <i class="fas fa-check-circle mr-1 text-green-600"></i>Approved
@@ -1403,18 +1429,16 @@
                                 </tbody>
                             </table>
                         </div>
+                        <div class="px-6 py-4 text-sm text-gray-500">
+                            <i class="fas fa-info-circle mr-1"></i>
+                            Showing {{ team_leaves|length }} leave records from all team members
+                        </div>
                     </div>
                     {% else %}
                     <div class="text-center py-16 bg-gray-50 rounded-xl">
                         <i class="fas fa-search text-4xl text-gray-300 mb-4"></i>
                         <p class="text-xl text-gray-500 mb-2">No leave history found</p>
-                        <p class="text-gray-400">
-                            {% if team_leaves_start or team_leaves_end or team_leaves_user or team_leaves_type or team_leaves_desc or team_leaves_status %}
-                                Try adjusting your filter criteria above.
-                            {% else %}
-                                Your team members' leave requests will appear here.
-                            {% endif %}
-                        </p>
+                        <p class="text-gray-400">Your team members' leave requests will appear here.</p>
                     </div>
                     {% endif %}
                 </div>
@@ -1459,6 +1483,105 @@
 
 <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
 <script>
+// Tab functionality
+document.addEventListener('DOMContentLoaded', function() {
+    const tabButtons = document.querySelectorAll('.tab-button');
+    const tabContents = document.querySelectorAll('.tab-content');
+    
+    // Work sub-tabs
+    const workTabButtons = document.querySelectorAll('.work-tab-button');
+    const workTabContents = document.querySelectorAll('.work-tab-content');
+    
+    // Team history sub-tabs
+    const teamHistoryTabButtons = document.querySelectorAll('.team-history-tab-button');
+    const teamHistoryTabContents = document.querySelectorAll('.team-history-tab-content');
+    
+    // Add date validation for timesheet
+    const dateInput = document.querySelector('input[name="work_date"]');
+    const today = new Date().toISOString().split('T')[0];
+    
+    if (dateInput) {
+        dateInput.max = today;
+        
+        dateInput.addEventListener('change', function() {
+            if (this.value > today) {
+                alert('Cannot submit timesheet for future dates.');
+                this.value = today;
+            }
+        });
+    }
+    
+    // Main tab functionality
+    tabButtons.forEach(button => {
+        button.addEventListener('click', () => {
+            const tabId = button.getAttribute('data-tab');
+            
+            tabButtons.forEach(btn => {
+                btn.classList.remove('text-blue-600', 'border-blue-600', 'active');
+                btn.classList.add('text-gray-500', 'border-transparent');
+            });
+            
+            button.classList.add('text-blue-600', 'border-blue-600', 'active');
+            button.classList.remove('text-gray-500', 'border-transparent');
+            
+            tabContents.forEach(content => {
+                content.classList.add('hidden');
+            });
+            
+            document.getElementById(tabId).classList.remove('hidden');
+        });
+    });
+    
+    // Work sub-tab functionality
+    workTabButtons.forEach(button => {
+        button.addEventListener('click', () => {
+            const workTabId = button.getAttribute('data-work-tab');
+            
+            workTabButtons.forEach(btn => {
+                btn.classList.remove('text-orange-600', 'border-orange-600', 'text-green-600', 'border-green-600', 'text-blue-600', 'border-blue-600', 'active');
+                btn.classList.add('text-gray-500', 'border-transparent');
+            });
+            
+            if (workTabId === 'assigned-to-me') {
+                button.classList.add('text-orange-600', 'border-orange-600', 'active');
+            } else if (workTabId === 'assign-work') {
+                button.classList.add('text-green-600', 'border-green-600', 'active');
+            } else if (workTabId === 'my-assignments') {
+                button.classList.add('text-blue-600', 'border-blue-600', 'active');
+            }
+            button.classList.remove('text-gray-500', 'border-transparent');
+            
+            workTabContents.forEach(content => {
+                content.classList.add('hidden');
+            });
+            
+            document.getElementById(workTabId).classList.remove('hidden');
+        });
+    });
+    
+    // Team history sub-tab functionality
+    teamHistoryTabButtons.forEach(button => {
+        button.addEventListener('click', () => {
+            const teamTabId = button.getAttribute('data-team-tab');
+            
+            teamHistoryTabButtons.forEach(btn => {
+                btn.classList.remove('border-b-2', 'border-purple-600', 'font-semibold', 'text-purple-600', 'active');
+                btn.classList.add('text-gray-500', 'hover:text-gray-700');
+            });
+            
+            button.classList.add('border-b-2', 'border-purple-600', 'font-semibold', 'text-purple-600', 'active');
+            button.classList.remove('text-gray-500', 'hover:text-gray-700');
+            
+            teamHistoryTabContents.forEach(content => {
+                content.classList.add('hidden');
+            });
+            
+            document.getElementById('team-' + teamTabId).classList.remove('hidden');
+        });
+    });
+});
+
+// Reject modal functions
 function showRejectModal(type, id) {
     const form = document.getElementById('rejectForm');
     if (type === 'timesheet') {
@@ -1486,17 +1609,207 @@ function closeRejectModal() {
     document.getElementById('rejectForm').reset();
 }
 
-function downloadReport() {
-    window.location.href = '/download-timesheet-report';
+// Document viewing functions
+function viewEmployeeLeaveDocument(leaveId) {
+    const modal = document.createElement('div');
+    modal.id = 'employeeDocumentModal';
+    modal.className = 'fixed inset-0 bg-gray-600 bg-opacity-75 z-50 flex items-center justify-center';
+    
+    modal.innerHTML = `
+        <div class="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] flex flex-col">
+            <div class="flex items-center justify-between p-4 border-b border-gray-200">
+                <h3 class="text-lg font-semibold text-gray-900">
+                    <i class="fas fa-file-alt mr-2"></i>My Leave Document
+                </h3>
+                <div class="flex space-x-2">
+                    <button onclick="downloadEmployeeLeaveDocument(₹{leaveId})" 
+                           class="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-sm">
+                        <i class="fas fa-download mr-1"></i>Download
+                    </button>
+                    <button onclick="closeEmployeeDocumentModal()" 
+                            class="bg-gray-500 hover:bg-gray-600 text-white px-3 py-1 rounded text-sm">
+                        <i class="fas fa-times mr-1"></i>Close
+                    </button>
+                </div>
+            </div>
+            <div class="flex-1 p-4 overflow-auto">
+                <div class="w-full h-full flex items-center justify-center">
+                    <iframe src="/view-leave-doc/₹{leaveId}" 
+                            class="w-full border border-gray-300 rounded" 
+                            style="height: 70vh;">
+                        <p>Cannot display document. 
+                           <a href="/view-leave-doc/₹{leaveId}" target="_blank">Open in new tab</a>
+                        </p>
+                    </iframe>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+    
+    // Close modal when clicking outside
+    modal.addEventListener('click', function(e) {
+        if (e.target === modal) {
+            closeEmployeeDocumentModal();
+        }
+    });
 }
 
-function changePassword() {
-    window.location.href = '/change-password';
+function downloadEmployeeLeaveDocument(leaveId) {
+    const link = document.createElement('a');
+    link.href = `/view-leave-document/₹{leaveId}`;
+    link.target = '_blank';
+    link.click();
+    showNotification('Opening document in new tab', 'info');
 }
 
-function viewProfile() {
-    window.location.href = '/profile';
+function closeEmployeeDocumentModal() {
+    const modal = document.getElementById('employeeDocumentModal');
+    if (modal) {
+        document.body.removeChild(modal);
+    }
 }
+
+// Enhanced document viewing functions for team leave approvals
+function viewTeamLeaveDocument(leaveId) {
+    showTeamDocumentModal(leaveId);
+}
+
+function downloadTeamLeaveDocument(leaveId) {
+    const link = document.createElement('a');
+    link.href = `/view-team-leave-doc/₹{leaveId}`;
+    link.target = '_blank';
+    link.click();
+    showNotification('Opening document in new tab', 'info');
+}
+
+function showTeamDocumentModal(leaveId) {
+    const modal = document.createElement('div');
+    modal.id = 'teamDocumentModal';
+    modal.className = 'fixed inset-0 bg-gray-600 bg-opacity-75 z-50 flex items-center justify-center';
+    
+    modal.innerHTML = `
+        <div class="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] flex flex-col">
+            <div class="flex items-center justify-between p-4 border-b border-gray-200">
+                <h3 class="text-lg font-semibold text-gray-900">
+                    <i class="fas fa-file-alt mr-2"></i>Team Member Leave Document
+                </h3>
+                <div class="flex space-x-2">
+                    <button onclick="downloadTeamLeaveDocument(₹{leaveId})" 
+                           class="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-sm">
+                        <i class="fas fa-download mr-1"></i>Download
+                    </button>
+                    <button onclick="closeTeamDocumentModal()" 
+                            class="bg-gray-500 hover:bg-gray-600 text-white px-3 py-1 rounded text-sm">
+                        <i class="fas fa-times mr-1"></i>Close
+                    </button>
+                </div>
+            </div>
+            <div class="flex-1 p-4 overflow-auto">
+                <div class="w-full h-full flex items-center justify-center">
+                    <iframe src="/view-team-leave-doc/₹{leaveId}" 
+                            class="w-full border border-gray-300 rounded" 
+                            style="height: 70vh;">
+                        <p>Cannot display document. 
+                           <a href="/view-team-leave-doc/₹{leaveId}" target="_blank">Open in new tab</a>
+                        </p>
+                    </iframe>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+    
+    // Close modal when clicking outside
+    modal.addEventListener('click', function(e) {
+        if (e.target === modal) {
+            closeTeamDocumentModal();
+        }
+    });
+}
+
+function closeTeamDocumentModal() {
+    const modal = document.getElementById('teamDocumentModal');
+    if (modal) {
+        document.body.removeChild(modal);
+    }
+}
+
+// Timesheet deletion
+function deleteTimesheet(id) {
+    if (confirm('Are you sure you want to delete this timesheet? This action cannot be undone.')) {
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = '/delete_timesheet';
+        
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = 'timesheet_id';
+        input.value = id;
+        form.appendChild(input);
+        
+        document.body.appendChild(form);
+        form.submit();
+    }
+}
+
+// Leave deletion
+function deleteLeave(id) {
+    if (confirm('Are you sure you want to delete this leave request? This action cannot be undone.')) {
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = '/delete_leave';
+        
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = 'leave_id';
+        input.value = id;
+        form.appendChild(input);
+        
+        document.body.appendChild(form);
+        form.submit();
+    }
+}
+// Utility functions for better UX
+function showNotification(message, type = 'info') {
+    const notification = document.createElement('div');
+    notification.className = `fixed top-4 right-4 z-50 px-6 py-3 rounded-lg shadow-lg transition-all duration-300 ₹{
+        type === 'success' ? 'bg-green-500 text-white' :
+        type === 'error' ? 'bg-red-500 text-white' :
+        type === 'warning' ? 'bg-yellow-500 text-white' :
+        'bg-blue-500 text-white'
+    }`;
+    
+    notification.innerHTML = `
+        <div class="flex items-center">
+            <i class="fas fa-₹{type === 'success' ? 'check' : type === 'error' ? 'times' : type === 'warning' ? 'exclamation-triangle' : 'info-circle'} mr-2"></i>
+            <span>₹{message}</span>
+            <button onclick="this.parentElement.parentElement.remove()" class="ml-4 text-white hover:text-gray-200">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+    `;
+    
+    document.body.appendChild(notification);
+    
+    // Auto-remove after 5 seconds
+    setTimeout(() => {
+        if (notification.parentElement) {
+            notification.remove();
+        }
+    }, 5000);
+}
+
+// Close modal with Escape key
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+        closeEmployeeDocumentModal();
+        closeTeamDocumentModal();
+        closeRejectModal();
+    }
+});
 
 // Close modals when clicking outside
 document.getElementById('rejectModal').addEventListener('click', function(e) {
@@ -1505,72 +1818,259 @@ document.getElementById('rejectModal').addEventListener('click', function(e) {
     }
 });
 
-// Enhanced tab state management
-document.addEventListener('DOMContentLoaded', function() {
-    // Get URL parameters
-    const urlParams = new URLSearchParams(window.location.search);
-    const activeTab = urlParams.get('activeTab') || 'timesheet';
-    const teamTab = urlParams.get('teamTab') || 'work';
-    
-    // Set initial tab states
-    setTimeout(() => {
-        if (window.Alpine) {
-            const element = document.querySelector('[x-data]');
-            if (element && element._x_dataStack && element._x_dataStack[0]) {
-                element._x_dataStack[0].activeTab = activeTab;
-                element._x_dataStack[0].teamTab = teamTab;
+// Enhanced leave duration calculation
+const startDateInput = document.querySelector('input[name="start_d"]');
+const endDateInput = document.querySelector('input[name="end_d"]');
+
+if (startDateInput && endDateInput) {
+    function updateDuration() {
+        if (startDateInput.value && endDateInput.value) {
+            const startDate = new Date(startDateInput.value);
+            const endDate = new Date(endDateInput.value);
+            
+            if (endDate < startDate) {
+                endDateInput.setCustomValidity('End date cannot be before start date');
+                return;
+            } else {
+                endDateInput.setCustomValidity('');
             }
+            
+            const duration = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24)) + 1;
+            console.log(`Duration: ₹{duration} days`);
         }
-    }, 100);
+    }
     
-    // Debug: Log filter form submissions
-    const forms = document.querySelectorAll('form[method="GET"]');
-    forms.forEach(form => {
-        form.addEventListener('submit', function(e) {
-            const formData = new FormData(form);
-            const params = new URLSearchParams(formData);
-            console.log('🔍 Form submitted with params:', Object.fromEntries(params));
-        });
+    startDateInput.addEventListener('change', updateDuration);
+    endDateInput.addEventListener('change', updateDuration);
+}
+
+// Auto-calculate hours in timesheet
+const startTimeInput = document.querySelector('input[name="start_t"]');
+const endTimeInput = document.querySelector('input[name="end_t"]');
+const breakInput = document.querySelector('input[name="brk"]');
+
+if (startTimeInput && endTimeInput) {
+    function calculateHours() {
+        if (startTimeInput.value && endTimeInput.value) {
+            const startTime = new Date(`2000-01-01 ₹{startTimeInput.value}`);
+            const endTime = new Date(`2000-01-01 ₹{endTimeInput.value}`);
+            
+            if (endTime <= startTime) {
+                endTimeInput.setCustomValidity('End time must be after start time');
+                return;
+            } else {
+                endTimeInput.setCustomValidity('');
+            }
+            
+            const diffMs = endTime - startTime;
+            const totalHours = diffMs / (1000 * 60 * 60);
+            const breakHours = parseFloat(breakInput?.value || 0);
+            const workHours = Math.max(0, totalHours - breakHours);
+            
+            console.log(`Total work hours: ₹{workHours.toFixed(1)}h (₹{totalHours.toFixed(1)}h total - ₹{breakHours}h break)`);
+        }
+    }
+    
+    startTimeInput.addEventListener('change', calculateHours);
+    endTimeInput.addEventListener('change', calculateHours);
+    breakInput?.addEventListener('input', calculateHours);
+}
+
+// Enhanced table interactions
+document.querySelectorAll('table tr').forEach(row => {
+    row.addEventListener('mouseenter', function() {
+        this.style.backgroundColor = '#f8fafc';
+    });
+    
+    row.addEventListener('mouseleave', function() {
+        this.style.backgroundColor = '';
     });
 });
+
+// Form validation enhancements
+document.querySelectorAll('form').forEach(form => {
+    form.addEventListener('submit', function(e) {
+        const requiredFields = this.querySelectorAll('[required]');
+        let hasErrors = false;
+        
+        requiredFields.forEach(field => {
+            if (!field.value.trim()) {
+                field.classList.add('border-red-500');
+                hasErrors = true;
+            } else {
+                field.classList.remove('border-red-500');
+            }
+        });
+        
+        if (hasErrors) {
+            e.preventDefault();
+            showNotification('Please fill in all required fields.', 'error');
+        }
+    });
+});
+
+// Add confirmation dialogs for critical actions
+document.querySelectorAll('button[type="submit"]').forEach(button => {
+    if (button.textContent.includes('Delete') || button.textContent.includes('Cancel')) {
+        button.addEventListener('click', function(e) {
+            if (!confirm(`Are you sure you want to ₹{button.textContent.toLowerCase()}?`)) {
+                e.preventDefault();
+            }
+        });
+    }
+});
+
+// Export functions for use in other scripts
+window.employeeDashboard = {
+    showRejectModal,
+    closeRejectModal,
+    viewEmployeeLeaveDocument,
+    viewTeamLeaveDocument,
+    showNotification,
+    deleteTimesheet,
+    deleteLeave
+};
 </script>
 
 <style>
+/* Custom styles for better visual experience */
 .form-input, .form-select, .form-textarea {
     display: block;
     width: 100%;
     padding: 0.5rem 0.75rem;
-    border: 1px solid #d1d5db;
+    border: 1px solid #d1d5db !important;
     border-radius: 0.5rem;
     font-size: 0.875rem;
     line-height: 1.25rem;
-    transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+    background-color: #ffffff !important;
+    transition: all 0.15s ease-in-out;
 }
 
 .form-input:focus, .form-select:focus, .form-textarea:focus {
-    outline: none;
-    border-color: #3b82f6;
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    outline: none !important;
+    border-color: #3b82f6 !important;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1) !important;
 }
 
+/* Make sure all input/select/textarea elements have visible borders */
+input, select, textarea {
+    border: 1px solid #d1d5db !important;
+    outline: none !important;
+    box-sizing: border-box;
+    background-color: #ffffff !important;
+    transition: border-color 0.15s ease-in-out;
+}
+
+input:focus, select:focus, textarea:focus {
+    border-color: #3b82f6 !important;
+    outline: none !important;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1) !important;
+}
+
+input[disabled], select[disabled], textarea[disabled] {
+    background-color: #f3f4f6 !important;
+    cursor: not-allowed;
+    opacity: 0.7;
+}
+
+/* Tab button styling */
+.tab-button.active {
+    border-bottom-color: #2563eb;
+    color: #2563eb;
+}
+
+.tab-button {
+    transition: all 0.2s;
+}
+
+.tab-button:hover {
+    color: #374151;
+    border-bottom-color: #d1d5db;
+}
+
+.work-tab-button.active {
+    font-weight: 600;
+}
+
+.team-history-tab-button.active {
+    font-weight: 600;
+}
+
+/* Transition effects */
 .transition-colors {
     transition: background-color 0.15s ease-in-out, border-color 0.15s ease-in-out, color 0.15s ease-in-out;
 }
 
+.transition-all {
+    transition-property: all;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+    transition-duration: 200ms;
+}
+
+/* Scrollbar styling */
 .overflow-x-auto {
     scrollbar-width: thin;
     scrollbar-color: #cbd5e1 #f1f5f9;
 }
 
-.overflow-x-auto::-webkit-scrollbar { height: 6px; }
-.overflow-x-auto::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 3px; }
-.overflow-x-auto::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
-.overflow-x-auto::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+.overflow-x-auto::-webkit-scrollbar { 
+    height: 6px; 
+}
 
+.overflow-x-auto::-webkit-scrollbar-track { 
+    background: #f1f5f9; 
+    border-radius: 3px; 
+}
+
+.overflow-x-auto::-webkit-scrollbar-thumb { 
+    background: #cbd5e1; 
+    border-radius: 3px; 
+}
+
+.overflow-x-auto::-webkit-scrollbar-thumb:hover { 
+    background: #94a3b8; 
+}
+
+/* Table hover effects */
 tbody tr:hover {
     background-color: #f9fafb;
 }
 
+/* Button hover effects */
+button:hover:not(:disabled) {
+    transform: translateY(-1px);
+    transition: all 0.2s ease-in-out;
+}
+
+button:active:not(:disabled) {
+    transform: translateY(0);
+}
+
+/* Card hover effects */
+.bg-white:hover {
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+    transition: box-shadow 0.3s ease-in-out;
+}
+
+/* Status indicators with updated colors */
+.bg-yellow-100 { background-color: #fef3c7; }
+.text-yellow-800 { color: #92400e; }
+.bg-green-100 { background-color: #dcfce7; }
+.text-green-800 { color: #166534; }
+.bg-red-100 { background-color: #fee2e2; }
+.text-red-800 { color: #991b1b; }
+.bg-orange-100 { background-color: #ffedd5; }
+.text-orange-800 { color: #9a3412; }
+.bg-blue-100 { background-color: #dbeafe; }
+.text-blue-800 { color: #1e40af; }
+.bg-indigo-100 { background-color: #e0e7ff; }
+.text-indigo-800 { color: #3730a3; }
+.bg-purple-100 { background-color: #f3e8ff; }
+.text-purple-800 { color: #6b21a8; }
+.bg-gray-100 { background-color: #f3f4f6; }
+.text-gray-800 { color: #1f2937; }
+
+/* Animation effects */
 .inline-flex {
     animation: fadeIn 0.3s ease-in-out;
 }
@@ -1580,32 +2080,281 @@ tbody tr:hover {
     to { opacity: 1; transform: scale(1); }
 }
 
-button:hover {
+/* Animation for stats cards */
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.stats-card {
+    animation: fadeInUp 0.6s ease-out;
+}
+
+/* Enhanced button hover effects */
+.btn-enhanced:hover {
     transform: translateY(-1px);
-    transition: all 0.2s ease-in-out;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
-.bg-white:hover {
-    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
-    transition: box-shadow 0.3s ease-in-out;
+/* Status badge animations */
+.status-badge {
+    transition: all 0.2s ease;
 }
 
-[x-cloak] { display: none !important; }
-
-/* Multi-select styling */
-select[multiple] {
-    height: auto !important;
-    min-height: 8rem;
+.status-badge:hover {
+    transform: scale(1.05);
 }
 
-select[multiple] option {
-    padding: 0.5rem;
-    border-bottom: 1px solid #e5e7eb;
+/* Modal backdrop blur effect */
+.modal-backdrop {
+    backdrop-filter: blur(4px);
 }
 
-select[multiple] option:checked {
-    background-color: #3b82f6;
-    color: white;
+/* Modal content animation */
+@keyframes modalFadeIn {
+    from { 
+        opacity: 0; 
+        transform: scale(0.9) translateY(-10px); 
+    }
+    to { 
+        opacity: 1; 
+        transform: scale(1) translateY(0); 
+    }
 }
+
+.modal-content {
+    animation: modalFadeIn 0.3s ease-out;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+}
+
+/* Custom focus styles */
+.focus-visible:focus {
+    outline: 2px solid #3b82f6;
+    outline-offset: 2px;
+}
+
+/* Notification styles */
+.notification {
+    transform: translateX(100%);
+    transition: transform 0.3s ease-in-out;
+}
+
+.notification.show {
+    transform: translateX(0);
+}
+
+/* Loading states */
+.loading {
+    opacity: 0.6;
+    pointer-events: none;
+}
+
+.btn-loading {
+    opacity: 0.7;
+    cursor: not-allowed;
+    transform: none !important;
+}
+
+/* Form field error states */
+.border-red-500 {
+    border-color: #ef4444 !important;
+    box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1) !important;
+}
+
+/* Rejection reason column styling */
+.max-w-xs {
+    max-width: 20rem;
+}
+
+/* Responsive enhancements */
+@media (max-width: 768px) {
+    .table-responsive {
+        font-size: 0.875rem;
+    }
+    
+    .table-responsive th,
+    .table-responsive td {
+        padding: 0.5rem 0.25rem;
+    }
+    
+    .modal-content {
+        margin: 1rem;
+        max-height: calc(100vh - 2rem);
+    }
+    
+    .grid.grid-cols-2 {
+        grid-template-columns: 1fr;
+    }
+    
+    .space-x-3 > * + * {
+        margin-left: 0;
+        margin-top: 0.75rem;
+    }
+    
+    .flex.space-x-3 {
+        flex-direction: column;
+        space: 0;
+    }
+    
+    .grid.grid-cols-3 {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+    }
+}
+
+/* Print styles */
+@media print {
+    .no-print {
+        display: none !important;
+    }
+    
+    .modal-content {
+        box-shadow: none;
+        border: 1px solid #ccc;
+    }
+}
+
+/* Dark mode support (optional) */
+@media (prefers-color-scheme: dark) {
+    .bg-white {
+        background-color: #1f2937;
+    }
+    
+    .text-gray-900 {
+        color: #f3f4f6;
+    }
+    
+    .border-gray-200 {
+        border-color: #374151;
+    }
+}
+
+/* Accessibility improvements */
+@media (prefers-reduced-motion: reduce) {
+    * {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+    .border-gray-300 {
+        border-color: #000 !important;
+    }
+    
+    .bg-gray-50 {
+        background-color: #f0f0f0 !important;
+    }
+}
+
+/* Specific overrides for Tailwind classes */
+.border-gray-300 {
+    border: 1px solid #d1d5db !important;
+}
+
+.rounded-lg {
+    border-radius: 0.5rem;
+}
+
+/* Enhanced table styling */
+.table-hover tbody tr:hover {
+    background-color: #f8fafc;
+}
+
+/* Custom scrollbar for tables */
+.overflow-x-auto::-webkit-scrollbar {
+    height: 8px;
+}
+
+.overflow-x-auto::-webkit-scrollbar-track {
+    background: #f1f5f9;
+}
+
+.overflow-x-auto::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 4px;
+}
+
+.overflow-x-auto::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+}
+
+/* Action button styling */
+td button {
+    transition: all 0.2s ease;
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.25rem;
+    font-size: 0.75rem;
+    font-weight: 500;
+    border: none;
+    cursor: pointer;
+}
+
+td button:hover {
+    transform: scale(1.05);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+td button.text-blue-600:hover {
+    background-color: #dbeafe;
+    color: #1d4ed8;
+}
+
+td button.text-green-600:hover {
+    background-color: #dcfce7;
+    color: #16a34a;
+}
+
+td button.text-red-600:hover {
+    background-color: #fee2e2;
+    color: #dc2626;
+}
+
+td button.text-orange-600:hover {
+    background-color: #ffedd5;
+    color: #ea580c;
+}
+
+/* Numbers and symbols spacing */
+.font-bold {
+    font-weight: 700;
+}
+
+.font-medium {
+    font-weight: 500;
+}
+
+.font-semibold {
+    font-weight: 600;
+}
+
+/* Ensure consistent spacing */
+.px-2 { padding-left: 0.5rem; padding-right: 0.5rem; }
+.py-1 { padding-top: 0.25rem; padding-bottom: 0.25rem; }
+.px-3 { padding-left: 0.75rem; padding-right: 0.75rem; }
+.py-2 { padding-top: 0.5rem; padding-bottom: 0.5rem; }
+.px-4 { padding-left: 1rem; padding-right: 1rem; }
+.py-3 { padding-top: 0.75rem; padding-bottom: 0.75rem; }
+.px-6 { padding-left: 1.5rem; padding-right: 1.5rem; }
+.py-4 { padding-top: 1rem; padding-bottom: 1rem; }
+
+/* Consistent margin spacing */
+.mr-1 { margin-right: 0.25rem; }
+.mr-2 { margin-right: 0.5rem; }
+.ml-2 { margin-left: 0.5rem; }
+.ml-3 { margin-left: 0.75rem; }
+.mb-2 { margin-bottom: 0.5rem; }
+.mb-4 { margin-bottom: 1rem; }
+.mb-6 { margin-bottom: 1.5rem; }
 </style>
+
 {% endblock %}
+
