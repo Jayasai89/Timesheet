@@ -13,9 +13,7 @@
                     <p class="text-sm opacity-90">Today</p>
                     <p class="text-lg font-semibold">{{ today }}</p>
                 </div>
-                <button onclick="window.history.back()" class="bg-white bg-opacity-20 hover:bg-opacity-30 px-4 py-2 rounded-lg transition-colors">
-                    <i class="fas fa-arrow-left mr-2"></i>Back to Dashboard
-                </button>
+             
                 <a href="{{ url_for('logout') }}" class="bg-white bg-opacity-20 hover:bg-opacity-30 px-4 py-2 rounded-lg transition-colors">
                     <i class="fas fa-sign-out-alt mr-2"></i>Logout
                 </a>
@@ -63,11 +61,11 @@
             </div>
         </div>
 
-        <div class="bg-blue-500 rounded-xl p-4 text-white">
+        <div class="bg-green-500 rounded-xl p-4 text-white">
             <div class="flex items-center justify-between">
                 <div>
                     <h3 class="text-3xl font-bold">{{ (pending_asset_requests|length or 0) + (approved_asset_requests|length or 0) + (rejected_asset_requests|length or 0) }}</h3>
-                    <p class="text-orange-100 text-sm">total requests</p>
+                    <p class="text-green-100 text-sm">total requests</p>
                 </div>
                 <div class="bg-white bg-opacity-20 rounded-lg p-2">
                     <i class="fas fa-clipboard-list text-2xl"></i>
@@ -75,10 +73,12 @@
             </div>
         </div>
 
+        <!-- Only show payroll stats for Lead Staffing Specialist -->
+        {% if role == 'Lead Staffing Specialist' %}
         <div class="bg-purple-500 rounded-xl p-4 text-white">
             <div class="flex items-center justify-between">
                 <div>
-                    <h3 class="text-3xl font-bold">${{ "%.0f"|format(total_monthly_payroll or 0) }}</h3>
+                    <h3 class="text-3xl font-bold">₹{{ "%.0f"|format(total_monthly_payroll or 0) }}</h3>
                     <p class="text-purple-100 text-sm">monthly payroll</p>
                 </div>
                 <div class="bg-white bg-opacity-20 rounded-lg p-2">
@@ -86,6 +86,19 @@
                 </div>
             </div>
         </div>
+        {% else %}
+        <div class="bg-blue-500 rounded-xl p-4 text-white">
+            <div class="flex items-center justify-between">
+                <div>
+                    <h3 class="text-3xl font-bold">{{ team_work_history|length or 0 }}</h3>
+                    <p class="text-blue-100 text-sm">work records</p>
+                </div>
+                <div class="bg-white bg-opacity-20 rounded-lg p-2">
+                    <i class="fas fa-briefcase text-2xl"></i>
+                </div>
+            </div>
+        </div>
+        {% endif %}
     </div>
 
     <!-- Tab Navigation -->
@@ -98,9 +111,12 @@
                 <button class="tab-button py-4 px-1 border-b-2 font-medium text-sm text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300" data-tab="personal-submissions">
                     <i class="fas fa-user-clock mr-2"></i>My Submissions
                 </button>
+                <!-- Only show Payroll Management for Lead Staffing Specialist -->
+                {% if role == 'Lead Staffing Specialist' %}
                 <button class="tab-button py-4 px-1 border-b-2 font-medium text-sm text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300" data-tab="payroll-management">
                     <i class="fas fa-money-bill-wave mr-2"></i>Payroll Management
                 </button>
+                {% endif %}
                 <button class="tab-button py-4 px-1 border-b-2 font-medium text-sm text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300" data-tab="asset-management">
                     <i class="fas fa-laptop mr-2"></i>Asset Management
                 </button>
@@ -115,15 +131,230 @@
                 <button class="tab-button py-4 px-1 border-b-2 font-medium text-sm text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300" data-tab="resigned-employees">
                     <i class="fas fa-user-times mr-2"></i>Resigned Employees
                 </button>
+                <button class="tab-button py-4 px-1 border-b-2 font-medium text-sm text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300" data-tab="work-assignments">
+                    <i class="fas fa-tasks mr-2"></i>Work Assignments
+                </button>
             </nav>
         </div>
 
-        <!-- Tab Content -->
+        <!-- Work Assignments Tab -->
+        <div id="work-assignments" class="tab-content hidden">
+            <div class="space-y-6">
+                <!-- Assign Work to Direct Reports -->
+                <div class="bg-white rounded-lg shadow-sm border border-gray-200">
+                    <div class="px-6 py-4 border-b border-gray-200">
+                        <h2 class="text-lg font-semibold text-gray-800">
+                            <i class="fas fa-user-plus text-blue-600 mr-2"></i>Assign Work to My Direct Reports
+                        </h2>
+                        <p class="text-sm text-gray-600 mt-1">Assign tasks only to employees directly reporting to you ({{ direct_reports_only|length }} employees)</p>
+                    </div>
+                    <div class="p-6">
+                        {% if direct_reports %}
+                        <form method="post" action="{{ url_for('admin_assign_work_to_team') }}" class="space-y-4">
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Select Team Members *</label>
+                                    <select name="assignee_username" multiple required class="form-select w-full rounded-lg border-gray-300" size="6">
+                                        {% for employee in direct_reports %}
+                                        <option value="{{ employee.username }}">{{ employee.name or employee.username }} ({{ employee.role }})</option>
+                                        {% endfor %}
+                                    </select>
+                                    <p class="text-xs text-gray-500 mt-1">Hold Ctrl/Cmd to select multiple employees</p>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Project (Optional)</label>
+                                    <select name="project_name" class="form-select w-full rounded-lg border-gray-300">
+                                        <option value="">(No specific project)</option>
+                                        {% for project in proj_list %}
+                                        <option value="{{ project }}">{{ project }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Start Date</label>
+                                    <input type="date" name="start_date" class="form-input w-full rounded-lg border-gray-300" value="{{ today }}">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Due Date *</label>
+                                    <input type="date" name="due_date" required class="form-input w-full rounded-lg border-gray-300" min="{{ today }}">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Priority</label>
+                                    <select name="priority" class="form-select w-full rounded-lg border-gray-300">
+                                        <option value="Low">Low</option>
+                                        <option value="Medium" selected>Medium</option>
+                                        <option value="High">High</option>
+                                        <option value="Urgent">Urgent</option>
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Task Description *</label>
+                                <textarea name="task_desc" rows="4" required class="form-textarea w-full rounded-lg border-gray-300" placeholder="Describe the task, requirements, and expectations..."></textarea>
+                            </div>
+                            
+                            <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-4 rounded-lg transition-colors">
+                                <i class="fas fa-paper-plane mr-2"></i>Assign Work to Selected Team Members
+                            </button>
+                        </form>
+                        {% else %}
+                        <div class="text-center py-8">
+                            <i class="fas fa-users text-4xl text-gray-300 mb-4"></i>
+                            <p class="text-gray-500">No direct reports found for work assignment</p>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Work Assigned BY Admin Manager -->
+                <div class="bg-white rounded-lg shadow-sm border border-gray-200">
+                    <div class="px-6 py-4 border-b border-gray-200">
+                        <h2 class="text-lg font-semibold text-gray-800">
+                            <i class="fas fa-clipboard-list text-green-600 mr-2"></i>Work Assigned by Me ({{ my_work_assignments|length }})
+                        </h2>
+                    </div>
+                    <div class="p-6">
+                        {% if my_work_assignments %}
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Assigned To</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Task</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Project</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Due Date</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Urgency</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="bg-white divide-y divide-gray-200">
+                                    {% for assignment in my_assigned_work %}
+                                    <tr class="hover:bg-gray-50">
+                                        <td class="px-4 py-4 whitespace-nowrap text-sm font-medium">
+                                            {{ assignment.assigned_to_name or assignment.assigned_to }}
+                                        </td>
+                                        <td class="px-4 py-4 text-sm max-w-xs">
+                                            <div class="truncate" title="{{ assignment.task_desc }}">{{ assignment.task_desc }}</div>
+                                        </td>
+                                        <td class="px-4 py-4 whitespace-nowrap text-sm">{{ assignment.project_name or '(No project)' }}</td>
+                                        <td class="px-4 py-4 whitespace-nowrap text-sm">{{ assignment.due_date or 'N/A' }}</td>
+                                        <td class="px-4 py-4 whitespace-nowrap">
+                                            <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full
+                                                {% if assignment.rm_status == 'Completed' %}bg-green-100 text-green-800
+                                                {% elif assignment.rm_status == 'In Progress' %}bg-yellow-100 text-yellow-800
+                                                {% elif assignment.rm_status == 'Rejected' %}bg-red-100 text-red-800
+                                                {% else %}bg-blue-100 text-blue-800{% endif %}">
+                                                {{ assignment.rm_status }}
+                                            </span>
+                                        </td>
+                                        <td class="px-4 py-4 whitespace-nowrap">
+                                            {% if assignment.urgency_status == 'Overdue' %}
+                                                <span class="inline-flex px-2 py-1 text-xs font-semibold bg-red-100 text-red-800 rounded-full">
+                                                    <i class="fas fa-exclamation-triangle mr-1"></i>Overdue
+                                                </span>
+                                            {% elif assignment.urgency_status == 'Due Soon' %}
+                                                <span class="inline-flex px-2 py-1 text-xs font-semibold bg-orange-100 text-orange-800 rounded-full">
+                                                    <i class="fas fa-clock mr-1"></i>Due Soon
+                                                </span>
+                                            {% else %}
+                                                
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        {% else %}
+                        <div class="text-center py-8">
+                            <i class="fas fa-clipboard text-4xl text-gray-300 mb-4"></i>
+                            <p class="text-gray-500">No work assignments created yet</p>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Work Assigned TO Admin Manager -->
+                <div class="bg-white rounded-lg shadow-sm border border-gray-200">
+                    <div class="px-6 py-4 border-b border-gray-200">
+                        <h2 class="text-lg font-semibold text-gray-800">
+                            <i class="fas fa-inbox text-purple-600 mr-2"></i>Work Assigned to Me ({{ work_assigned_to_admin|length }})
+                        </h2>
+                    </div>
+                    <div class="p-6">
+                        {% if work_assigned_to_admin %}
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Assigned By</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Task</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Project</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Due Date</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Urgency</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="bg-white divide-y divide-gray-200">
+                                    {% for assignment in work_assigned_to_me %}
+                                    <tr class="hover:bg-gray-50">
+                                        <td class="px-4 py-4 whitespace-nowrap text-sm font-medium">
+                                            {{ assignment.assigned_by_name or assignment.assigned_by }}
+                                        </td>
+                                        <td class="px-4 py-4 text-sm max-w-xs">
+                                            <div class="truncate" title="{{ assignment.task_desc }}">{{ assignment.task_desc }}</div>
+                                        </td>
+                                        <td class="px-4 py-4 whitespace-nowrap text-sm">{{ assignment.project_name or '(No project)' }}</td>
+                                        <td class="px-4 py-4 whitespace-nowrap text-sm">{{ assignment.due_date or 'N/A' }}</td>
+                                        <td class="px-4 py-4 whitespace-nowrap">
+                                            <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full
+                                                {% if assignment.rm_status == 'Completed' %}bg-green-100 text-green-800
+                                                {% elif assignment.rm_status == 'In Progress' %}bg-yellow-100 text-yellow-800
+                                                {% elif assignment.rm_status == 'Rejected' %}bg-red-100 text-red-800
+                                                {% else %}bg-blue-100 text-blue-800{% endif %}">
+                                                {{ assignment.rm_status }}
+                                            </span>
+                                        </td>
+                                        <td class="px-4 py-4 whitespace-nowrap">
+                                            {% if assignment.urgency_status == 'Overdue' %}
+                                                <span class="inline-flex px-2 py-1 text-xs font-semibold bg-red-100 text-red-800 rounded-full">
+                                                    <i class="fas fa-exclamation-triangle mr-1"></i>Overdue
+                                                </span>
+                                            {% elif assignment.urgency_status == 'Due Soon' %}
+                                                <span class="inline-flex px-2 py-1 text-xs font-semibold bg-orange-100 text-orange-800 rounded-full">
+                                                    <i class="fas fa-clock mr-1"></i>Due Soon
+                                                </span>
+                                            {% else %}
+                                                <span class="inline-flex px-2 py-1 text-xs font-semibold bg-green-100 text-green-800 rounded-full">
+                                                    <i class="fas fa-check mr-1"></i>Active
+                                                </span>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        {% else %}
+                        <div class="text-center py-8">
+                            <i class="fas fa-inbox text-4xl text-gray-300 mb-4"></i>
+                            <p class="text-gray-500">No work has been assigned to you</p>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <div class="p-6">
             <!-- Employee Management Tab -->
             <div id="employee-management" class="tab-content">
                 <div class="space-y-6">
-                    <!-- Add New Employee Form -->
+                    <!-- Add New Employee Form (NO SALARY FIELDS) -->
                     <div class="bg-white rounded-lg shadow-sm border border-gray-200">
                         <div class="px-6 py-4 border-b border-gray-200">
                             <h2 class="text-lg font-semibold text-gray-800">
@@ -307,23 +538,6 @@
                                     </div>
                                 </div>
 
-                                <!-- Salary Information -->
-                                <div class="bg-gray-50 p-4 rounded-lg">
-                                    <h3 class="text-md font-semibold text-gray-800 mb-4">
-                                        <i class="fas fa-dollar-sign text-green-600 mr-2"></i>Salary Information
-                                    </h3>
-                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        <div>
-                                            <label class="block text-sm font-medium text-gray-700 mb-2">Monthly Salary ($)</label>
-                                            <input type="number" step="0.01" name="monthly_salary" class="form-input w-full rounded-lg border-gray-300" placeholder="Enter monthly salary" onchange="calculateYearlySalary()">
-                                        </div>
-                                        <div>
-                                            <label class="block text-sm font-medium text-gray-700 mb-2">Yearly Salary ($)</label>
-                                            <input type="number" step="0.01" name="yearly_salary" class="form-input w-full rounded-lg border-gray-300" placeholder="Auto-calculated or enter manually">
-                                        </div>
-                                    </div>
-                                </div>
-
                                 <!-- Leave Balance -->
                                 <div class="bg-gray-50 p-4 rounded-lg">
                                     <h3 class="text-md font-semibold text-gray-800 mb-4">
@@ -361,7 +575,7 @@
                         </div>
                     </div>
 
-                    <!-- All Employees List -->
+                    <!-- All Employees List (NO SALARY COLUMN) -->
                     <div class="bg-white rounded-lg shadow-sm border border-gray-200">
                         <div class="px-6 py-4 border-b border-gray-200">
                             <h2 class="text-lg font-semibold text-gray-800">
@@ -378,7 +592,6 @@
                                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
                                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Employment</th>
                                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contact</th>
-                                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Salary</th>
                                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Assets</th>
                                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                                             </tr>
@@ -423,10 +636,6 @@
                                                     <div class="text-xs text-gray-500">{{ employee.email or 'N/A' }}</div>
                                                 </td>
                                                 <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                                                    <div class="font-medium">${{ "%.0f"|format(employee.monthly_salary or 0) }}/mo</div>
-                                                    <div class="text-xs text-gray-500">${{ "%.0f"|format(employee.yearly_salary or 0) }}/yr</div>
-                                                </td>
-                                                <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
                                                     <div class="flex space-x-1">
                                                         {% if employee.laptop_provided %}
                                                             <span class="inline-flex px-1 py-1 text-xs bg-blue-100 text-blue-800 rounded">💻</span>
@@ -440,7 +649,8 @@
                                                     </div>
                                                 </td>
                                                 <td class="px-4 py-4 whitespace-nowrap text-sm font-medium space-x-1">
-                                                    <button class="text-blue-600 hover:text-blue-800 text-xs px-2 py-1 border border-blue-200 rounded hover:bg-blue-50" onclick="editEmployee('{{ employee.username }}', '{{ employee.name }}', '{{ employee.email }}', '{{ employee.role }}', '{{ employee.mobile_number }}', '{{ employee.monthly_salary or 0 }}', '{{ employee.yearly_salary or 0 }}')">
+                                                    <button class="text-blue-600 hover:text-blue-800 text-xs px-2 py-1 border border-blue-200 rounded hover:bg-blue-50" 
+                                                            onclick="editEmployee('{{ employee.username }}', '{{ employee.name or '' }}', '{{ employee.email or '' }}', '{{ employee.role or '' }}', '{{ employee.mobile_number or '' }}')">
                                                         <i class="fas fa-edit mr-1"></i>Edit
                                                     </button>
                                                     <button class="text-green-600 hover:text-green-800 text-xs px-2 py-1 border border-green-200 rounded hover:bg-green-50" onclick="viewEmployeeDetails('{{ employee.username }}')">
@@ -478,7 +688,7 @@
                             <p class="text-sm text-gray-600 mt-1">Log your work hours for RM approval</p>
                         </div>
                         <div class="p-6">
-                            <form method="post" action="{{ url_for('admin_submit_personal_timesheet') }}" class="space-y-4">
+                            <form method="post" action="{{ url_for('submit_timesheet_action') }}" class="space-y-4">
                                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                                     <div>
                                         <label class="block text-sm font-medium text-gray-700 mb-2">Project *</label>
@@ -520,7 +730,9 @@
                             </form>
                         </div>
                     </div>
+                    Let me continue from where I stopped. Here's the continuation of the admin manager template:
 
+```html
                     <!-- Personal Leave Request -->
                     <div class="bg-white rounded-lg shadow-sm border border-gray-200">
                         <div class="px-6 py-4 border-b border-gray-200">
@@ -536,7 +748,7 @@
                             </div>
                         </div>
                         <div class="p-6">
-                            <form method="post" action="{{ url_for('admin_request_personal_leave') }}" enctype="multipart/form-data" class="space-y-4">
+                            <form method="post" action="{{ url_for('request_leave_action') }}" enctype="multipart/form-data" class="space-y-4">
                                 <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
                                     <div>
                                         <label class="block text-sm font-medium text-gray-700 mb-2">Leave Type *</label>
@@ -576,7 +788,7 @@
                         </div>
                     </div>
 
-                    <!-- Personal Work & Leave History -->
+                    <!-- Personal Work & Leave History with Document Viewing -->
                     <div class="bg-white rounded-lg shadow-sm border border-gray-200">
                         <div class="px-6 py-4 border-b border-gray-200">
                             <h2 class="text-lg font-semibold text-gray-800">
@@ -622,7 +834,7 @@
                             </div>
                             {% endif %}
 
-                            <!-- Personal Leave History -->
+                            <!-- Personal Leave History with Document Viewing -->
                             {% if personal_leaves %}
                             <div>
                                 <h3 class="text-md font-semibold text-gray-700 mb-4">Leave History</h3>
@@ -634,6 +846,7 @@
                                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Start Date</th>
                                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">End Date</th>
                                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Document</th>
                                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
                                             </tr>
                                         </thead>
@@ -658,6 +871,23 @@
                                                         {{ leave.rm_status }}
                                                     </span>
                                                 </td>
+                                                <td class="px-4 py-4 whitespace-nowrap text-sm">
+                                                    {% if leave.health_document %}
+                                                        <div class="flex space-x-2">
+                                                            <a href="{{ url_for('view_leave_document', leave_id=leave.id) }}" 
+                                                               target="_blank" 
+                                                               class="text-blue-600 hover:text-blue-800 text-xs px-2 py-1 bg-blue-50 rounded-md border border-blue-200 hover:bg-blue-100 transition-colors">
+                                                                <i class="fas fa-eye mr-1"></i>View
+                                                            </a>
+                                                            <a href="{{ url_for('download_leave_document', leave_id=leave.id) }}" 
+                                                               class="text-green-600 hover:text-green-800 text-xs px-2 py-1 bg-green-50 rounded-md border border-green-200 hover:bg-green-100 transition-colors">
+                                                                <i class="fas fa-download mr-1"></i>Download
+                                                            </a>
+                                                        </div>
+                                                    {% else %}
+                                                        <span class="text-gray-400 text-xs">No document</span>
+                                                    {% endif %}
+                                                </td>
                                                 <td class="px-4 py-4 text-sm max-w-xs truncate">{{ leave.description }}</td>
                                             </tr>
                                             {% endfor %}
@@ -679,128 +909,141 @@
                 </div>
             </div>
 
-            <!-- Payroll Management Tab -->
+            <!-- Payroll Management Tab - ONLY FOR LEAD STAFFING SPECIALIST -->
+            {% if role == 'Lead Staffing Specialist' %}
             <div id="payroll-management" class="tab-content hidden">
-                <div class="space-y-6">
-                    <!-- Payroll Summary -->
-                    <div class="bg-white rounded-lg shadow-sm border border-gray-200">
-                        <div class="px-6 py-4 border-b border-gray-200">
-                            <h2 class="text-lg font-semibold text-gray-800">
-                                <i class="fas fa-chart-line text-purple-600 mr-2"></i>Payroll Summary
-                            </h2>
-                        </div>
-                        <div class="p-6">
-                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                                <div class="text-center p-4 bg-green-50 rounded-lg">
-                                    <h4 class="text-lg font-semibold text-green-800">Total Monthly</h4>
-                                    <p class="text-2xl font-bold text-green-600">${{ "%.0f"|format(total_monthly_payroll or 0) }}</p>
-                                </div>
-                                <div class="text-center p-4 bg-blue-50 rounded-lg">
-                                    <h4 class="text-lg font-semibold text-blue-800">Total Yearly</h4>
-                                    <p class="text-2xl font-bold text-blue-600">${{ "%.0f"|format(total_yearly_payroll or 0) }}</p>
-                                </div>
-                                <div class="text-center p-4 bg-purple-50 rounded-lg">
-                                    <h4 class="text-lg font-semibold text-purple-800">Paid Employees</h4>
-                                    <p class="text-2xl font-bold text-purple-600">{{ paid_employees_count or 0 }}</p>
-                                </div>
+                <!-- Payroll Summary -->
+                <div class="bg-white rounded-lg shadow-sm border border-gray-200">
+                    <div class="px-6 py-4 border-b border-gray-200">
+                        <h2 class="text-lg font-semibold text-gray-800">
+                            <i class="fas fa-chart-line text-purple-600 mr-2"></i>Payroll Summary
+                        </h2>
+                    </div>
+                    <div class="p-6">
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                            <div class="text-center p-4 bg-green-50 rounded-lg">
+                                <h4 class="text-lg font-semibold text-green-800">Total Monthly</h4>
+                                <p class="text-2xl font-bold text-green-600">₹{{ "%.0f"|format(total_monthly_payroll or 0) }}</p>
+                            </div>
+                            <div class="text-center p-4 bg-blue-50 rounded-lg">
+                                <h4 class="text-lg font-semibold text-blue-800">Total Yearly</h4>
+                                <p class="text-2xl font-bold text-blue-600">₹{{ "%.0f"|format(total_yearly_payroll or 0) }}</p>
+                            </div>
+                            <div class="text-center p-4 bg-purple-50 rounded-lg">
+                                <h4 class="text-lg font-semibold text-purple-800">Paid Employees</h4>
+                                <p class="text-2xl font-bold text-purple-600">{{ paid_employees_count or 0 }}</p>
                             </div>
                         </div>
                     </div>
+                </div>
 
-                    <!-- Employee Salary Management -->
-                    <div class="bg-white rounded-lg shadow-sm border border-gray-200">
-                        <div class="px-6 py-4 border-b border-gray-200">
-                            <h2 class="text-lg font-semibold text-gray-800">
-                                <i class="fas fa-money-bill-wave text-green-600 mr-2"></i>Employee Salary Management
-                            </h2>
-                        </div>
-                        <div class="p-6">
-                            {% if all_employees %}
-                                <div class="overflow-x-auto">
-                                    <table class="min-w-full divide-y divide-gray-200">
-                                        <thead class="bg-gray-50">
-                                            <tr>
-                                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Employee</th>
-                                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
-                                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Monthly Salary ($)</th>
-                                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Yearly Salary ($)</th>
-                                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody class="bg-white divide-y divide-gray-200">
-                                            {% for employee in all_employees %}
-                                            <tr class="hover:bg-gray-50">
-                                                <td class="px-4 py-4 whitespace-nowrap">
-                                                    <div class="flex items-center">
-                                                        <div class="flex-shrink-0 h-8 w-8">
-                                                            {% if employee.photo_url %}
-                                                                <img class="h-8 w-8 rounded-full object-cover" src="{{ employee.photo_url }}" alt="{{ employee.name }}">
-                                                            {% else %}
-                                                                <div class="h-8 w-8 rounded-full bg-blue-100 flex items-center justify-center">
-                                                                    <span class="text-xs font-medium text-blue-600">{{ employee.name[0]|upper if employee.name else employee.username[0]|upper }}</span>
-                                                                </div>
-                                                            {% endif %}
-                                                        </div>
-                                                        <div class="ml-3">
-                                                            <div class="text-sm font-medium text-gray-900">{{ employee.name or employee.username }}</div>
-                                                            <div class="text-sm text-gray-500">{{ employee.username }}</div>
-                                                        </div>
+                <!-- Employee Salary Management -->
+                <div class="bg-white rounded-lg shadow-sm border border-gray-200 mt-6">
+                    <div class="px-6 py-4 border-b border-gray-200">
+                        <h2 class="text-lg font-semibold text-gray-800">
+                            <i class="fas fa-money-bill-wave text-green-600 mr-2"></i>Employee Salary Management
+                        </h2>
+                        <p class="text-sm text-gray-600 mt-1">Update employee salaries - click Update Salary button for each employee</p>
+                    </div>
+                    <div class="p-6">
+                        {% if all_employees %}
+                            <div class="overflow-x-auto">
+                                <table class="min-w-full divide-y divide-gray-200">
+                                    <thead class="bg-gray-50">
+                                        <tr>
+                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Employee</th>
+                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
+                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Current Monthly (₹)</th>
+                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Current Yearly (₹)</th>
+                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">New Monthly (₹)</th>
+                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">New Yearly (₹)</th>
+                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="bg-white divide-y divide-gray-200">
+                                        {% for employee in all_employees %}
+                                        <tr class="hover:bg-gray-50">
+                                            <td class="px-4 py-4 whitespace-nowrap">
+                                                <div class="flex items-center">
+                                                    <div class="flex-shrink-0 h-8 w-8">
+                                                        {% if employee.photo_url %}
+                                                            <img class="h-8 w-8 rounded-full object-cover" src="{{ employee.photo_url }}" alt="{{ employee.name }}">
+                                                        {% else %}
+                                                            <div class="h-8 w-8 rounded-full bg-blue-100 flex items-center justify-center">
+                                                                <span class="text-xs font-medium text-blue-600">{{ employee.name[0]|upper if employee.name else employee.username[0]|upper }}</span>
+                                                            </div>
+                                                        {% endif %}
                                                     </div>
+                                                    <div class="ml-3">
+                                                        <div class="text-sm font-medium text-gray-900">{{ employee.name or employee.username }}</div>
+                                                        <div class="text-sm text-gray-500">{{ employee.username }}</div>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td class="px-4 py-4 whitespace-nowrap">
+                                                <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full
+                                                    {% if employee.role == 'Manager' %}bg-blue-100 text-blue-800
+                                                    {% elif employee.role == 'Admin Manager' %}bg-red-100 text-red-800
+                                                    {% elif employee.role == 'Rm' %}bg-green-100 text-green-800
+                                                    {% elif employee.role == 'Employee' %}bg-gray-100 text-gray-800
+                                                    {% elif employee.role == 'Intern' %}bg-yellow-100 text-yellow-800
+                                                    {% else %}bg-purple-100 text-purple-800{% endif %}">
+                                                    {{ employee.role }}
+                                                </span>
+                                            </td>
+                                            <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900 font-semibold">
+                                                ₹{{ "%.2f"|format(employee.monthly_salary or 0) }}
+                                            </td>
+                                            <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900 font-semibold">
+                                                ₹{{ "%.2f"|format(employee.yearly_salary or 0) }}
+                                            </td>
+                                            
+                                            <!-- FORM STARTS HERE FOR EACH ROW -->
+                                            <form method="post" action="{{ url_for('update_salary_action') }}" class="contents">
+                                                <input type="hidden" name="username" value="{{ employee.username }}">
+                                                
+                                                <td class="px-4 py-4 whitespace-nowrap">
+                                                    <input type="number" 
+                                                           step="0.01" 
+                                                           name="monthly_salary" 
+                                                           placeholder="New monthly salary"
+                                                           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                                                           onchange="autoCalculateYearly(this)">
                                                 </td>
                                                 <td class="px-4 py-4 whitespace-nowrap">
-                                                    <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full
-                                                        {% if employee.role == 'Manager' %}bg-blue-100 text-blue-800
-                                                        {% elif employee.role == 'Admin Manager' %}bg-red-100 text-red-800
-                                                        {% elif employee.role == 'Rm' %}bg-green-100 text-green-800
-                                                        {% elif employee.role == 'Employee' %}bg-gray-100 text-gray-800
-                                                        {% elif employee.role == 'Intern' %}bg-yellow-100 text-yellow-800
-                                                        {% else %}bg-purple-100 text-purple-800{% endif %}">
-                                                        {{ employee.role }}
-                                                    </span>
+                                                    <input type="number" 
+                                                           step="0.01" 
+                                                           name="yearly_salary" 
+                                                           placeholder="Auto-calculated"
+                                                           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
                                                 </td>
-                                                <form method="post" action="{{ url_for('update_salary_admin') }}" style="display: contents;">
-                                                    <td class="px-4 py-4 whitespace-nowrap">
-                                                        <input type="number" 
-                                                               step="0.01" 
-                                                               name="monthly_salary" 
-                                                               value="{{ employee.monthly_salary or 0 }}" 
-                                                               class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                                               onchange="autoCalculateYearly(this)">
-                                                    </td>
-                                                    <td class="px-4 py-4 whitespace-nowrap">
-                                                        <input type="number" 
-                                                               step="0.01" 
-                                                               name="yearly_salary" 
-                                                               value="{{ employee.yearly_salary or (employee.monthly_salary * 12) if employee.monthly_salary else 0 }}" 
-                                                               class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                                                    </td>
-                                                    <td class="px-4 py-4 whitespace-nowrap text-sm font-medium space-x-2">
-                                                        <input type="hidden" name="username" value="{{ employee.username }}">
-                                                        <button type="submit" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md text-xs font-medium transition-colors">
-                                                            <i class="fas fa-save mr-1"></i>Update Salary
-                                                        </button>
-                                                    </td>
-                                                </form>
-                                            </tr>
-                                            {% endfor %}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            {% else %}
-                                <div class="text-center py-8">
-                                    <i class="fas fa-money-bill-wave text-4xl text-gray-300 mb-4"></i>
-                                    <p class="text-gray-500">No employees found for payroll management</p>
-                                </div>
-                            {% endif %}
-                        </div>
+                                                <td class="px-4 py-4 whitespace-nowrap text-sm font-medium">
+                                                    <button type="submit" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md text-xs font-medium transition-colors flex items-center">
+                                                        <i class="fas fa-save mr-1"></i>Update Salary
+                                                    </button>
+                                                </td>
+                                            </form>
+                                            <!-- FORM ENDS HERE -->
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        {% else %}
+                            <div class="text-center py-8">
+                                <i class="fas fa-money-bill-wave text-4xl text-gray-300 mb-4"></i>
+                                <p class="text-gray-500">No employees found for payroll management</p>
+                            </div>
+                        {% endif %}
                     </div>
                 </div>
             </div>
+            {% endif %}
 
-            <!-- Asset Management Tab - UPDATED WITH ALL STATUS VISIBILITY -->
+            <!-- Asset Management Tab -->
             <div id="asset-management" class="tab-content hidden">
                 <div class="space-y-6">
-                    <!-- Asset Summary Card - UPDATED -->
+                    <!-- Asset Summary Card -->
                     <div class="bg-white rounded-lg shadow-sm border border-gray-200">
                         <div class="px-6 py-4 border-b border-gray-200">
                             <h2 class="text-lg font-semibold text-gray-800">
@@ -812,22 +1055,22 @@
                                 <div class="text-center p-4 bg-orange-50 rounded-lg">
                                     <h4 class="text-lg font-semibold text-orange-800">Pending</h4>
                                     <p class="text-2xl font-bold text-orange-600">{{ pending_asset_requests|length or 0 }}</p>
-                                    <p class="text-sm text-gray-600">${{ "%.2f"|format(total_pending_asset_cost or 0) }}</p>
+                                    <p class="text-sm text-gray-600">₹{{ "%.2f"|format(total_pending_asset_cost or 0) }}</p>
                                 </div>
                                 <div class="text-center p-4 bg-green-50 rounded-lg">
                                     <h4 class="text-lg font-semibold text-green-800">Approved</h4>
                                     <p class="text-2xl font-bold text-green-600">{{ approved_asset_requests|length or 0 }}</p>
-                                    <p class="text-sm text-gray-600">${{ "%.2f"|format(total_approved_asset_cost or 0) }}</p>
+                                    <p class="text-sm text-gray-600">₹{{ "%.2f"|format(total_approved_asset_cost or 0) }}</p>
                                 </div>
                                 <div class="text-center p-4 bg-red-50 rounded-lg">
                                     <h4 class="text-lg font-semibold text-red-800">Rejected</h4>
                                     <p class="text-2xl font-bold text-red-600">{{ rejected_asset_requests|length or 0 }}</p>
-                                    <p class="text-sm text-gray-600">${{ "%.2f"|format(total_rejected_asset_cost or 0) }}</p>
+                                    <p class="text-sm text-gray-600">₹{{ "%.2f"|format(total_rejected_asset_cost or 0) }}</p>
                                 </div>
                                 <div class="text-center p-4 bg-blue-50 rounded-lg">
                                     <h4 class="text-lg font-semibold text-blue-800">Total Requests</h4>
                                     <p class="text-2xl font-bold text-blue-600">{{ all_asset_requests|length or 0 }}</p>
-                                    <p class="text-sm text-gray-600">${{ "%.2f"|format((total_pending_asset_cost or 0) + (total_approved_asset_cost or 0) + (total_rejected_asset_cost or 0)) }}</p>
+                                    <p class="text-sm text-gray-600">₹{{ "%.2f"|format((total_pending_asset_cost or 0) + (total_approved_asset_cost or 0) + (total_rejected_asset_cost or 0)) }}</p>
                                 </div>
                             </div>
                         </div>
@@ -865,7 +1108,7 @@
                                     </div>
                                     <!-- AMOUNT FIELD -->
                                     <div>
-                                        <label class="block text-sm font-medium text-gray-700 mb-2">Amount ($) *</label>
+                                        <label class="block text-sm font-medium text-gray-700 mb-2">Amount (₹) *</label>
                                         <input type="number" step="0.01" name="amount" min="0" required class="form-input w-full rounded-lg border-gray-300" placeholder="Enter cost">
                                     </div>
                                     <div>
@@ -891,7 +1134,7 @@
                         </div>
                     </div>
 
-                    <!-- ALL Asset Requests Table - UPDATED -->
+                    <!-- ALL Asset Requests Table -->
                     <div class="bg-white rounded-lg shadow-sm border border-gray-200">
                         <div class="px-6 py-4 border-b border-gray-200">
                             <h2 class="text-lg font-semibold text-gray-800">
@@ -907,7 +1150,7 @@
                                             <tr>
                                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Asset Type</th>
                                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quantity</th>
-                                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount ($)</th>
+                                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount (₹)</th>
                                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">For Employee</th>
                                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Requested By</th>
                                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Request Date</th>
@@ -925,7 +1168,7 @@
                                                 <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">{{ request.quantity }}</td>
                                                 <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900 font-semibold">
                                                     <span class="{% if request.status == 'Approved' %}text-green-600{% elif request.status == 'Rejected' %}text-red-600{% else %}text-orange-600{% endif %}">
-                                                        ${{ "%.2f"|format(request.amount or 0) }}
+                                                        ₹{{ "%.2f"|format(request.amount or 0) }}
                                                     </span>
                                                 </td>
                                                 <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">{{ request.for_employee or 'General Use' }}</td>
@@ -981,12 +1224,12 @@
             <!-- Approvals Tab -->
             <div id="approvals" class="tab-content hidden">
                 <div class="space-y-6">
-                    <!-- Pending Work Approvals -->
-                    {% if pending_work_approvals %}
+                    <!-- Pending Work Approvals Section -->
+                    {% if has_team and pending_work_approvals %}
                     <div class="bg-white rounded-lg shadow-sm border border-gray-200">
                         <div class="px-6 py-4 border-b border-gray-200">
                             <h2 class="text-lg font-semibold text-gray-800">
-                                <i class="fas fa-clock text-orange-600 mr-2"></i>Pending Work Approvals
+                                <i class="fas fa-clock text-orange-600 mr-2"></i>Pending Work Approvals ({{ pending_work_approvals|length }})
                             </h2>
                         </div>
                         <div class="p-6">
@@ -994,32 +1237,30 @@
                                 <table class="min-w-full divide-y divide-gray-200">
                                     <thead class="bg-gray-50">
                                         <tr>
-                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Employee</th>
-                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Work Date</th>
-                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Project</th>
-                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Hours</th>
-                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
-                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Employee</th>
+                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Project</th>
+                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
+                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Hours</th>
+                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody class="bg-white divide-y divide-gray-200">
                                         {% for work in pending_work_approvals %}
                                         <tr class="hover:bg-gray-50">
-                                            <td class="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{{ work.username }}</td>
-                                            <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">{{ work.work_date }}</td>
-                                            <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">{{ work.project_name or '(non-project)' }}</td>
-                                            <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">{{ work.hours }}</td>
-                                            <td class="px-4 py-4 text-sm text-gray-900 max-w-xs">
-                                                <div class="truncate" title="{{ work.work_desc }}">{{ work.work_desc }}</div>
-                                            </td>
+                                            <td class="px-4 py-4 whitespace-nowrap text-sm font-medium">{{ work.username }}</td>
+                                            <td class="px-4 py-4 whitespace-nowrap text-sm">{{ work.work_date }}</td>
+                                            <td class="px-4 py-4 whitespace-nowrap text-sm">{{ work.project_name }}</td>
+                                            <td class="px-4 py-4 text-sm max-w-xs truncate">{{ work.work_desc }}</td>
+                                            <td class="px-4 py-4 whitespace-nowrap text-sm font-semibold">{{ work.hours }}h</td>
                                             <td class="px-4 py-4 whitespace-nowrap text-sm font-medium space-x-2">
-                                                <form method="post" action="{{ url_for('approve_work_admin') }}" style="display: inline;">
-                                                    <input type="hidden" name="work_id" value="{{ work.id }}">
-                                                    <button type="submit" class="text-green-600 hover:text-green-800 text-xs px-2 py-1 border border-green-200 rounded hover:bg-green-50">
+                                                <form method="POST" action="{{ url_for('approve_timesheet_action') }}" style="display: inline;">
+                                                    <input type="hidden" name="id" value="{{ work.id }}">
+                                                    <button type="submit" class="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-xs">
                                                         <i class="fas fa-check mr-1"></i>Approve
                                                     </button>
                                                 </form>
-                                                <button class="text-red-600 hover:text-red-800 text-xs px-2 py-1 border border-red-200 rounded hover:bg-red-50" onclick="rejectWork('{{ work.id }}')">
+                                                <button type="button" class="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded text-xs" onclick="rejectWork({{ work.id }})">
                                                     <i class="fas fa-times mr-1"></i>Reject
                                                 </button>
                                             </td>
@@ -1032,12 +1273,12 @@
                     </div>
                     {% endif %}
 
-                    <!-- Pending Leave Approvals -->
-                    {% if pending_leave_approvals %}
+                    <!-- Pending Leave Approvals Section with Document Viewing -->
+                    {% if has_team and pending_leave_approvals %}
                     <div class="bg-white rounded-lg shadow-sm border border-gray-200">
                         <div class="px-6 py-4 border-b border-gray-200">
                             <h2 class="text-lg font-semibold text-gray-800">
-                                <i class="fas fa-calendar-times text-red-600 mr-2"></i>Pending Leave Approvals
+                                <i class="fas fa-calendar-times text-red-600 mr-2"></i>Pending Leave Approvals ({{ pending_leave_approvals|length }})
                             </h2>
                         </div>
                         <div class="p-6">
@@ -1045,41 +1286,57 @@
                                 <table class="min-w-full divide-y divide-gray-200">
                                     <thead class="bg-gray-50">
                                         <tr>
-                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Employee</th>
-                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Leave Type</th>
-                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Start Date</th>
-                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">End Date</th>
-                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Days</th>
-                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
-                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Employee</th>
+                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Leave Type</th>
+                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Start Date</th>
+                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">End Date</th>
+                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Days</th>
+                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Document</th>
+                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Reason</th>
+                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody class="bg-white divide-y divide-gray-200">
                                         {% for leave in pending_leave_approvals %}
                                         <tr class="hover:bg-gray-50">
-                                            <td class="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{{ leave.username }}</td>
-                                            <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+                                            <td class="px-4 py-4 whitespace-nowrap text-sm font-medium">{{ leave.username }}</td>
+                                            <td class="px-4 py-4 whitespace-nowrap text-sm">
                                                 <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full
                                                     {% if leave.leave_type == 'Sick' %}bg-red-100 text-red-800
-                                                    {% elif leave.leave_type == 'Paid' %}bg-green-100 text-green-800
+                                                    {% elif leave.leave_type == 'Vacation' %}bg-green-100 text-green-800
                                                     {% else %}bg-blue-100 text-blue-800{% endif %}">
                                                     {{ leave.leave_type }}
                                                 </span>
                                             </td>
-                                            <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">{{ leave.start_date }}</td>
-                                            <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">{{ leave.end_date }}</td>
-                                            <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">{{ leave.duration_days or 'N/A' }}</td>
-                                            <td class="px-4 py-4 text-sm text-gray-900 max-w-xs">
-                                                <div class="truncate" title="{{ leave.description }}">{{ leave.description }}</div>
+                                            <td class="px-4 py-4 whitespace-nowrap text-sm">{{ leave.start_date }}</td>
+                                            <td class="px-4 py-4 whitespace-nowrap text-sm">{{ leave.end_date }}</td>
+                                            <td class="px-4 py-4 whitespace-nowrap text-sm font-semibold">{{ leave.duration_days }}</td>
+                                            <td class="px-4 py-4 whitespace-nowrap text-sm">
+                                                {% if leave.health_document %}
+                                                    <div class="flex space-x-1">
+                                                        <a href="{{ url_for('view_leave_document', leave_id=leave.id) }}" 
+                                                           target="_blank" 
+                                                           class="text-blue-600 hover:text-blue-800 text-xs px-2 py-1 bg-blue-50 rounded border border-blue-200 hover:bg-blue-100 transition-colors">
+                                                            <i class="fas fa-eye mr-1"></i>View
+                                                        </a>
+                                                        <a href="{{ url_for('download_leave_document', leave_id=leave.id) }}" 
+                                                           class="text-green-600 hover:text-green-800 text-xs px-2 py-1 bg-green-50 rounded border border-green-200 hover:bg-green-100 transition-colors">
+                                                            <i class="fas fa-download mr-1"></i>Download
+                                                        </a>
+                                                    </div>
+                                                {% else %}
+                                                    <span class="text-gray-400 text-xs">No document</span>
+                                                {% endif %}
                                             </td>
+                                            <td class="px-4 py-4 text-sm max-w-xs truncate">{{ leave.description }}</td>
                                             <td class="px-4 py-4 whitespace-nowrap text-sm font-medium space-x-2">
-                                                <form method="post" action="{{ url_for('approve_leave_admin') }}" style="display: inline;">
-                                                    <input type="hidden" name="leave_id" value="{{ leave.id }}">
-                                                    <button type="submit" class="text-green-600 hover:text-green-800 text-xs px-2 py-1 border border-green-200 rounded hover:bg-green-50">
+                                                <form method="POST" action="{{ url_for('approve_leave_action') }}" style="display: inline;">
+                                                    <input type="hidden" name="id" value="{{ leave.id }}">
+                                                    <button type="submit" class="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-xs">
                                                         <i class="fas fa-check mr-1"></i>Approve
                                                     </button>
                                                 </form>
-                                                <button class="text-red-600 hover:text-red-800 text-xs px-2 py-1 border border-red-200 rounded hover:bg-red-50" onclick="rejectLeave('{{ leave.id }}')">
+                                                <button type="button" class="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded text-xs" onclick="rejectLeave({{ leave.id }})">
                                                     <i class="fas fa-times mr-1"></i>Reject
                                                 </button>
                                             </td>
@@ -1092,19 +1349,19 @@
                     </div>
                     {% endif %}
 
-                    {% if not pending_work_approvals and not pending_leave_approvals %}
+                    {% if not has_team or (not pending_work_approvals and not pending_leave_approvals) %}
                     <div class="bg-white rounded-lg shadow-sm border border-gray-200">
                         <div class="p-12 text-center">
-                            <i class="fas fa-check-circle text-4xl text-green-300 mb-4"></i>
-                            <h3 class="text-lg font-medium text-gray-800 mb-2">All Caught Up!</h3>
-                            <p class="text-gray-500">No pending approvals at the moment.</p>
+                            <i class="fas fa-check-circle text-4xl text-green-400 mb-4"></i>
+                            <h3 class="text-lg font-medium text-gray-800 mb-2">No Pending Approvals</h3>
+                            <p class="text-gray-500">All submissions have been processed or there are no team members requiring approval.</p>
                         </div>
                     </div>
                     {% endif %}
                 </div>
             </div>
 
-            <!-- Team History Tab -->
+            <!-- Team History Tab with Document Viewing -->
             {% if has_team %}
             <div id="team-history" class="tab-content hidden">
                 <div class="space-y-6">
@@ -1194,7 +1451,7 @@
                                 {% endif %}
                             </div>
 
-                            <!-- Team Leave History -->
+                            <!-- Team Leave History with Document Viewing -->
                             <div id="team-leave-history" class="team-tab-content hidden">
                                 {% if team_leave_history %}
                                     <div class="overflow-x-auto">
@@ -1207,6 +1464,7 @@
                                                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">End Date</th>
                                                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Days</th>
                                                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Document</th>
                                                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
                                                 </tr>
                                             </thead>
@@ -1232,6 +1490,23 @@
                                                             {% else %}bg-yellow-100 text-yellow-800{% endif %}">
                                                             {{ leave.rm_status }}
                                                         </span>
+                                                    </td>
+                                                    <td class="px-4 py-4 whitespace-nowrap text-sm">
+                                                        {% if leave.health_document %}
+                                                            <div class="flex space-x-1">
+                                                                <a href="{{ url_for('view_leave_document', leave_id=leave.id) }}" 
+                                                                   target="_blank" 
+                                                                   class="text-blue-600 hover:text-blue-800 text-xs px-2 py-1 bg-blue-50 rounded border border-blue-200 hover:bg-blue-100 transition-colors">
+                                                                    <i class="fas fa-eye mr-1"></i>View
+                                                                </a>
+                                                                <a href="{{ url_for('download_leave_document', leave_id=leave.id) }}" 
+                                                                   class="text-green-600 hover:text-green-800 text-xs px-2 py-1 bg-green-50 rounded border border-green-200 hover:bg-green-100 transition-colors">
+                                                                    <i class="fas fa-download mr-1"></i>Download
+                                                                </a>
+                                                            </div>
+                                                        {% else %}
+                                                            <span class="text-gray-400 text-xs">No document</span>
+                                                        {% endif %}
                                                     </td>
                                                     <td class="px-4 py-4 text-sm text-gray-900 max-w-xs">
                                                         <div class="truncate" title="{{ leave.description }}">{{ leave.description }}</div>
@@ -1274,7 +1549,6 @@
                                             <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
                                             <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Joining Date</th>
                                             <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Resignation Date</th>
-                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Last Salary</th>
                                             <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                                         </tr>
                                     </thead>
@@ -1297,7 +1571,6 @@
                                             <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-500">{{ employee.role }}</td>
                                             <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-500">{{ employee.joining_date or 'N/A' }}</td>
                                             <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-500">{{ employee.resigned_date or 'N/A' }}</td>
-                                            <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-500">${{ "%.0f"|format(employee.monthly_salary or 0) }}/mo</td>
                                             <td class="px-4 py-4 whitespace-nowrap text-sm font-medium">
                                                 <button class="text-blue-600 hover:text-blue-800 text-xs px-2 py-1 border border-blue-200 rounded hover:bg-blue-50" onclick="viewResignedEmployeeDetails('{{ employee.username }}')">
                                                     <i class="fas fa-eye mr-1"></i>View Details
@@ -1353,49 +1626,214 @@
 <!-- Edit Employee Modal -->
 <div id="editEmployeeModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden z-50">
     <div class="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-        <div class="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-2xl sm:w-full">
-            <form method="post" action="{{ url_for('edit_employee_admin') }}">
+        <div class="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-5xl sm:w-full max-h-screen overflow-y-auto">
+            <form method="post" action="{{ url_for('edit_employee_admin') }}" enctype="multipart/form-data">
                 <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
                     <div class="sm:flex sm:items-start">
                         <div class="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-green-100 sm:mx-0 sm:h-10 sm:w-10">
                             <i class="fas fa-edit text-green-600"></i>
                         </div>
                         <div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left w-full">
-                            <h3 class="text-lg leading-6 font-medium text-gray-900">Edit Employee</h3>
-                            <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <input type="hidden" name="username" id="edit_username">
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700 mb-1">Name</label>
-                                    <input type="text" name="name" id="edit_name" class="form-input w-full rounded border-gray-300" required>
+                            <h3 class="text-lg leading-6 font-medium text-gray-900">Edit Employee - All Fields Available</h3>
+                            <div class="mt-4 space-y-6">
+                                <input type="hidden" name="employee_username" id="edit_employee_username">
+                                
+                                <!-- Basic Information -->
+                                <div class="bg-gray-50 p-4 rounded-lg">
+                                    <h4 class="text-md font-semibold text-gray-800 mb-4">
+                                        <i class="fas fa-user text-blue-600 mr-2"></i>Basic Information
+                                    </h4>
+                                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                        <div>
+                                            <label class="block text-sm font-medium text-gray-700 mb-2">Full Name</label>
+                                            <input type="text" name="name" id="edit_name" class="form-input w-full rounded-lg border-gray-300" placeholder="Leave empty to keep current">
+                                        </div>
+                                        <div>
+                                            <label class="block text-sm font-medium text-gray-700 mb-2">Email</label>
+                                            <input type="email" name="email" id="edit_email" class="form-input w-full rounded-lg border-gray-300" placeholder="Leave empty to keep current">
+                                        </div>
+                                        <div>
+                                            <label class="block text-sm font-medium text-gray-700 mb-2">Role</label>
+                                            <select name="role" id="edit_role" class="form-select w-full rounded-lg border-gray-300">
+                                                <option value="">Keep Current Role</option>
+                                                <option value="Admin Manager">Admin Manager</option>
+                                                <option value="Manager">Manager</option>
+                                                <option value="Rm">RM</option>
+                                                <option value="Employee">Employee</option>
+                                                <option value="Intern">Intern</option>
+                                                <option value="Lead">Lead</option>
+                                                <option value="Product Owner">Product Owner</option>
+                                                <option value="BDE Manager">BDE Manager</option>
+                                                <option value="Lead Staffing Specialist">Lead Staffing Specialist</option>
+                                                <option value="SAP Consultant">SAP Consultant</option>
+                                                <option value="Contractor">Contractor</option>
+                                                <option value="Hr & Finance Controller">HR & Finance Controller</option>
+                                                <option value="Finance Manager">Finance Manager</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                                        <div>
+                                            <label class="block text-sm font-medium text-gray-700 mb-2">New Password</label>
+                                            <input type="password" name="password" id="edit_password" class="form-input w-full rounded-lg border-gray-300" placeholder="Leave empty to keep current password">
+                                        </div>
+                                        <div>
+                                            <label class="block text-sm font-medium text-gray-700 mb-2">Reporting Manager</label>
+                                            <select name="reporting_manager" id="edit_reporting_manager" class="form-select w-full rounded-lg border-gray-300">
+                                                <option value="">Keep Current Manager</option>
+                                                {% for manager in all_managers %}
+                                                <option value="{{ manager.username }}">{{ manager.name }} ({{ manager.username }})</option>
+                                                {% endfor %}
+                                            </select>
+                                        </div>
+                                    </div>
                                 </div>
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700 mb-1">Email</label>
-                                    <input type="email" name="email" id="edit_email" class="form-input w-full rounded border-gray-300" required>
+
+                                <!-- Employment Details -->
+                                <div class="bg-gray-50 p-4 rounded-lg">
+                                    <h4 class="text-md font-semibold text-gray-800 mb-4">
+                                        <i class="fas fa-briefcase text-green-600 mr-2"></i>Employment Details
+                                    </h4>
+                                    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                                        <div>
+                                            <label class="block text-sm font-medium text-gray-700 mb-2">Joining Date</label>
+                                            <input type="date" name="joining_date" id="edit_joining_date" class="form-input w-full rounded-lg border-gray-300">
+                                        </div>
+                                        <div>
+                                            <label class="block text-sm font-medium text-gray-700 mb-2">Employment Type</label>
+                                            <select name="employment_type" id="edit_employment_type" class="form-select w-full rounded-lg border-gray-300">
+                                                <option value="">Keep Current Type</option>
+                                                <option value="Fulltime">Fulltime</option>
+                                                <option value="Contractual">Contractual</option>
+                                                <option value="Freelancer">Freelancer</option>
+                                                <option value="Intern">Intern</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label class="block text-sm font-medium text-gray-700 mb-2">Duration (months)</label>
+                                            <input type="number" name="duration" id="edit_duration" class="form-input w-full rounded-lg border-gray-300" placeholder="Contract duration">
+                                        </div>
+                                        <div>
+                                            <label class="block text-sm font-medium text-gray-700 mb-2">Blood Group</label>
+                                            <select name="blood_group" id="edit_blood_group" class="form-select w-full rounded-lg border-gray-300">
+                                                <option value="">Keep Current</option>
+                                                <option value="A+">A+</option>
+                                                <option value="A-">A-</option>
+                                                <option value="B+">B+</option>
+                                                <option value="B-">B-</option>
+                                                <option value="AB+">AB+</option>
+                                                <option value="AB-">AB-</option>
+                                                <option value="O+">O+</option>
+                                                <option value="O-">O-</option>
+                                            </select>
+                                        </div>
+                                    </div>
                                 </div>
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700 mb-1">Role</label>
-                                    <select name="role" id="edit_role" class="form-select w-full rounded border-gray-300" required>
-                                        <option value="Admin Manager">Admin Manager</option>
-                                        <option value="Manager">Manager</option>
-                                        <option value="Rm">RM</option>
-                                        <option value="Employee">Employee</option>
-                                        <option value="Intern">Intern</option>
-                                        <option value="Lead">Lead</option>
-                                        <option value="Hr & Finance Controller">HR & Finance Controller</option>
-                                        <option value="Finance Manager">Finance Manager</option>
-                                    </select>
+
+                                <!-- Contact Information -->
+                                <div class="bg-gray-50 p-4 rounded-lg">
+                                    <h4 class="text-md font-semibold text-gray-800 mb-4">
+                                        <i class="fas fa-phone text-purple-600 mr-2"></i>Contact Information
+                                    </h4>
+                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div>
+                                            <label class="block text-sm font-medium text-gray-700 mb-2">Mobile Number</label>
+                                            <input type="tel" name="mobile_number" id="edit_mobile_number" class="form-input w-full rounded-lg border-gray-300" placeholder="Enter mobile number">
+                                        </div>
+                                        <div>
+                                            <label class="block text-sm font-medium text-gray-700 mb-2">Emergency Contact</label>
+                                            <input type="tel" name="emergency_contact" id="edit_emergency_contact" class="form-input w-full rounded-lg border-gray-300" placeholder="Emergency contact number">
+                                        </div>
+                                    </div>
                                 </div>
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700 mb-1">Mobile Number</label>
-                                    <input type="tel" name="mobile_number" id="edit_mobile" class="form-input w-full rounded border-gray-300">
+
+                                <!-- Asset Information -->
+                                <div class="bg-gray-50 p-4 rounded-lg">
+                                    <h4 class="text-md font-semibold text-gray-800 mb-4">
+                                        <i class="fas fa-laptop text-indigo-600 mr-2"></i>Asset Information
+                                    </h4>
+                                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                        <div class="flex items-center">
+                                            <input type="checkbox" id="edit_laptop_provided" name="laptop_provided" class="rounded border-gray-300 text-blue-600">
+                                            <label for="edit_laptop_provided" class="ml-2 text-sm text-gray-700">Laptop Provided</label>
+                                        </div>
+                                        <div class="flex items-center">
+                                            <input type="checkbox" id="edit_id_card_provided" name="id_card_provided" class="rounded border-gray-300 text-blue-600">
+                                            <label for="edit_id_card_provided" class="ml-2 text-sm text-gray-700">ID Card Provided</label>
+                                        </div>
+                                        <div class="flex items-center">
+                                            <input type="checkbox" id="edit_email_provided" name="email_provided" class="rounded border-gray-300 text-blue-600">
+                                            <label for="edit_email_provided" class="ml-2 text-sm text-gray-700">Email Access Provided</label>
+                                        </div>
+                                    </div>
+                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                                        <div>
+                                            <label class="block text-sm font-medium text-gray-700 mb-2">ID Card Details</label>
+                                            <input type="text" name="id_card" id="edit_id_card" class="form-input w-full rounded-lg border-gray-300" placeholder="ID Card number or details">
+                                        </div>
+                                        <div>
+                                            <label class="block text-sm font-medium text-gray-700 mb-2">Asset Details</label>
+                                            <textarea name="asset_details" id="edit_asset_details" rows="2" class="form-textarea w-full rounded-lg border-gray-300" placeholder="Additional asset details"></textarea>
+                                        </div>
+                                    </div>
                                 </div>
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700 mb-1">Monthly Salary</label>
-                                    <input type="number" step="0.01" name="monthly_salary" id="edit_monthly_salary" class="form-input w-full rounded border-gray-300">
+
+                                <!-- Documents & Identification -->
+                                <div class="bg-gray-50 p-4 rounded-lg">
+                                    <h4 class="text-md font-semibold text-gray-800 mb-4">
+                                        <i class="fas fa-id-card text-red-600 mr-2"></i>Documents & Identification
+                                    </h4>
+                                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                        <div>
+                                            <label class="block text-sm font-medium text-gray-700 mb-2">Aadhaar Number</label>
+                                            <input type="text" name="adhaar_number" id="edit_adhaar_number" class="form-input w-full rounded-lg border-gray-300" placeholder="Enter Aadhaar number" maxlength="12">
+                                        </div>
+                                        <div>
+                                            <label class="block text-sm font-medium text-gray-700 mb-2">PAN Number</label>
+                                            <input type="text" name="pan_number" id="edit_pan_number" class="form-input w-full rounded-lg border-gray-300" placeholder="Enter PAN number" maxlength="10">
+                                        </div>
+                                        <div>
+                                            <label class="block text-sm font-medium text-gray-700 mb-2">LinkedIn URL</label>
+                                            <input type="url" name="linkedin_url" id="edit_linkedin_url" class="form-input w-full rounded-lg border-gray-300" placeholder="https://linkedin.com/in/username">
+                                        </div>
+                                    </div>
+                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                                        <div>
+                                            <label class="block text-sm font-medium text-gray-700 mb-2">Upload New Photo</label>
+                                            <input type="file" name="photo" id="edit_photo" accept="image/*" class="form-input w-full rounded-lg border-gray-300">
+                                            <p class="text-xs text-gray-500 mt-1">Upload new employee photo (JPG, PNG, max 5MB)</p>
+                                        </div>
+                                        <div>
+                                            <label class="block text-sm font-medium text-gray-700 mb-2">Photo URL (Alternative)</label>
+                                            <input type="url" name="photo_url" id="edit_photo_url" class="form-input w-full rounded-lg border-gray-300" placeholder="https://example.com/photo.jpg">
+                                            <p class="text-xs text-gray-500 mt-1">Or provide photo URL</p>
+                                        </div>
+                                    </div>
                                 </div>
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700 mb-1">Yearly Salary</label>
-                                    <input type="number" step="0.01" name="yearly_salary" id="edit_yearly_salary" class="form-input w-full rounded border-gray-300">
+
+                                <!-- Leave Balance Configuration -->
+                                <div class="bg-gray-50 p-4 rounded-lg">
+                                    <h4 class="text-md font-semibold text-gray-800 mb-4">
+                                        <i class="fas fa-calendar-alt text-orange-600 mr-2"></i>Leave Balance Configuration
+                                    </h4>
+                                    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                                        <div>
+                                            <label class="block text-sm font-medium text-gray-700 mb-2">Total Leaves</label>
+                                            <input type="number" name="total_leaves" id="edit_total_leaves" class="form-input w-full rounded-lg border-gray-300" placeholder="Default: 36">
+                                        </div>
+                                        <div>
+                                            <label class="block text-sm font-medium text-gray-700 mb-2">Sick Leaves</label>
+                                            <input type="number" name="sick_total" id="edit_sick_total" class="form-input w-full rounded-lg border-gray-300" placeholder="Default: 12">
+                                        </div>
+                                        <div>
+                                            <label class="block text-sm font-medium text-gray-700 mb-2">Paid Leaves</label>
+                                            <input type="number" name="paid_total" id="edit_paid_total" class="form-input w-full rounded-lg border-gray-300" placeholder="Default: 18">
+                                        </div>
+                                        <div>
+                                            <label class="block text-sm font-medium text-gray-700 mb-2">Casual Leaves</label>
+                                            <input type="number" name="casual_total" id="edit_casual_total" class="form-input w-full rounded-lg border-gray-300" placeholder="Default: 6">
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -1403,7 +1841,7 @@
                 </div>
                 <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
                     <button type="submit" class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-green-600 text-base font-medium text-white hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 sm:ml-3 sm:w-auto sm:text-sm">
-                        Update Employee
+                        <i class="fas fa-save mr-2"></i>Update Employee
                     </button>
                     <button type="button" class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm" onclick="closeEditModal()">
                         Cancel
@@ -1441,6 +1879,7 @@
         </div>
     </div>
 </div>
+
 <!-- JavaScript -->
 <script>
 document.addEventListener('DOMContentLoaded', function() {
@@ -1507,26 +1946,63 @@ function toggleDurationField() {
     }
 }
 
-function calculateYearlySalary() {
-    const monthly = parseFloat(document.querySelector('[name="monthly_salary"]').value) || 0;
-    document.querySelector('[name="yearly_salary"]').value = monthly * 12;
-}
-
 function autoCalculateYearly(monthlyInput) {
     const monthly = parseFloat(monthlyInput.value) || 0;
     const yearlyInput = monthlyInput.closest('tr').querySelector('[name="yearly_salary"]');
     yearlyInput.value = monthly * 12;
 }
 
-// Edit Employee Function
-function editEmployee(username, name, email, role, mobile, monthly_salary, yearly_salary) {
-    document.getElementById('edit_username').value = username;
+// Enhanced Edit Employee Function
+function editEmployee(username, name, email, role, mobile) {
+    // Set basic fields only
+    document.getElementById('edit_employee_username').value = username;
     document.getElementById('edit_name').value = name || '';
     document.getElementById('edit_email').value = email || '';
     document.getElementById('edit_role').value = role || '';
-    document.getElementById('edit_mobile').value = mobile || '';
-    document.getElementById('edit_monthly_salary').value = monthly_salary || '';
-    document.getElementById('edit_yearly_salary').value = yearly_salary || '';
+    document.getElementById('edit_mobile_number').value = mobile || '';
+    
+    // Fetch complete employee details to populate all fields
+    fetch(`{{ url_for('get_employee_details_json') }}?username=₹{username}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const employee = data.employee;
+                
+                // Populate all comprehensive fields with current values
+                document.getElementById('edit_joining_date').value = employee.joining_date || '';
+                document.getElementById('edit_employment_type').value = employee.employment_type || '';
+                document.getElementById('edit_duration').value = employee.duration || '';
+                document.getElementById('edit_blood_group').value = employee.blood_group || '';
+                document.getElementById('edit_emergency_contact').value = employee.emergency_contact || '';
+                document.getElementById('edit_reporting_manager').value = employee.reporting_manager || '';
+                
+                // Asset information
+                document.getElementById('edit_laptop_provided').checked = employee.laptop_provided || false;
+                document.getElementById('edit_id_card_provided').checked = employee.id_card_provided || false;
+                document.getElementById('edit_email_provided').checked = employee.email_provided || false;
+                document.getElementById('edit_id_card').value = employee.id_card || '';
+                document.getElementById('edit_asset_details').value = employee.asset_details || '';
+                
+                // Documents & Identification
+                document.getElementById('edit_adhaar_number').value = employee.adhaar_number || '';
+                document.getElementById('edit_pan_number').value = employee.pan_number || '';
+                document.getElementById('edit_linkedin_url').value = employee.linkedin_url || '';
+                document.getElementById('edit_photo_url').value = employee.photo_url || '';
+                
+                // Leave balance fields
+                document.getElementById('edit_total_leaves').value = employee.total_leaves || '';
+                document.getElementById('edit_sick_total').value = employee.sick_total || '';
+                document.getElementById('edit_paid_total').value = employee.paid_total || '';
+                document.getElementById('edit_casual_total').value = employee.casual_total || '';
+                
+                console.log('All employee fields populated successfully');
+            } else {
+                console.error('Failed to fetch employee details:', data.message);
+            }
+        })
+        .catch(error => {
+            console.error('Error fetching employee details:', error);
+        });
     
     document.getElementById('editEmployeeModal').classList.remove('hidden');
 }
@@ -1537,7 +2013,7 @@ function closeEditModal() {
 
 // View Employee Details Function
 function viewEmployeeDetails(username) {
-    fetch(`{{ url_for('get_employee_details_json') }}?username=${username}`)
+    fetch(`{{ url_for('get_employee_details_json') }}?username=₹{username}`)
         .then(response => response.json())
         .then(data => {
             if (data.success) {
@@ -1548,13 +2024,13 @@ function viewEmployeeDetails(username) {
                         <div class="bg-gray-50 p-4 rounded-lg">
                             <h4 class="font-semibold text-gray-800 mb-3">Personal Information</h4>
                             <div class="space-y-2 text-sm">
-                                <div><strong>Username:</strong> ${employee.username}</div>
-                                <div><strong>Full Name:</strong> ${employee.name || 'N/A'}</div>
-                                <div><strong>Email:</strong> ${employee.email || 'N/A'}</div>
-                                <div><strong>Role:</strong> ${employee.role || 'N/A'}</div>
-                                <div><strong>Mobile:</strong> ${employee.mobile_number || 'N/A'}</div>
-                                <div><strong>Emergency Contact:</strong> ${employee.emergency_contact || 'N/A'}</div>
-                                <div><strong>Blood Group:</strong> ${employee.blood_group || 'N/A'}</div>
+                                <div><strong>Username:</strong> ₹{employee.username}</div>
+                                <div><strong>Full Name:</strong> ₹{employee.name || 'N/A'}</div>
+                                <div><strong>Email:</strong> ₹{employee.email || 'N/A'}</div>
+                                <div><strong>Role:</strong> ₹{employee.role || 'N/A'}</div>
+                                <div><strong>Mobile:</strong> ₹{employee.mobile_number || 'N/A'}</div>
+                                <div><strong>Emergency Contact:</strong> ₹{employee.emergency_contact || 'N/A'}</div>
+                                <div><strong>Blood Group:</strong> ₹{employee.blood_group || 'N/A'}</div>
                             </div>
                         </div>
                         
@@ -1562,10 +2038,8 @@ function viewEmployeeDetails(username) {
                         <div class="bg-gray-50 p-4 rounded-lg">
                             <h4 class="font-semibold text-gray-800 mb-3">Employment Information</h4>
                             <div class="space-y-2 text-sm">
-                                <div><strong>Employment Type:</strong> ${employee.employment_type || 'N/A'}</div>
-                                <div><strong>Joining Date:</strong> ${employee.joining_date || 'N/A'}</div>
-                                <div><strong>Monthly Salary:</strong> $${employee.monthly_salary || 0}</div>
-                                <div><strong>Yearly Salary:</strong> $${employee.yearly_salary || 0}</div>
+                                <div><strong>Employment Type:</strong> ₹{employee.employment_type || 'N/A'}</div>
+                                <div><strong>Joining Date:</strong> ₹{employee.joining_date || 'N/A'}</div>
                             </div>
                         </div>
                         
@@ -1573,11 +2047,11 @@ function viewEmployeeDetails(username) {
                         <div class="bg-gray-50 p-4 rounded-lg">
                             <h4 class="font-semibold text-gray-800 mb-3">Assets & Documents</h4>
                             <div class="space-y-2 text-sm">
-                                <div><strong>Laptop:</strong> ${employee.laptop_provided ? '✅ Provided' : '❌ Not Provided'}</div>
-                                <div><strong>ID Card:</strong> ${employee.id_card_provided ? '✅ Provided' : '❌ Not Provided'}</div>
-                                <div><strong>Email Access:</strong> ${employee.email_provided ? '✅ Provided' : '❌ Not Provided'}</div>
-                                <div><strong>Aadhaar:</strong> ${employee.adhaar_number || 'N/A'}</div>
-                                <div><strong>PAN:</strong> ${employee.pan_number || 'N/A'}</div>
+                                <div><strong>Laptop:</strong> ₹{employee.laptop_provided ? '✅ Provided' : '❌ Not Provided'}</div>
+                                <div><strong>ID Card:</strong> ₹{employee.id_card_provided ? '✅ Provided' : '❌ Not Provided'}</div>
+                                <div><strong>Email Access:</strong> ₹{employee.email_provided ? '✅ Provided' : '❌ Not Provided'}</div>
+                                <div><strong>Aadhaar:</strong> ₹{employee.adhaar_number || 'N/A'}</div>
+                                <div><strong>PAN:</strong> ₹{employee.pan_number || 'N/A'}</div>
                             </div>
                         </div>
                         
@@ -1585,15 +2059,15 @@ function viewEmployeeDetails(username) {
                         <div class="bg-gray-50 p-4 rounded-lg">
                             <h4 class="font-semibold text-gray-800 mb-3">Additional Information</h4>
                             <div class="space-y-2 text-sm">
-                                <div><strong>LinkedIn:</strong> ${employee.linkedin_url ? '<a href="' + employee.linkedin_url + '" target="_blank" class="text-blue-600">View Profile</a>' : 'N/A'}</div>
-                                <div><strong>Asset Details:</strong> ${employee.asset_details || 'N/A'}</div>
+                                <div><strong>LinkedIn:</strong> ₹{employee.linkedin_url ? '<a href="' + employee.linkedin_url + '" target="_blank" class="text-blue-600">View Profile</a>' : 'N/A'}</div>
+                                <div><strong>Asset Details:</strong> ₹{employee.asset_details || 'N/A'}</div>
                             </div>
                         </div>
                     </div>
                 `;
                 
                 document.getElementById('employee-details-content').innerHTML = detailsHtml;
-                document.getElementById('modal-title').textContent = `${employee.name || employee.username} - Complete Details`;
+                document.getElementById('modal-title').textContent = `₹{employee.name || employee.username} - Complete Details`;
                 document.getElementById('employeeModal').classList.remove('hidden');
             } else {
                 alert('Failed to load employee details');
@@ -1611,7 +2085,7 @@ function closeModal() {
 
 // Delete Employee Function
 function deleteEmployee(username) {
-    if (confirm(`Are you sure you want to delete employee: ${username}? This will move them to resigned employees table.`)) {
+    if (confirm(`Are you sure you want to delete employee: ₹{username}? This will move them to resigned employees table.`)) {
         const form = document.createElement('form');
         form.method = 'POST';
         form.action = '{{ url_for("delete_employee_admin") }}';
@@ -1632,16 +2106,16 @@ function rejectWork(workId) {
     if (reason !== null && reason !== '') {
         const form = document.createElement('form');
         form.method = 'POST';
-        form.action = '{{ url_for("reject_work_admin") }}';
+        form.action = '{{ url_for("reject_timesheet_action") }}';
         
         const workInput = document.createElement('input');
         workInput.type = 'hidden';
-        workInput.name = 'work_id';
+        workInput.name = 'id';
         workInput.value = workId;
         
         const reasonInput = document.createElement('input');
         reasonInput.type = 'hidden';
-        reasonInput.name = 'reason';
+        reasonInput.name = 'rejection_reason';
         reasonInput.value = reason;
         
         form.appendChild(workInput);
@@ -1656,11 +2130,11 @@ function rejectLeave(leaveId) {
     if (reason !== null && reason !== '') {
         const form = document.createElement('form');
         form.method = 'POST';
-        form.action = '{{ url_for("reject_leave_admin") }}';
+        form.action = '{{ url_for("reject_leave_action") }}';
         
         const leaveInput = document.createElement('input');
         leaveInput.type = 'hidden';
-        leaveInput.name = 'leave_id';
+        leaveInput.name = 'id';
         leaveInput.value = leaveId;
         
         const reasonInput = document.createElement('input');
@@ -1675,9 +2149,9 @@ function rejectLeave(leaveId) {
     }
 }
 
-// View Resigned Employee Details Function - FIXED
+// View Resigned Employee Details Function
 function viewResignedEmployeeDetails(username) {
-    fetch(`{{ url_for('view_resigned_employee_details') }}?username=${username}`)
+    fetch(`{{ url_for('view_resigned_employee_details') }}?username=₹{username}`)
         .then(response => response.json())
         .then(data => {
             if (data.success) {
@@ -1688,12 +2162,12 @@ function viewResignedEmployeeDetails(username) {
                         <div class="bg-gray-50 p-4 rounded-lg">
                             <h4 class="font-semibold text-gray-800 mb-3">Personal Information</h4>
                             <div class="space-y-2 text-sm">
-                                <div><strong>Username:</strong> ${employee.username}</div>
-                                <div><strong>Full Name:</strong> ${employee.name || 'N/A'}</div>
-                                <div><strong>Email:</strong> ${employee.email || 'N/A'}</div>
-                                <div><strong>Role:</strong> ${employee.role || 'N/A'}</div>
-                                <div><strong>Mobile:</strong> ${employee.mobile_number || 'N/A'}</div>
-                                <div><strong>Emergency Contact:</strong> ${employee.emergency_contact || 'N/A'}</div>
+                                <div><strong>Username:</strong> ₹{employee.username}</div>
+                                <div><strong>Full Name:</strong> ₹{employee.name || 'N/A'}</div>
+                                <div><strong>Email:</strong> ₹{employee.email || 'N/A'}</div>
+                                <div><strong>Role:</strong> ₹{employee.role || 'N/A'}</div>
+                                <div><strong>Mobile:</strong> ₹{employee.mobile_number || 'N/A'}</div>
+                                <div><strong>Emergency Contact:</strong> ₹{employee.emergency_contact || 'N/A'}</div>
                             </div>
                         </div>
                         
@@ -1701,11 +2175,9 @@ function viewResignedEmployeeDetails(username) {
                         <div class="bg-gray-50 p-4 rounded-lg">
                             <h4 class="font-semibold text-gray-800 mb-3">Employment Information</h4>
                             <div class="space-y-2 text-sm">
-                                <div><strong>Employment Type:</strong> ${employee.employment_type || 'N/A'}</div>
-                                <div><strong>Joining Date:</strong> ${employee.joining_date || 'N/A'}</div>
-                                <div><strong>Resignation Date:</strong> ${employee.resigned_date || 'N/A'}</div>
-                                <div><strong>Monthly Salary:</strong> $${employee.monthly_salary || 0}</div>
-                                <div><strong>Yearly Salary:</strong> $${employee.yearly_salary || 0}</div>
+                                <div><strong>Employment Type:</strong> ₹{employee.employment_type || 'N/A'}</div>
+                                <div><strong>Joining Date:</strong> ₹{employee.joining_date || 'N/A'}</div>
+                                <div><strong>Resignation Date:</strong> ₹{employee.resigned_date || 'N/A'}</div>
                             </div>
                         </div>
                         
@@ -1713,15 +2185,15 @@ function viewResignedEmployeeDetails(username) {
                         <div class="bg-red-50 p-4 rounded-lg col-span-2">
                             <h4 class="font-semibold text-red-800 mb-3">Resignation Details</h4>
                             <div class="space-y-2 text-sm text-red-700">
-                                <div><strong>Resigned By:</strong> ${employee.resigned_by || 'N/A'}</div>
-                                <div><strong>Resignation Reason:</strong> ${employee.resignation_reason || 'Not specified'}</div>
+                                <div><strong>Resigned By:</strong> ₹{employee.resigned_by || 'N/A'}</div>
+                                <div><strong>Resignation Reason:</strong> ₹{employee.resignation_reason || 'Not specified'}</div>
                             </div>
                         </div>
                     </div>
                 `;
                 
                 document.getElementById('resigned-employee-details-content').innerHTML = detailsHtml;
-                document.getElementById('resigned-modal-title').textContent = `${employee.name || employee.username} - Resigned Employee Details`;
+                document.getElementById('resigned-modal-title').textContent = `₹{employee.name || employee.username} - Resigned Employee Details`;
                 document.getElementById('resignedEmployeeModal').classList.remove('hidden');
             } else {
                 alert('Failed to load resigned employee details');
@@ -1731,6 +2203,32 @@ function viewResignedEmployeeDetails(username) {
             console.error('Error:', error);
             alert('Error loading resigned employee details');
         });
+}
+
+function updateAssignmentStatus(assignmentId) {
+    const newStatus = prompt('Enter new status (Pending, In Progress, Completed, Rejected):');
+    if (newStatus && ['Pending', 'In Progress', 'Completed', 'Rejected'].includes(newStatus)) {
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = '{{ url_for("update_admin_assignment_status") }}';
+        
+        const assignmentInput = document.createElement('input');
+        assignmentInput.type = 'hidden';
+        assignmentInput.name = 'assignment_id';
+        assignmentInput.value = assignmentId;
+        
+        const statusInput = document.createElement('input');
+        statusInput.type = 'hidden';
+        statusInput.name = 'new_status';
+        statusInput.value = newStatus;
+        
+        form.appendChild(assignmentInput);
+        form.appendChild(statusInput);
+        document.body.appendChild(form);
+        form.submit();
+    } else if (newStatus) {
+        alert('Invalid status. Please use: Pending, In Progress, Completed, or Rejected');
+    }
 }
 
 function closeResignedModal() {
@@ -1784,11 +2282,23 @@ function closeResignedModal() {
     scrollbar-color: #cbd5e1 #f1f5f9;
 }
 
-.overflow-x-auto::-webkit-scrollbar { height: 6px; }
-.overflow-x-auto::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 3px; }
-.overflow-x-auto::-webkit-scrollbar-thumb { background: #cbd5e1;
-.overflow-x-auto::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
-.overflow-x-auto::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+.overflow-x-auto::-webkit-scrollbar { 
+    height: 6px; 
+}
+
+.overflow-x-auto::-webkit-scrollbar-track { 
+    background: #f1f5f9; 
+    border-radius: 3px; 
+}
+
+.overflow-x-auto::-webkit-scrollbar-thumb { 
+    background: #cbd5e1; 
+    border-radius: 3px; 
+}
+
+.overflow-x-auto::-webkit-scrollbar-thumb:hover { 
+    background: #94a3b8; 
+}
 
 tbody tr:hover {
     background-color: #f9fafb;
@@ -1799,869 +2309,5 @@ tbody tr:hover {
     text-overflow: ellipsis;
     white-space: nowrap;
 }
-
-/* Custom gradient animation */
-@keyframes gradient {
-    0% { background-position: 0% 50%; }
-    50% { background-position: 100% 50%; }
-    100% { background-position: 0% 50%; }
-}
-
-.bg-gradient-to-r {
-    background-size: 200% 200%;
-    animation: gradient 3s ease infinite;
-}
-
-/* Loading states */
-.loading {
-    opacity: 0.6;
-    pointer-events: none;
-}
-
-/* Status badges animation */
-.status-badge {
-    transition: all 0.2s ease-in-out;
-}
-
-.status-badge:hover {
-    transform: scale(1.05);
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-}
-
-/* Enhanced button hover effects */
-.btn-hover:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 4px 8px rgba(0,0,0,0.15);
-}
-
-/* Modal animations */
-.modal-enter {
-    animation: modalSlideIn 0.3s ease-out;
-}
-
-@keyframes modalSlideIn {
-    from {
-        opacity: 0;
-        transform: translate(-50%, -50%) scale(0.8);
-    }
-    to {
-        opacity: 1;
-        transform: translate(-50%, -50%) scale(1);
-    }
-}
-
-/* Table row animations */
-tbody tr {
-    transition: all 0.2s ease-in-out;
-}
-
-tbody tr:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-}
-
-/* Form input focus effects */
-.form-input:focus, .form-select:focus, .form-textarea:focus {
-    outline: none;
-    border-color: #3b82f6;
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-    transform: translateY(-1px);
-}
-
-/* Responsive design enhancements */
-@media (max-width: 768px) {
-    .grid {
-        grid-template-columns: 1fr !important;
-    }
-    
-    .overflow-x-auto {
-        font-size: 0.75rem;
-    }
-    
-    .px-4 {
-        padding-left: 0.5rem;
-        padding-right: 0.5rem;
-    }
-    
-    .py-4 {
-        padding-top: 0.5rem;
-        padding-bottom: 0.5rem;
-    }
-}
-
-/* Custom scrollbar for modals */
-.modal-content {
-    max-height: 80vh;
-    overflow-y: auto;
-}
-
-.modal-content::-webkit-scrollbar {
-    width: 6px;
-}
-
-.modal-content::-webkit-scrollbar-track {
-    background: #f1f5f9;
-    border-radius: 3px;
-}
-
-.modal-content::-webkit-scrollbar-thumb {
-    background: #cbd5e1;
-    border-radius: 3px;
-}
-
-.modal-content::-webkit-scrollbar-thumb:hover {
-    background: #94a3b8;
-}
-
-/* Enhanced form styling */
-.form-section {
-    transition: all 0.3s ease-in-out;
-}
-
-.form-section:hover {
-    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-    transform: translateY(-2px);
-}
-
-/* Status indicator animations */
-@keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.7; }
-}
-
-.status-pending {
-    animation: pulse 2s infinite;
-}
-
-/* Enhanced asset request cards */
-.asset-card {
-    transition: all 0.3s ease-in-out;
-    border: 1px solid #e5e7eb;
-}
-
-.asset-card:hover {
-    border-color: #3b82f6;
-    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.15);
-    transform: translateY(-2px);
-}
-
-/* Progress indicators */
-.progress-bar {
-    background: linear-gradient(90deg, #3b82f6, #8b5cf6);
-    background-size: 200% 100%;
-    animation: shimmer 2s infinite;
-}
-
-@keyframes shimmer {
-    0% { background-position: -200% 0; }
-    100% { background-position: 200% 0; }
-}
-
-/* Enhanced notification styles */
-.notification {
-    transition: all 0.3s ease-in-out;
-    border-left: 4px solid #3b82f6;
-}
-
-.notification.success {
-    border-left-color: #10b981;
-    background-color: #ecfdf5;
-}
-
-.notification.error {
-    border-left-color: #ef4444;
-    background-color: #fef2f2;
-}
-
-.notification.warning {
-    border-left-color: #f59e0b;
-    background-color: #fffbeb;
-}
-
-/* Dark mode support (optional) */
-@media (prefers-color-scheme: dark) {
-    .bg-white {
-        background-color: #1f2937;
-        color: #f9fafb;
-    }
-    
-    .text-gray-900 {
-        color: #f9fafb;
-    }
-    
-    .text-gray-500 {
-        color: #9ca3af;
-    }
-    
-    .border-gray-200 {
-        border-color: #374151;
-    }
-    
-    .bg-gray-50 {
-        background-color: #374151;
-    }
-}
-
-/* Print styles */
-@media print {
-    .no-print {
-        display: none !important;
-    }
-    
-    .print-full-width {
-        width: 100% !important;
-        margin: 0 !important;
-        padding: 0 !important;
-    }
-    
-    .break-page {
-        page-break-after: always;
-    }
-    
-    .break-inside-avoid {
-        page-break-inside: avoid;
-    }
-}
-
-/* Accessibility improvements */
-.focus-visible:focus {
-    outline: 2px solid #3b82f6;
-    outline-offset: 2px;
-}
-
-.sr-only {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    padding: 0;
-    margin: -1px;
-    overflow: hidden;
-    clip: rect(0, 0, 0, 0);
-    white-space: nowrap;
-    border: 0;
-}
-
-/* Enhanced loading spinner */
-.spinner {
-    border: 2px solid #f3f4f6;
-    border-top: 2px solid #3b82f6;
-    border-radius: 50%;
-    width: 20px;
-    height: 20px;
-    animation: spin 1s linear infinite;
-    display: inline-block;
-    margin-right: 8px;
-}
-
-@keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
-}
-
-/* Enhanced dropdown animations */
-.dropdown-enter {
-    animation: dropdownSlideIn 0.2s ease-out;
-}
-
-@keyframes dropdownSlideIn {
-    from {
-        opacity: 0;
-        transform: translateY(-10px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
-}
-
-/* Tab transition effects */
-.tab-content {
-    transition: opacity 0.3s ease-in-out, transform 0.3s ease-in-out;
-}
-
-.tab-content.hidden {
-    opacity: 0;
-    transform: translateX(-20px);
-}
-
-.tab-content:not(.hidden) {
-    opacity: 1;
-    transform: translateX(0);
-}
-
-/* Enhanced card hover effects */
-.card-hover {
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.card-hover:hover {
-    transform: translateY(-4px) scale(1.02);
-    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
-}
-
-/* Success animations */
-.success-check {
-    animation: checkmark 0.6s ease-in-out;
-}
-
-@keyframes checkmark {
-    0% {
-        transform: scale(0);
-        opacity: 0;
-    }
-    50% {
-        transform: scale(1.2);
-        opacity: 0.8;
-    }
-    100% {
-        transform: scale(1);
-        opacity: 1;
-    }
-}
-
-/* Error shake animation */
-.error-shake {
-    animation: shake 0.5s ease-in-out;
-}
-
-@keyframes shake {
-    0%, 100% { transform: translateX(0); }
-    10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }
-    20%, 40%, 60%, 80% { transform: translateX(5px); }
-}
-
-/* Enhanced mobile responsiveness */
-@media (max-width: 640px) {
-    .mobile-stack {
-        flex-direction: column !important;
-    }
-    
-    .mobile-full {
-        width: 100% !important;
-    }
-    
-    .mobile-text-sm {
-        font-size: 0.875rem !important;
-    }
-    
-    .mobile-p-2 {
-        padding: 0.5rem !important;
-    }
-    
-    .mobile-mb-2 {
-        margin-bottom: 0.5rem !important;
-    }
-}
-
-/* High contrast mode support */
-@media (prefers-contrast: high) {
-    .border-gray-200 {
-        border-color: #000;
-    }
-    
-    .text-gray-500 {
-        color: #000;
-    }
-    
-    .bg-gray-50 {
-        background-color: #fff;
-        border: 1px solid #000;
-    }
-}
-
-/* Reduced motion support */
-@media (prefers-reduced-motion: reduce) {
-    * {
-        animation-duration: 0.01ms !important;
-        animation-iteration-count: 1 !important;
-        transition-duration: 0.01ms !important;
-    }
-    
-    .no-motion {
-        animation: none !important;
-        transition: none !important;
-    }
-}
 </style>
-
-<!-- Additional JavaScript for enhanced functionality -->
-<script>
-// Enhanced form validation
-function validateForm(form) {
-    const requiredFields = form.querySelectorAll('[required]');
-    let isValid = true;
-    
-    requiredFields.forEach(field => {
-        if (!field.value.trim()) {
-            field.classList.add('border-red-500', 'error-shake');
-            isValid = false;
-            
-            setTimeout(() => {
-                field.classList.remove('error-shake');
-            }, 500);
-        } else {
-            field.classList.remove('border-red-500');
-            field.classList.add('border-green-500');
-        }
-    });
-    
-    return isValid;
-}
-
-// Auto-save functionality for forms
-function autoSave(formId) {
-    const form = document.getElementById(formId);
-    if (!form) return;
-    
-    const inputs = form.querySelectorAll('input, select, textarea');
-    
-    inputs.forEach(input => {
-        input.addEventListener('input', debounce(() => {
-            const formData = new FormData(form);
-            localStorage.setItem(`autosave_${formId}`, JSON.stringify(Object.fromEntries(formData)));
-            
-            // Show save indicator
-            showNotification('Draft saved', 'success', 2000);
-        }, 1000));
-    });
-}
-
-// Debounce function
-function debounce(func, wait) {
-    let timeout;
-    return function executedFunction(...args) {
-        const later = () => {
-            clearTimeout(timeout);
-            func(...args);
-        };
-        clearTimeout(timeout);
-        timeout = setTimeout(later, wait);
-    };
-}
-
-// Show notification function
-function showNotification(message, type = 'info', duration = 5000) {
-    const notification = document.createElement('div');
-    notification.className = `notification ${type} fixed top-4 right-4 p-4 rounded-lg shadow-lg z-50 max-w-sm`;
-    notification.innerHTML = `
-        <div class="flex items-center">
-            <div class="flex-shrink-0">
-                ${type === 'success' ? '<i class="fas fa-check-circle text-green-600"></i>' :
-                  type === 'error' ? '<i class="fas fa-exclamation-circle text-red-600"></i>' :
-                  type === 'warning' ? '<i class="fas fa-exclamation-triangle text-yellow-600"></i>' :
-                  '<i class="fas fa-info-circle text-blue-600"></i>'}
-            </div>
-            <div class="ml-3 text-sm font-medium">${message}</div>
-            <button class="ml-4 text-gray-500 hover:text-gray-700" onclick="this.parentElement.parentElement.remove()">
-                <i class="fas fa-times"></i>
-            </button>
-        </div>
-    `;
-    
-    document.body.appendChild(notification);
-    
-    // Auto-remove after duration
-    setTimeout(() => {
-        if (notification.parentElement) {
-            notification.remove();
-        }
-    }, duration);
-}
-
-// Enhanced search functionality
-function initializeSearch() {
-    const searchInputs = document.querySelectorAll('[data-search]');
-    
-    searchInputs.forEach(input => {
-        const targetTable = document.querySelector(input.dataset.search);
-        if (!targetTable) return;
-        
-        input.addEventListener('input', debounce((e) => {
-            const searchTerm = e.target.value.toLowerCase();
-            const rows = targetTable.querySelectorAll('tbody tr');
-            
-            rows.forEach(row => {
-                const text = row.textContent.toLowerCase();
-                const shouldShow = text.includes(searchTerm);
-                row.style.display = shouldShow ? '' : 'none';
-                
-                if (shouldShow && searchTerm) {
-                    // Highlight matching text
-                    highlightSearchTerm(row, searchTerm);
-                } else {
-                    // Remove highlighting
-                    removeHighlight(row);
-                }
-            });
-            
-            // Update results count
-            const visibleRows = Array.from(rows).filter(row => row.style.display !== 'none');
-            updateSearchResults(targetTable, visibleRows.length, rows.length);
-        }, 300));
-    });
-}
-
-// Highlight search terms
-function highlightSearchTerm(element, term) {
-    if (!term) return;
-    
-    const walker = document.createTreeWalker(
-        element,
-        NodeFilter.SHOW_TEXT,
-        null,
-        false
-    );
-    
-    const textNodes = [];
-    let node;
-    
-    while (node = walker.nextNode()) {
-        if (node.textContent.toLowerCase().includes(term)) {
-            textNodes.push(node);
-        }
-    }
-    
-    textNodes.forEach(textNode => {
-        const parent = textNode.parentNode;
-        const text = textNode.textContent;
-        const regex = new RegExp(`(${term})`, 'gi');
-        const highlightedText = text.replace(regex, '<mark class="bg-yellow-200 px-1 rounded">$1</mark>');
-        
-        if (highlightedText !== text) {
-            const wrapper = document.createElement('span');
-            wrapper.innerHTML = highlightedText;
-            parent.replaceChild(wrapper, textNode);
-        }
-    });
-}
-
-// Remove highlighting
-function removeHighlight(element) {
-    const marks = element.querySelectorAll('mark');
-    marks.forEach(mark => {
-        const parent = mark.parentNode;
-        parent.replaceChild(document.createTextNode(mark.textContent), mark);
-        parent.normalize();
-    });
-}
-
-// Update search results count
-function updateSearchResults(table, visible, total) {
-    let counter = table.parentElement.querySelector('.search-results');
-    
-    if (!counter) {
-        counter = document.createElement('div');
-        counter.className = 'search-results text-sm text-gray-600 mt-2';
-        table.parentElement.insertBefore(counter, table);
-    }
-    
-    counter.textContent = `Showing ${visible} of ${total} results`;
-}
-
-// Initialize tooltips
-function initializeTooltips() {
-    const tooltipElements = document.querySelectorAll('[data-tooltip]');
-    
-    tooltipElements.forEach(element => {
-        element.addEventListener('mouseenter', (e) => {
-            showTooltip(e.target, e.target.dataset.tooltip);
-        });
-        
-        element.addEventListener('mouseleave', () => {
-            hideTooltip();
-        });
-    });
-}
-
-// Show tooltip
-function showTooltip(element, text) {
-    const tooltip = document.createElement('div');
-    tooltip.id = 'tooltip';
-    tooltip.className = 'absolute bg-gray-900 text-white text-sm px-2 py-1 rounded shadow-lg z-50 pointer-events-none';
-    tooltip.textContent = text;
-    
-    document.body.appendChild(tooltip);
-    
-    const rect = element.getBoundingClientRect();
-    tooltip.style.left = `${rect.left + (rect.width / 2) - (tooltip.offsetWidth / 2)}px`;
-    tooltip.style.top = `${rect.top - tooltip.offsetHeight - 8}px`;
-}
-
-// Hide tooltip
-function hideTooltip() {
-    const tooltip = document.getElementById('tooltip');
-    if (tooltip) {
-        tooltip.remove();
-    }
-}
-
-// Initialize keyboard shortcuts
-function initializeKeyboardShortcuts() {
-    document.addEventListener('keydown', (e) => {
-        // Ctrl/Cmd + K for search
-        if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
-            e.preventDefault();
-            const searchInput = document.querySelector('[data-search]');
-            if (searchInput) {
-                searchInput.focus();
-            }
-        }
-        
-        // Escape to close modals
-        if (e.key === 'Escape') {
-            const openModal = document.querySelector('.fixed:not(.hidden)');
-            if (openModal && openModal.id.includes('Modal')) {
-                openModal.classList.add('hidden');
-            }
-        }
-        
-        // Tab navigation enhancement
-        if (e.key === 'Tab') {
-            const activeElement = document.activeElement;
-            if (activeElement && activeElement.classList.contains('tab-button')) {
-                e.preventDefault();
-                const tabButtons = Array.from(document.querySelectorAll('.tab-button'));
-                const currentIndex = tabButtons.indexOf(activeElement);
-                let nextIndex;
-                
-                if (e.shiftKey) {
-                    nextIndex = currentIndex > 0 ? currentIndex - 1 : tabButtons.length - 1;
-                } else {
-                    nextIndex = currentIndex < tabButtons.length - 1 ? currentIndex + 1 : 0;
-                }
-                
-                tabButtons[nextIndex].click();
-                tabButtons[nextIndex].focus();
-            }
-        }
-    });
-}
-
-// Form submission with loading state
-function handleFormSubmission(formId) {
-    const form = document.getElementById(formId);
-    if (!form) return;
-    
-    form.addEventListener('submit', (e) => {
-        if (!validateForm(form)) {
-            e.preventDefault();
-            return;
-        }
-        
-        const submitBtn = form.querySelector('[type="submit"]');
-        if (submitBtn) {
-            submitBtn.disabled = true;
-            submitBtn.innerHTML = '<span class="spinner"></span> Processing...';
-            submitBtn.classList.add('loading');
-        }
-        
-        // Re-enable after 5 seconds as fallback
-        setTimeout(() => {
-            if (submitBtn) {
-                submitBtn.disabled = false;
-                submitBtn.innerHTML = submitBtn.dataset.originalText || 'Submit';
-                submitBtn.classList.remove('loading');
-            }
-        }, 5000);
-    });
-}
-
-// Initialize all enhanced functionality
-document.addEventListener('DOMContentLoaded', function() {
-    // Store original button text
-    document.querySelectorAll('[type="submit"]').forEach(btn => {
-        btn.dataset.originalText = btn.textContent;
-    });
-    
-    // Initialize enhanced features
-    initializeSearch();
-    initializeTooltips();
-    initializeKeyboardShortcuts();
-    
-    // Initialize auto-save for main forms
-    autoSave('employee-form');
-    autoSave('asset-request-form');
-    
-    // Handle form submissions
-    handleFormSubmission('employee-form');
-    handleFormSubmission('asset-request-form');
-    
-    // Initialize data tables with sorting
-    initializeDataTables();
-    
-    // Initialize export functionality
-    initializeExportButtons();
-    
-    // Performance monitoring
-    console.log('Admin Manager Dashboard initialized successfully');
-    console.log(`Page load time: ${performance.now()}ms`);
-});
-
-// Data table sorting functionality
-function initializeDataTables() {
-    const sortableHeaders = document.querySelectorAll('[data-sort]');
-    
-    sortableHeaders.forEach(header => {
-        header.style.cursor = 'pointer';
-        header.addEventListener('click', () => {
-            const column = header.dataset.sort;
-            const table = header.closest('table');
-            const tbody = table.querySelector('tbody');
-            const rows = Array.from(tbody.querySelectorAll('tr'));
-            
-            // Determine sort direction
-            const currentSort = header.dataset.sortDir || 'asc';
-            const newSort = currentSort === 'asc' ? 'desc' : 'asc';
-            
-            // Clear all sort indicators
-            sortableHeaders.forEach(h => {
-                h.classList.remove('sort-asc', 'sort-desc');
-                delete h.dataset.sortDir;
-            });
-            
-            // Set new sort direction
-            header.dataset.sortDir = newSort;
-            header.classList.add(`sort-${newSort}`);
-            
-            // Sort rows
-            rows.sort((a, b) => {
-                const aVal = a.children[column].textContent.trim();
-                const bVal = b.children[column].textContent.trim();
-                
-                // Try numeric sort first
-                const aNum = parseFloat(aVal);
-                const bNum = parseFloat(bVal);
-                
-                if (!isNaN(aNum) && !isNaN(bNum)) {
-                    return newSort === 'asc' ? aNum - bNum : bNum - aNum;
-                }
-                
-                // Fall back to string sort
-                return newSort === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
-            });
-            
-            // Reorder DOM
-            rows.forEach(row => tbody.appendChild(row));
-        });
-    });
-}
-
-// Export functionality
-function initializeExportButtons() {
-    const exportButtons = document.querySelectorAll('[data-export]');
-    
-    exportButtons.forEach(button => {
-        button.addEventListener('click', () => {
-            const format = button.dataset.export;
-            const table = button.closest('.bg-white').querySelector('table');
-            
-            if (!table) return;
-            
-            switch (format) {
-                case 'csv':
-                    exportToCSV(table);
-                    break;
-                case 'excel':
-                    exportToExcel(table);
-                    break;
-                case 'pdf':
-                    exportToPDF(table);
-                    break;
-            }
-        });
-    });
-}
-
-// Export to CSV
-function exportToCSV(table) {
-    const rows = table.querySelectorAll('tr');
-    const csv = Array.from(rows).map(row => {
-        const cells = row.querySelectorAll('th, td');
-        return Array.from(cells).map(cell => {
-            let text = cell.textContent.trim();
-            // Escape commas and quotes
-            if (text.includes(',') || text.includes('"')) {
-                text = `"${text.replace(/"/g, '""')}"`;
-            }
-            return text;
-        }).join(',');
-    }).join('\n');
-    
-    downloadFile(csv, 'export.csv', 'text/csv');
-}
-
-// Download file helper
-function downloadFile(content, filename, mimeType) {
-    const blob = new Blob([content], { type: mimeType });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = filename;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-}
-
-// Accessibility improvements
-function enhanceAccessibility() {
-    // Add ARIA labels to interactive elements
-    document.querySelectorAll('button:not([aria-label])').forEach(button => {
-        const text = button.textContent.trim();
-        if (text) {
-            button.setAttribute('aria-label', text);
-        }
-    });
-    
-    // Add role attributes to tables
-    document.querySelectorAll('table').forEach(table => {
-        table.setAttribute('role', 'table');
-        table.querySelectorAll('thead tr').forEach(row => {
-            row.setAttribute('role', 'row');
-            row.querySelectorAll('th').forEach(cell => {
-                cell.setAttribute('role', 'columnheader');
-            });
-        });
-        table.querySelectorAll('tbody tr').forEach(row => {
-            row.setAttribute('role', 'row');
-            row.querySelectorAll('td').forEach(cell => {
-                cell.setAttribute('role', 'cell');
-            });
-        });
-    });
-    
-    // Enhance focus management
-    document.addEventListener('focusin', (e) => {
-        e.target.classList.add('focus-visible');
-    });
-    
-    document.addEventListener('focusout', (e) => {
-        e.target.classList.remove('focus-visible');
-    });
-}
-
-// Initialize accessibility enhancements
-document.addEventListener('DOMContentLoaded', enhanceAccessibility);
-
-// Error handling and logging
-window.addEventListener('error', (e) => {
-    console.error('JavaScript error:', e.error);
-    showNotification('An unexpected error occurred. Please try again.', 'error');
-});
-
-// Service worker registration for offline support (optional)
-if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/sw.js')
-            .then((registration) => {
-                console.log('SW registered: ', registration);
-            })
-            .catch((registrationError) => {
-                console.log('SW registration failed: ', registrationError);
-            });
-    });
-}
-</script>
-
-<!-- End of enhanced JavaScript -->
 {% endblock %}
