@@ -35,12 +35,13 @@
     {% endwith %}
 
    <!-- Financial Stats Cards (FIXED - Shows remaining budget changes) -->
+<!-- UPDATED Financial Stats Cards -->
 <div class="grid grid-cols-4 gap-4 mb-6">
     <div class="bg-green-500 rounded-xl p-4 text-white">
         <div class="flex items-center justify-between">
             <div>
                 <h3 class="text-2xl font-bold" id="totalBudgetDisplay">₹{{ "{:,.0f}".format(total_budget|default(0)|float) }}</h3>
-                <p class="text-green-100 text-sm">total company budget</p>
+                <p class="text-green-100 text-sm">Total Company Budget</p>
                 <p class="text-green-200 text-xs mt-1">📌 Fixed Amount</p>
                 <button onclick="editTotalBudget()" class="mt-1 text-xs bg-white bg-opacity-20 hover:bg-opacity-30 px-2 py-1 rounded">
                     <i class="fas fa-edit mr-1"></i>Edit
@@ -55,26 +56,12 @@
     <div class="bg-blue-500 rounded-xl p-4 text-white">
         <div class="flex items-center justify-between">
             <div>
-                <h3 class="text-2xl font-bold">₹{{ "{:,.0f}".format(allocated|default(0)|float) }}</h3>
-                <p class="text-blue-100 text-sm">allocated to projects</p>
-                <p class="text-blue-200 text-xs mt-1">📈 Changes with allocations</p>
+                <h3 class="text-2xl font-bold">₹{{ "{:,.0f}".format(project_allocated|default(0)|float) }}</h3>
+                <p class="text-blue-100 text-sm">Allocated to Projects</p>
+                <p class="text-blue-200 text-xs mt-1">📈 Real project budgets only</p>
             </div>
             <div class="bg-white bg-opacity-20 rounded-lg p-2">
-                <i class="fas fa-chart-pie text-2xl"></i>
-            </div>
-        </div>
-    </div>
-
-    <div class="bg-green-500 rounded-xl p-4 text-white cursor-pointer hover:bg-orange-600 transition-colors" onclick="showBudgetUsageDetails()">
-        <div class="flex items-center justify-between">
-            <div>
-                <h3 class="text-2xl font-bold" id="remainingBudgetDisplay">₹{{ "{:,.0f}".format(remaining_allocation|default(0)|float) }}</h3>
-                <p class="text-orange-100 text-sm">remaining budget</p>
-                <p class="text-orange-200 text-xs mt-1">💰 Available for allocation</p>
-                <p class="text-orange-200 text-xs">🖱️ Click for usage details</p>
-            </div>
-            <div class="bg-white bg-opacity-20 rounded-lg p-2">
-                <i class="fas fa-wallet text-2xl"></i>
+                <i class="fas fa-project-diagram text-2xl"></i>
             </div>
         </div>
     </div>
@@ -82,16 +69,31 @@
     <div class="bg-purple-500 rounded-xl p-4 text-white">
         <div class="flex items-center justify-between">
             <div>
-                <h3 class="text-2xl font-bold">{{ expense_summary|length }}</h3>
-                <p class="text-purple-100 text-sm">total expenses</p>
-                <p class="text-purple-200 text-xs mt-1">📊 All transactions</p>
+                <h3 class="text-2xl font-bold">₹{{ "{:,.0f}".format(payroll_asset_allocated|default(0)|float) }}</h3>
+                <p class="text-purple-100 text-sm">Allocated to Payroll & Assets</p>
+                <p class="text-purple-200 text-xs mt-1">👥 Salaries + Assets</p>
             </div>
             <div class="bg-white bg-opacity-20 rounded-lg p-2">
-                <i class="fas fa-receipt text-2xl"></i>
+                <i class="fas fa-users text-2xl"></i>
+            </div>
+        </div>
+    </div>
+
+    <div class="bg-blue-500 rounded-xl p-4 text-white cursor-pointer hover:bg-orange-600 transition-colors" onclick="showBudgetUsageDetails()">
+        <div class="flex items-center justify-between">
+            <div>
+                <h3 class="text-2xl font-bold" id="remainingBudgetDisplay">₹{{ "{:,.0f}".format(remaining_allocation|default(0)|float) }}</h3>
+                <p class="text-blue-100 text-sm">Remaining Budget</p>
+                <p class="text-orange-200 text-xs mt-1">💰 Available for allocation</p>
+                <p class="text-orange-200 text-xs">🖱️ Click for details</p>
+            </div>
+            <div class="bg-white bg-opacity-20 rounded-lg p-2">
+                <i class="fas fa-wallet text-2xl"></i>
             </div>
         </div>
     </div>
 </div>
+
 
 <!-- Budget Usage Details Modal (UPDATED with search filter) -->
 <div id="budgetUsageModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
@@ -209,6 +211,10 @@
                 <button class="tab-button py-4 px-1 border-b-2 font-medium text-sm text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300" data-tab="employee-records">
                     <i class="fas fa-history mr-2"></i>Employee Records
                 </button>
+                <button class="tab-button py-4 px-1 border-b-2 font-medium text-sm text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300" data-tab="work-assignments">
+                    <i class="fas fa-tasks mr-2"></i>Work Assignments
+                </button>
+
             </nav>
         </div>
 
@@ -227,15 +233,20 @@
                                 </h2>
                             </div>
                             <div class="p-6">
-                                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                                <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
                                     <div class="text-center p-4 bg-green-50 rounded-lg">
                                         <h4 class="text-lg font-semibold text-green-800">Total Budget</h4>
                                         <p class="text-2xl font-bold text-green-600">₹{{ "{:,.2f}".format(total_budget|default(0)|float) }}</p>
                                     </div>
                                     <div class="text-center p-4 bg-blue-50 rounded-lg">
-                                        <h4 class="text-lg font-semibold text-blue-800">Allocated</h4>
-                                        <p class="text-2xl font-bold text-blue-600">₹{{ "{:,.2f}".format(allocated|default(0)|float) }}</p>
-                                        <p class="text-sm text-blue-500">{{ "{:.1f}".format((allocated/total_budget)*100 if total_budget and total_budget > 0 else 0) }}%</p>
+                                        <h4 class="text-lg font-semibold text-blue-800">Projects</h4>
+                                        <p class="text-2xl font-bold text-blue-600">₹{{ "{:,.2f}".format(project_allocated|default(0)|float) }}</p>
+                                        <p class="text-sm text-blue-500">{{ "{:.1f}".format((project_allocated/total_budget)*100 if total_budget and total_budget > 0 else 0) }}%</p>
+                                    </div>
+                                    <div class="text-center p-4 bg-purple-50 rounded-lg">
+                                        <h4 class="text-lg font-semibold text-purple-800">Payroll & Assets</h4>
+                                        <p class="text-2xl font-bold text-purple-600">₹{{ "{:,.2f}".format(payroll_asset_allocated|default(0)|float) }}</p>
+                                        <p class="text-sm text-purple-500">{{ "{:.1f}".format((payroll_asset_allocated/total_budget)*100 if total_budget and total_budget > 0 else 0) }}%</p>
                                     </div>
                                     <div class="text-center p-4 bg-orange-50 rounded-lg">
                                         <h4 class="text-lg font-semibold text-orange-800">Remaining</h4>
@@ -245,6 +256,7 @@
                                 </div>
                             </div>
                         </div>
+
 
                         <!-- Project Budget Overview -->
                         <div class="bg-white rounded-lg shadow-sm border border-gray-200">
@@ -662,6 +674,70 @@
             <!-- Expense Tracking Tab -->
             <div id="expense-tracking" class="tab-content hidden">
                 <div class="space-y-6">
+                    <!-- Add this expense recording form to the expense tracking tab -->
+                    <div class="bg-white rounded-lg shadow-sm border border-gray-200 mb-6">
+                        <div class="px-6 py-4 border-b border-gray-200">
+                            <h2 class="text-lg font-semibold text-gray-800">
+                                <i class="fas fa-plus text-green-600 mr-2"></i>Record New Expense
+                            </h2>
+                        </div>
+                        <div class="p-6">
+                            <form method="post" action="{{ url_for('hr_record_expense_action') }}" class="space-y-4">
+                                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-2">Project</label>
+                                        <select name="project" class="form-select w-full rounded-lg border-gray-300">
+                                            <option value="(non-project)">(non-project)</option>
+                                            {% for project in all_projects %}
+                                                <option value="{{ project.project_name }}">{{ project.project_name }}</option>
+                                            {% endfor %}
+                                        </select>
+                                    </div>
+                                    
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-2">Category</label>
+                                        <select name="category" class="form-select w-full rounded-lg border-gray-300">
+                                            <option value="Travel">Travel</option>
+                                            <option value="Equipment">Equipment</option>
+                                            <option value="Software">Software</option>
+                                            <option value="Training">Training</option>
+                                            <option value="Resources">Resources</option>
+                                            <option value="For email">For email</option>
+                                            <option value="Github">Github</option>
+                                            <option value="Api">Api</option>
+                                            <option value="Other">Other</option>
+                                        </select>
+                                    </div>
+                                    
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-2">Amount (₹)</label>
+                                        <input type="number" name="amount" step="0.01" required
+                                            class="form-input w-full rounded-lg border-gray-300">
+                                    </div>
+                                </div>
+                                
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-2">Date</label>
+                                        <input type="date" name="exp_date" value="{{ today }}"
+                                            class="form-input w-full rounded-lg border-gray-300">
+                                    </div>
+                                    
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-2">Description</label>
+                                        <input type="text" name="desc" required
+                                            class="form-input w-full rounded-lg border-gray-300">
+                                    </div>
+                                </div>
+                                
+                                <button type="submit" 
+                                        class="w-full bg-green-600 hover:bg-green-700 text-white font-medium py-3 px-4 rounded-lg transition-colors">
+                                    <i class="fas fa-plus mr-2"></i>Record Expense
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+
                     <!-- Expense Filters -->
                     <div class="bg-white rounded-lg shadow-sm border border-gray-200">
                         <div class="px-6 py-4 border-b border-gray-200">
@@ -769,138 +845,111 @@
 
             <!-- Project Approvals Tab -->
             <div id="project-approvals" class="tab-content hidden">
-                <div class="space-y-6">
-                    <!-- Pending Project Approvals -->
-                    <div class="bg-white rounded-lg shadow-sm border border-gray-200">
-                        <div class="px-6 py-4 border-b border-gray-200 bg-yellow-50">
-                            <h2 class="text-lg font-semibold text-gray-800">
-                                <i class="fas fa-clock text-yellow-600 mr-2"></i>Pending Project Approvals
-                                <span class="ml-2 bg-yellow-100 text-yellow-600 text-sm px-2 py-1 rounded-full">
-                                    {{ pending_projects|length }}
-                                </span>
-                            </h2>
-                            <p class="text-sm text-gray-600 mt-1">Projects need HR approval before budget can be allocated</p>
-                        </div>
-                        <div class="p-6">
-                            {% if pending_projects %}
-                                <div class="overflow-x-auto">
-                                    <table class="min-w-full divide-y divide-gray-200">
-                                        <thead class="bg-gray-50">
-                                            <tr>
-                                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Project Name</th>
-                                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
-                                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created By</th>
-                                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created On</th>
-                                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">End Date</th>
-                                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody class="bg-white divide-y divide-gray-200">
-                                            {% for project in pending_projects %}
-                                            <tr class="hover:bg-gray-50">
-                                                <td class="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{{ project.project_name }}</td>
-                                                <td class="px-4 py-4 text-sm text-gray-900 max-w-xs">
-                                                    <div class="truncate" title="{{ project.description }}">{{ project.description }}</div>
-                                                </td>
-                                                <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">{{ project.created_by }}</td>
-                                                <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">{{ project.created_on }}</td>
-                                                <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">{{ project.end_date }}</td>
-                                                <td class="px-4 py-4 whitespace-nowrap text-sm font-medium space-x-2">
-                                                   <form method="post" action="{{ url_for('create_project_hr') }}" style="display: inline;">
-                                                        <input type="hidden" name="project_id" value="{{ project.project_id }}">
-                                                        <button type="submit" class="text-green-600 hover:text-green-800 text-xs">
-                                                            <i class="fas fa-check mr-1"></i>Approve
-                                                        </button>
-                                                    </form>
-                                                    <form method="post" action="{{ url_for('reject_project_action') }}" style="display: inline;">
-                                                        <input type="hidden" name="project_id" value="{{ project.project_id }}">
-                                                        <button type="submit" class="text-red-600 hover:text-red-800 text-xs"
-                                                                onclick="return confirm('Are you sure you want to reject this project?')">
-                                                            <i class="fas fa-times mr-1"></i>Reject
-                                                        </button>
-                                                    </form>
-                                                </td>
-                                            </tr>
-                                            {% endfor %}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            {% else %}
-                                <div class="text-center py-8">
-                                    <i class="fas fa-check-circle text-3xl text-green-300 mb-3"></i>
-                                    <p class="text-gray-500">No pending project approvals</p>
-                                </div>
-                            {% endif %}
-                        </div>
+                <div class="bg-white rounded-lg shadow-sm border border-gray-200">
+                    <div class="px-6 py-4 border-b border-gray-200">
+                        <h2 class="text-lg font-semibold text-gray-800">
+                            <i class="fas fa-check-circle text-orange-600 mr-2"></i>Project Approvals
+                        </h2>
+                        <p class="text-sm text-gray-600 mt-1">Review and approve/reject project requests with budget allocation</p>
                     </div>
-
-                    <!-- All Projects -->
-                    <div class="bg-white rounded-lg shadow-sm border border-gray-200">
-                        <div class="px-6 py-4 border-b border-gray-200">
-                            <h2 class="text-lg font-semibold text-gray-800">
-                                <i class="fas fa-list text-blue-600 mr-2"></i>All Projects
-                            </h2>
-                        </div>
-                        <div class="p-6">
-                            {% if all_projects %}
-                                <div class="overflow-x-auto">
-                                    <table class="min-w-full divide-y divide-gray-200">
-                                        <thead class="bg-gray-50">
-                                            <tr>
-                                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-                                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
-                                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created By</th>
-                                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Budget (₹)</th>
-                                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">End Date</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody class="bg-white divide-y divide-gray-200">
-                                            {% for project in all_projects %}
-                                            <tr class="hover:bg-gray-50">
-                                                <td class="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{{ project.project_name }}</td>
-                                                <td class="px-4 py-4 text-sm text-gray-900 max-w-xs">
-                                                    <div class="truncate" title="{{ project.description }}">{{ project.description }}</div>
-                                                </td>
-                                                <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">{{ project.created_by }}</td>
-                                                <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                                                    {% set status = project.hr_approval_status|lower if project.hr_approval_status else '' %}
-                                                    {% if status == 'approved' %}
-                                                        <span class="inline-flex px-2 py-1 text-xs font-semibold bg-green-100 text-green-800 rounded-full">
-                                                            <i class="fas fa-check mr-1"></i>Approved
-                                                        </span>
-                                                    {% elif status == 'pending' %}
-                                                        <span class="inline-flex px-2 py-1 text-xs font-semibold bg-yellow-100 text-yellow-800 rounded-full">
-                                                            <i class="fas fa-clock mr-1"></i>Pending
-                                                        </span>
-                                                    {% elif status == 'rejected' %}
-                                                        <span class="inline-flex px-2 py-1 text-xs font-semibold bg-red-100 text-red-800 rounded-full">
-                                                            <i class="fas fa-times mr-1"></i>Rejected
-                                                        </span>
-                                                    {% else %}
-                                                        <span class="inline-flex px-2 py-1 text-xs font-semibold bg-gray-100 text-gray-800 rounded-full">
-                                                            <i class="fas fa-question mr-1"></i>{{ project.hr_approval_status|default('Unknown')|title }}
-                                                        </span>
-                                                    {% endif %}
-                                                </td>
-                                                <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">₹{{ "{:,.2f}".format(project.budget_amount or 0) }}</td>
-                                                <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">{{ project.end_date }}</td>
-                                            </tr>
-                                            {% endfor %}
-                                        </tbody>
-                                    </table>
+                    <div class="p-6">
+                        {% if pending_projects %}
+                            <div class="space-y-4">
+                                {% for project in pending_projects %}
+                                <div class="bg-gray-50 rounded-lg p-4 mb-4 border">
+                                    <form method="post" action="{{ url_for('approve_project_hr_action') }}">
+                                        <input type="hidden" name="project_id" value="{{ project.project_id }}">
+                                        
+                                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                                            <div>
+                                                <label class="block text-sm font-medium text-gray-700 mb-2">Project Name</label>
+                                                <input type="text" name="project_name" value="{{ project.project_name }}" 
+                                                    class="form-input w-full rounded-lg border-gray-300" required>
+                                            </div>
+                                            <div>
+                                                <label class="block text-sm font-medium text-gray-700 mb-2">Budget (₹)</label>
+                                                <input type="number" name="budget_amount" step="0.01" value="{{ project.budget_amount }}" 
+                                                    class="form-input w-full rounded-lg border-gray-300" required>
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                                            <div>
+                                                <label class="block text-sm font-medium text-gray-700 mb-2">Cost Center</label>
+                                                <input type="text" name="cost_center" value="{{ project.cost_center }}" 
+                                                    class="form-input w-full rounded-lg border-gray-300" required>
+                                            </div>
+                                            <div>
+                                                <label class="block text-sm font-medium text-gray-700 mb-2">End Date</label>
+                                                <input type="date" name="end_date" value="{{ project.end_date }}" 
+                                                    class="form-input w-full rounded-lg border-gray-300" required>
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="mb-4">
+                                            <label class="block text-sm font-medium text-gray-700 mb-2">Description</label>
+                                            <textarea name="project_description" rows="2" 
+                                                    class="form-textarea w-full rounded-lg border-gray-300" required>{{ project.description }}</textarea>
+                                        </div>
+                                        
+                                        <div class="flex space-x-4">
+                                            <button type="submit" 
+                                                    class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg">
+                                                <i class="fas fa-check mr-1"></i>Approve & Update
+                                            </button>
+                                            <button type="button" onclick="rejectProject('{{ project.project_id }}', '{{ project.project_name }}')" 
+                                                    class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg">
+                                                <i class="fas fa-times mr-1"></i>Reject
+                                            </button>
+                                        </div>
+                                    </form>
                                 </div>
-                            {% else %}
-                                <div class="text-center py-8">
-                                    <i class="fas fa-project-diagram text-4xl text-gray-300 mb-4"></i>
-                                    <p class="text-gray-500">No projects found</p>
-                                </div>
-                            {% endif %}
-                        </div>
+                                {% endfor %}
+                            </div>
+                        {% else %}
+                            <div class="text-center py-8">
+                                <i class="fas fa-check-circle text-3xl text-green-300 mb-3"></i>
+                                <p class="text-gray-500">✅ No pending project approvals</p>
+                                <p class="text-sm text-gray-400 mt-2">All submitted projects have been reviewed.</p>
+                            </div>
+                        {% endif %}
                     </div>
                 </div>
             </div>
 
+                    <!-- Project Rejection Modal -->
+                    <div id="projectRejectionModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
+                        <div class="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+                            <div class="flex justify-between items-center mb-4">
+                                <h3 class="text-lg font-semibold text-gray-800">Reject Project</h3>
+                                <button onclick="closeProjectRejectionModal()" class="text-gray-500 hover:text-gray-700">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </div>
+                            <form method="post" action="{{ url_for('reject_project_hr_action') }}">
+                                <input type="hidden" id="reject_project_id" name="project_id">
+                                <div class="mb-4">
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Project Name</label>
+                                    <input type="text" id="reject_project_name" disabled 
+                                        class="form-input w-full rounded-lg border-gray-300 bg-gray-100">
+                                </div>
+                                <div class="mb-4">
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Rejection Reason</label>
+                                    <textarea name="rejection_reason" rows="4" required
+                                            class="form-textarea w-full rounded-lg border-gray-300"
+                                            placeholder="Please provide reason for rejecting this project..."></textarea>
+                                </div>
+                                <div class="flex space-x-4">
+                                    <button type="submit" class="flex-1 bg-red-600 hover:bg-red-700 text-white py-2 px-4 rounded-lg">
+                                        <i class="fas fa-times mr-1"></i>Reject Project
+                                    </button>
+                                    <button type="button" onclick="closeProjectRejectionModal()" class="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-800 py-2 px-4 rounded-lg">
+                                        Cancel
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
             <!-- Payroll Tab -->
             <div id="payroll" class="tab-content hidden">
                 <div class="space-y-6">
@@ -1061,9 +1110,8 @@
                                             </td>
                                             <td class="px-4 py-4 whitespace-nowrap text-sm font-medium space-x-2">
                                                 {% if asset.status == 'Pending' %}
-                                                  <form method="post" action="{{ url_for('approve_asset') }}">
-   style="display: inline;">
-                                                        <input type="hidden" name="asset_request_id" value="{{ asset.id }}">
+                                                  <form method="post" action="{{ url_for('approve_asset_request_hr') }}" style="display: inline;">
+                                                        <input type="hidden" name="request_id" value="{{ asset.id }}">
                                                         <button type="submit" class="text-green-600 hover:text-green-800 text-xs"
                                                                 onclick="return confirm('Approve asset request for ₹{{ "{:,.2f}".format(asset.amount|default(0)|float) }}? This amount will be deducted from remaining budget.')">
                                                             <i class="fas fa-check mr-1"></i>Approve
@@ -1142,11 +1190,13 @@
                                                     <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">{{ work.hours }}</td>
                                                     <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">{{ work.break_hours or 0 }}</td>
                                                     <td class="px-4 py-4 whitespace-nowrap text-sm font-medium space-x-2">
-                                                        <form method="post" action="{{ url_for('approve_team_work') }}" style="display: inline;">
+                                                        <!-- Fix the team work approval forms -->
+                                                        <form method="post" action="{{ url_for('approve_team_work_hr') }}" style="display: inline;">
                                                             <input type="hidden" name="work_id" value="{{ work.id }}">
                                                             <button type="submit" class="text-green-600 hover:text-green-800 text-xs">
                                                                 <i class="fas fa-check mr-1"></i>Approve
                                                             </button>
+                                                        </form>
                                                         </form>
                                                         <button class="text-red-600 hover:text-red-800 text-xs"
                                                                 onclick="rejectTeamWork({{ work.id }})">
@@ -1189,6 +1239,8 @@
                                                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Start Date</th>
                                                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">End Date</th>
                                                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
+                                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Document</th>
+
                                                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                                                 </tr>
                                             </thead>
@@ -1206,8 +1258,28 @@
                                                     <td class="px-4 py-4 text-sm text-gray-900 max-w-xs">
                                                         <div class="truncate" title="{{ leave.description }}">{{ leave.description }}</div>
                                                     </td>
+                                                    <!-- In the pending team leaves table in hr_finance.html -->
+<td class="px-4 py-4 whitespace-nowrap text-sm">
+    {% if leave.health_document %}
+        <div class="flex space-x-2">
+            <a href="{{ url_for('view_leave_document', leave_id=leave.id) }}" 
+               target="_blank" 
+               class="text-blue-600 hover:text-blue-800 text-xs px-2 py-1 bg-blue-50 rounded-md border border-blue-200 hover:bg-blue-100 transition-colors">
+                <i class="fas fa-eye mr-1"></i>View
+            </a>
+            <a href="{{ url_for('download_leave_document', leave_id=leave.id) }}" 
+               class="text-green-600 hover:text-green-800 text-xs px-2 py-1 bg-green-50 rounded-md border border-green-200 hover:bg-green-100 transition-colors">
+                <i class="fas fa-download mr-1"></i>Download
+            </a>
+        </div>
+    {% else %}
+        <span class="text-gray-400 text-xs">No document</span>
+    {% endif %}
+</td>
+
                                                     <td class="px-4 py-4 whitespace-nowrap text-sm font-medium space-x-2">
-                                                        <form method="post" action="{{ url_for('approve_team_leave') }}" style="display: inline;">
+                                                        <!-- Fix the team leave approval forms -->
+                                                        <form method="post" action="{{ url_for('approve_team_leave_hr') }}" style="display: inline;">
                                                             <input type="hidden" name="leave_id" value="{{ leave.id }}">
                                                             <button type="submit" class="text-green-600 hover:text-green-800 text-xs">
                                                                 <i class="fas fa-check mr-1"></i>Approve
@@ -1729,6 +1801,129 @@
         </form>
     </div>
 </div>
+<!-- Work Assignments Tab Content -->
+<div id="work-assignments" class="tab-content hidden">
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200">
+        <div class="px-6 py-4 border-b border-gray-200">
+            <h2 class="text-lg font-semibold text-gray-800">
+                <i class="fas fa-tasks text-indigo-600 mr-2"></i>Work Assignments Management
+            </h2>
+            <p class="text-sm text-gray-600 mt-1">Assign work to employees and view all assignments</p>
+        </div>
+        
+        <!-- Sub-tabs for Work Assignments -->
+        <div class="border-b border-gray-200">
+            <nav class="flex px-6" aria-label="Work Sub-tabs">
+                <button class="work-sub-tab-button active py-3 px-4 text-sm font-medium text-blue-600 border-b-2 border-blue-600" data-subtab="assign-work-hr">
+                    <i class="fas fa-plus mr-2"></i>Assign Work
+                </button>
+                <button class="work-sub-tab-button py-3 px-4 text-sm font-medium text-gray-500 border-b-2 border-transparent hover:text-gray-700 hover:border-gray-300" data-subtab="all-assignments-hr">
+                    <i class="fas fa-list mr-2"></i>All Assignments
+                    <span class="ml-1 bg-gray-100 text-gray-600 text-xs px-2 py-1 rounded-full">
+                        {{ work_assignments|length }}
+                    </span>
+                </button>
+            </nav>
+        </div>
+
+        <div class="p-6">
+            <!-- Assign Work Sub-tab -->
+            <div id="assign-work-hr" class="work-sub-tab-content">
+                <form method="post" action="{{ url_for('hr_assign_work_action') }}" class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Select Employees (Multiple Selection)</label>
+                        <div class="border border-gray-300 rounded-lg p-4 max-h-48 overflow-y-auto">
+                            {% for emp in all_employees %}
+                            <div class="flex items-center mb-2">
+                                <input type="checkbox" name="employees" value="{{ emp.username }}" id="hr_emp_{{ emp.username }}" 
+                                       class="h-4 w-4 text-blue-600 border-gray-300 rounded">
+                                <label for="hr_emp_{{ emp.username }}" class="ml-2 text-sm text-gray-700 cursor-pointer">
+                                    {{ emp.username }} ({{ emp.role }}) {% if emp.name %}- {{ emp.name }}{% endif %}
+                                </label>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        <p class="text-xs text-gray-500 mt-2">Check multiple employees to assign the same work to all of them</p>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Project (Optional)</label>
+                        <select name="project_name" class="form-select w-full rounded-lg border-gray-300">
+                            <option value="">Select project (optional)</option>
+                            {% for project in all_projects %}
+                                <option value="{{ project.project_name }}">{{ project.project_name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Start Date</label>
+                            <input type="date" name="start_date" value="{{ today }}"
+                                   class="form-input w-full rounded-lg border-gray-300">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Due Date</label>
+                            <input type="date" name="due_date"
+                                   class="form-input w-full rounded-lg border-gray-300">
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Task Description</label>
+                        <textarea name="task_desc" rows="3" required placeholder="Describe the task to be completed..."
+                                  class="form-textarea w-full rounded-lg border-gray-300"></textarea>
+                    </div>
+                    
+                    <button type="submit" 
+                            class="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-4 rounded-lg transition-colors">
+                        <i class="fas fa-paper-plane mr-2"></i>Assign Work to Selected Employees
+                    </button>
+                </form>
+            </div>
+
+            <!-- All Assignments Sub-tab -->
+            <div id="all-assignments-hr" class="work-sub-tab-content hidden">
+                {% if work_assignments %}
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Assigner</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Assignee</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Project</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Start Date</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Due Date</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white divide-y divide-gray-200">
+                                {% for assignment in work_assignments %}
+                                <tr class="hover:bg-gray-50">
+                                    <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">{{ assignment.assigned_by }}</td>
+                                    <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">{{ assignment.assigned_to }}</td>
+                                    <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">{{ assignment.project_name or 'N/A' }}</td>
+                                    <td class="px-4 py-4 text-sm text-gray-900 max-w-xs truncate">{{ assignment.work_description }}</td>
+                                    <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">{{ assignment.start_date or 'N/A' }}</td>
+                                    <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">{{ assignment.due_date or 'N/A' }}</td>
+                                    <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+                                        <span class="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-800">{{ assignment.status }}</span>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <p class="text-gray-500 text-center py-8">No work assignments found.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+
 
 <!-- JavaScript for Complete Dashboard Functionality -->
 <script>
@@ -1912,18 +2107,18 @@ function displayBudgetUsageDetails(details) {
         details.forEach(detail => {
             html += `
                 <tr class="hover:bg-gray-50">
-                    <td class="px-4 py-2 text-sm text-gray-900">${detail.project_name}</td>
+                    <td class="px-4 py-2 text-sm text-gray-900">₹{detail.project_name}</td>
                     <td class="px-4 py-2 text-sm">
                         <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full 
-                            ${detail.usage_type === 'Salary Increase' ? 'bg-yellow-100 text-yellow-800' : 
+                            ₹{detail.usage_type === 'Salary Increase' ? 'bg-yellow-100 text-yellow-800' : 
                               detail.usage_type === 'Asset Purchase' ? 'bg-purple-100 text-purple-800' : 
                               'bg-blue-100 text-blue-800'}">
-                            ${detail.usage_type}
+                            ₹{detail.usage_type}
                         </span>
                     </td>
-                    <td class="px-4 py-2 text-sm font-medium text-gray-900">₹${parseFloat(detail.amount || 0).toLocaleString()}</td>
-                    <td class="px-4 py-2 text-sm text-gray-500">${detail.created_by}</td>
-                    <td class="px-4 py-2 text-sm text-gray-500">${new Date(detail.created_on).toLocaleDateString()}</td>
+                    <td class="px-4 py-2 text-sm font-medium text-gray-900">₹₹{parseFloat(detail.amount || 0).toLocaleString()}</td>
+                    <td class="px-4 py-2 text-sm text-gray-500">₹{detail.created_by}</td>
+                    <td class="px-4 py-2 text-sm text-gray-500">₹{new Date(detail.created_on).toLocaleDateString()}</td>
                 </tr>
             `;
         });
@@ -2041,7 +2236,15 @@ function editProject(projectName, costCenter, description) {
 function closeEditProjectModal() {
     document.getElementById('editProjectModal').classList.add('hidden');
 }
+function rejectProject(projectId, projectName) {
+    document.getElementById('reject_project_id').value = projectId;
+    document.getElementById('reject_project_name').value = projectName;
+    document.getElementById('projectRejectionModal').classList.remove('hidden');
+}
 
+function closeProjectRejectionModal() {
+    document.getElementById('projectRejectionModal').classList.add('hidden');
+}
 // Budget allocation functions
 function editBudgetAllocation(projectName, budgetAmount, costCenter) {
     document.getElementById('edit_project_name').value = projectName;
@@ -2056,7 +2259,7 @@ function closeEditAllocationModal() {
 }
 
 function removeBudgetAllocation(projectName) {
-    if (confirm(`Are you sure you want to remove budget allocation for "${projectName}"?`)) {
+    if (confirm(`Are you sure you want to remove budget allocation for "₹{projectName}"?`)) {
         // Create a form to submit the removal
         const form = document.createElement('form');
         form.method = 'POST';
@@ -2071,6 +2274,17 @@ function removeBudgetAllocation(projectName) {
         document.body.appendChild(form);
         form.submit();
     }
+}
+function refreshPendingProjects() {
+    fetch('/get_pending_approvals')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                console.log('Pending projects:', data.pending_projects);
+                // Update the pending projects display
+                location.reload(); // Simple refresh for now
+            }
+        });
 }
 
 // Quick action functions
@@ -2087,7 +2301,7 @@ function generatePayrollReport() {
 }
 
 function generatePayslip(username) {
-    alert(`Payslip generation for ${username} will be implemented.`);
+    alert(`Payslip generation for ₹{username} will be implemented.`);
 }
 
 // Keyboard shortcuts
@@ -2113,6 +2327,32 @@ document.addEventListener('keydown', function(e) {
         });
     }
 });
+// Work sub-tabs functionality
+const workSubTabButtons = document.querySelectorAll('.work-sub-tab-button');
+const workSubTabContents = document.querySelectorAll('.work-sub-tab-content');
+
+workSubTabButtons.forEach(button => {
+    button.addEventListener('click', () => {
+        const subTabId = button.getAttribute('data-subtab');
+        
+        // Update work sub-tab button styles
+        workSubTabButtons.forEach(btn => {
+            btn.classList.remove('text-blue-600', 'border-blue-600');
+            btn.classList.add('text-gray-500', 'border-transparent');
+        });
+        
+        button.classList.add('text-blue-600', 'border-blue-600');
+        button.classList.remove('text-gray-500', 'border-transparent');
+        
+        // Update work sub-tab content visibility
+        workSubTabContents.forEach(content => {
+            content.classList.add('hidden');
+        });
+        
+        document.getElementById(subTabId).classList.remove('hidden');
+    });
+});
+
 </script>
 
 <style>
