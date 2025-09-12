@@ -324,6 +324,11 @@
                                 <textarea name="pdesc" rows="3" required
                                           class="form-textarea w-full rounded-lg border-gray-300"></textarea>
                             </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Budget Amount (₹)</label>
+                                <input type="number" name="budget_amount" step="0.01" required class="form-input w-full rounded-lg border-gray-300" placeholder="Enter budget amount">
+                            </div>
+
                             
                             <button type="submit" 
                                     class="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-4 rounded-lg transition-colors">
@@ -347,9 +352,10 @@
                                     <thead class="bg-gray-50">
                                         <tr>
                                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Project Name</th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created By</th>
                                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
                                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Budget</th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Budget</th> 
                                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created On</th>
                                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">End Date</th>
                                             {% if has_company_access %}
@@ -361,6 +367,7 @@
                                         {% for project in my_projects %}
                                         <tr class="hover:bg-gray-50">
                                             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{{ project.project_name }}</td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ project.created_by }}</td>
                                             <td class="px-6 py-4 text-sm text-gray-900 max-w-xs">
                                                 <div class="truncate" title="{{ project.description }}">{{ project.description }}</div>
                                             </td>
@@ -378,11 +385,12 @@
                                                     <span class="text-gray-400">Not allocated</span>
                                                 {% endif %}
                                             </td>
+
                                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ project.created_on }}</td>
                                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ project.end_date }}</td>
                                             {% if has_company_access and project.hr_approval_status == 'Approved' %}
                                             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                                                <button onclick="editProject('{{ project.project_id }}', '{{ project.project_name }}', '{{ project.description }}', '{{ project.cost_center }}', '{{ project.budget_amount }}')" 
+                                                <button onclick="editProject('{{ project.project_id }}', '{{ project.project_name }}', '{{ project.cost_center }}', '{{ project.budget_amount }}', '{{ project.start_date }}', '{{ project.end_date }}', '{{ project.description }}')" 
                                                         class="text-blue-600 hover:text-blue-900 mr-3">
                                                     <i class="fas fa-edit"></i> Edit
                                                 </button>
@@ -546,90 +554,91 @@
         </div>
 
         <!-- Company Budget Overview Tab -->
-        <div id="budget-overview" class="tab-content hidden">
-            <div class="bg-white rounded-lg shadow-sm border border-gray-200">
-                <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
-                    <div>
-                        <h2 class="text-lg font-semibold text-gray-800">
-                            <i class="fas fa-chart-bar text-purple-600 mr-2"></i>Company Budget Overview
-                        </h2>
-                        <p class="text-sm text-gray-600 mt-1">
-                            {% if has_company_access %}
-                                Complete company budget overview (excluding salary management from projects)
-                            {% else %}
-                                Real-time project budget tracking from approved allocations
-                            {% endif %}
-                        </p>
-                    </div>
-                    <button onclick="refreshBudgetData()" class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg transition-colors">
-                        <i class="fas fa-sync mr-2"></i>Refresh
-                    </button>
-                </div>
-                
-                <div class="p-6">
-                    {% if has_company_access and complete_budget_overview %}
-                        <!-- Complete Company Budget Overview (Senior Managers Only) -->
-                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                            <div class="bg-blue-50 rounded-lg p-4">
-                                <div class="flex items-center">
-                                    <div class="flex-shrink-0">
-                                        <i class="fas fa-wallet text-blue-600 text-2xl"></i>
-                                    </div>
-                                    <div class="ml-4">
-                                        <p class="text-sm font-medium text-blue-600">Total Company Budget</p>
-                                        <p class="text-2xl font-bold text-blue-900">₹{{ "%.0f"|format(total_company_budget) }}</p>
-                                    </div>
-                                </div>
+        <!-- Company Budget Overview Tab -->
+<div id="budget-overview" class="tab-content hidden">
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200">
+        <div class="px-6 py-4 border-b border-gray-200">
+            <h2 class="text-lg font-semibold text-gray-800">
+                <i class="fas fa-chart-bar text-blue-600 mr-2"></i>Company Budget Overview
+            </h2>
+        </div>
+        <div class="p-6">
+            {% if has_company_access %}
+                <!-- Company Budget Cards -->
+                <div class="grid grid-cols-4 gap-4 mb-6">
+                    <div class="bg-green-500 rounded-xl p-4 text-white">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <h3 class="text-2xl font-bold">₹{{ "{:,.0f}".format(total_budget|default(0)|float) }}</h3>
+                                <p class="text-green-100 text-sm">Total Company Budget</p>
+                                <p class="text-green-200 text-xs mt-1">📌 Fixed Amount</p>
                             </div>
-                            
-                            <div class="bg-green-50 rounded-lg p-4">
-                                <div class="flex items-center">
-                                    <div class="flex-shrink-0">
-                                        <i class="fas fa-project-diagram text-green-600 text-2xl"></i>
-                                    </div>
-                                    <div class="ml-4">
-                                        <p class="text-sm font-medium text-green-600">Project Budgets Only</p>
-                                        <p class="text-2xl font-bold text-green-900">
-                                            ₹{{ "%.0f"|format(complete_budget_overview.projects|sum(attribute='amount') or 0) }}
-                                        </p>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <div class="bg-purple-50 rounded-lg p-4">
-                                <div class="flex items-center">
-                                    <div class="flex-shrink-0">
-                                        <i class="fas fa-balance-scale text-purple-600 text-2xl"></i>
-                                    </div>
-                                    <div class="ml-4">
-                                        <p class="text-sm font-medium text-purple-600">Available for Projects</p>
-                                        <p class="text-2xl font-bold text-purple-900">
-                                            ₹{{ "%.0f"|format(remaining_company_budget) }}
-                                        </p>
-                                    </div>
-                                </div>
+                            <div class="bg-blue-100 bg-opacity-20 rounded-lg p-2">
+                                <i class="fas fa-rupee-sign text-2xl"></i>
                             </div>
                         </div>
+                    </div>
 
-                        <!-- Project Budgets Table (EXCLUDE SALARY) -->
-                        <div class="mb-6">
-                            <h3 class="text-lg font-semibold text-gray-800 mb-4">
-                                <i class="fas fa-project-diagram text-blue-600 mr-2"></i>Project Budget Allocations (No Salary)
-                            </h3>
-                            <div class="overflow-x-auto max-h-96 border rounded-lg">
-                                <table class="min-w-full divide-y divide-gray-200">
-                                    <thead class="bg-gray-50">
-                                        <tr>
-                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Project Name</th>
-                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cost Center</th>
-                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Allocated (₹)</th>
-                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Spent (₹)</th>
-                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Remaining (₹)</th>
-                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody class="bg-white divide-y divide-gray-200">
-                                        {% for project in complete_budget_overview.projects %}
+                    <div class="bg-blue-500 rounded-xl p-4 text-white">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <h3 class="text-2xl font-bold">₹{{ "{:,.0f}".format(project_allocated|default(0)|float) }}</h3>
+                                <p class="text-blue-100 text-sm">Allocated to Projects</p>
+                                <p class="text-blue-200 text-xs mt-1">📈 Real project budgets only</p>
+                            </div>
+                            <div class="bg-blue-100 bg-opacity-20 rounded-lg p-2">
+                                <i class="fas fa-project-diagram text-2xl"></i>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bg-purple-500 rounded-xl p-4 text-white">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <h3 class="text-2xl font-bold">₹{{ "{:,.0f}".format(payroll_asset_allocated|default(0)|float) }}</h3>
+                                <p class="text-purple-100 text-sm">Allocated to Payroll & Assets</p>
+                                <p class="text-purple-200 text-xs mt-1">👥 Salaries + Assets</p>
+                            </div>
+                            <div class="bg-blue-100 bg-opacity-20 rounded-lg p-2">
+                                <i class="fas fa-users text-2xl"></i>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bg-blue-500 rounded-xl p-4 text-white">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <h3 class="text-2xl font-bold">₹{{ "{:,.0f}".format(remaining_budget|default(0)|float) }}</h3>
+                                <p class="text-blue-100 text-sm">Remaining Budget</p>
+                                <p class="text-orange-200 text-xs mt-1">💰 Available for allocation</p>
+                            </div>
+                            <div class="bg-blue-100 bg-opacity-20 rounded-lg p-2">
+                                <i class="fas fa-wallet text-2xl"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Project Budgets Table -->
+                <div class="mb-6">
+                    <h3 class="text-lg font-semibold text-gray-800 mb-4">
+                        <i class="fas fa-project-diagram text-blue-600 mr-2"></i>Project Budget Allocations
+                    </h3>
+                    {% if complete_budget_overview and complete_budget_overview.projects %}
+                        <div class="overflow-x-auto max-h-96 border rounded-lg">
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Project Name</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cost Center</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Allocated (₹)</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Spent (₹)</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Remaining (₹)</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="bg-white divide-y divide-gray-200">
+                                    {% for project in complete_budget_overview.projects %}
                                         {% set spent = expenses|selectattr('project_name', 'equalto', project.project_name)|sum(attribute='amount') or 0 %}
                                         {% set remaining = project.amount - spent %}
                                         {% set usage_percent = (spent / project.amount * 100) if project.amount > 0 else 0 %}
@@ -657,145 +666,40 @@
                                                 {% endif %}
                                             </td>
                                         </tr>
-                                        {% endfor %}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-
-                    {% elif budgets_from_sabitha %}
-                        <!-- Regular Budget Overview for Non-Senior Users -->
-                        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-                            <div class="bg-blue-50 rounded-lg p-4">
-                                <div class="flex items-center">
-                                    <div class="flex-shrink-0">
-                                        <i class="fas fa-wallet text-blue-600 text-2xl"></i>
-                                    </div>
-                                    <div class="ml-4">
-                                        <p class="text-sm font-medium text-blue-600">Total Projects</p>
-                                        <p class="text-2xl font-bold text-blue-900">{{ budgets_from_sabitha|length }}</p>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <div class="bg-green-50 rounded-lg p-4">
-                                <div class="flex items-center">
-                                    <div class="flex-shrink-0">
-                                        <i class="fas fa-rupee-sign text-green-600 text-2xl"></i>
-                                    </div>
-                                    <div class="ml-4">
-                                        <p class="text-sm font-medium text-green-600">Total Allocated</p>
-                                        <p class="text-2xl font-bold text-green-900">
-                                            ₹{{ "%.0f"|format(budgets_from_sabitha|sum(attribute='amount') or 0) }}
-                                        </p>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <div class="bg-yellow-50 rounded-lg p-4">
-                                <div class="flex items-center">
-                                    <div class="flex-shrink-0">
-                                        <i class="fas fa-chart-pie text-yellow-600 text-2xl"></i>
-                                    </div>
-                                    <div class="ml-4">
-                                        <p class="text-sm font-medium text-yellow-600">Total Spent</p>
-                                        <p class="text-2xl font-bold text-yellow-900">
-                                            ₹{{ "%.0f"|format(expenses|sum(attribute='amount') or 0) }}
-                                        </p>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <div class="bg-purple-50 rounded-lg p-4">
-                                <div class="flex items-center">
-                                    <div class="flex-shrink-0">
-                                        <i class="fas fa-balance-scale text-purple-600 text-2xl"></i>
-                                    </div>
-                                    <div class="ml-4">
-                                        <p class="text-sm font-medium text-purple-600">Remaining</p>
-                                        <p class="text-2xl font-bold text-purple-900">
-                                            {% set total_allocated = budgets_from_sabitha|sum(attribute='amount') or 0 %}
-                                            {% set total_spent = expenses|sum(attribute='amount') or 0 %}
-                                            ₹{{ "%.0f"|format(total_allocated - total_spent) }}
-                                        </p>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Budget Table for Regular Users -->
-                        <div class="overflow-x-auto max-h-96 border rounded-lg">
-                            <table class="min-w-full divide-y divide-gray-200">
-                                <thead class="bg-gray-50">
-                                    <tr>
-                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Project Name</th>
-                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
-                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Allocated Amount (₹)</th>
-                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Spent (₹)</th>
-                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Remaining (₹)</th>
-                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                                    </tr>
-                                </thead>
-                                <tbody class="bg-white divide-y divide-gray-200">
-                                    {% for budget in budgets_from_sabitha %}
-                                    {% set spent = expenses|selectattr('project_name', 'equalto', budget.project_name)|sum(attribute='amount') or 0 %}
-                                    {% set remaining = budget.amount - spent %}
-                                    {% set usage_percent = (spent / budget.amount * 100) if budget.amount > 0 else 0 %}
-                                    <tr class="hover:bg-gray-50 transition-colors">
-                                        <td class="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{{ budget.project_name or 'General' }}</td>
-                                        <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                                            <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full
-                                                {% if budget.category == 'Travel' %}bg-blue-100 text-blue-800
-                                                {% elif budget.category == 'Equipment' %}bg-green-100 text-green-800
-                                                {% elif budget.category == 'Software' %}bg-purple-100 text-purple-800
-                                                {% elif budget.category == 'Training' %}bg-yellow-100 text-yellow-800
-                                                {% else %}bg-gray-100 text-gray-800{% endif %}">
-                                                {{ budget.category }}
-                                            </span>
-                                        </td>
-                                        <td class="px-4 py-4 whitespace-nowrap text-sm font-semibold text-green-600">₹{{ "%.2f"|format(budget.amount) }}</td>
-                                        <td class="px-4 py-4 whitespace-nowrap text-sm font-semibold text-red-600">₹{{ "%.2f"|format(spent) }}</td>
-                                        <td class="px-4 py-4 whitespace-nowrap text-sm font-semibold {% if remaining < 0 %}text-red-600{% else %}text-blue-600{% endif %}">
-                                            ₹{{ "%.2f"|format(remaining) }}
-                                        </td>
-                                        <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                                            {% if usage_percent < 50 %}
-                                                <span class="inline-flex px-2 py-1 text-xs font-semibold bg-green-100 text-green-800 rounded-full">
-                                                    <i class="fas fa-check mr-1"></i>Good ({{ "%.0f"|format(usage_percent) }}%)
-                                                </span>
-                                            {% elif usage_percent < 80 %}
-                                                <span class="inline-flex px-2 py-1 text-xs font-semibold bg-yellow-100 text-yellow-800 rounded-full">
-                                                    <i class="fas fa-exclamation mr-1"></i>Warning ({{ "%.0f"|format(usage_percent) }}%)
-                                                </span>
-                                            {% else %}
-                                                <span class="inline-flex px-2 py-1 text-xs font-semibold bg-red-100 text-red-800 rounded-full">
-                                                    <i class="fas fa-times mr-1"></i>Critical ({{ "%.0f"|format(usage_percent) }}%)
-                                                </span>
-                                            {% endif %}
-                                        </td>
-                                    </tr>
                                     {% endfor %}
                                 </tbody>
                             </table>
                         </div>
-                        
-                        <div class="mt-4 text-sm text-gray-500 flex justify-between items-center">
-                            <span>
-                                <i class="fas fa-info-circle mr-1"></i>
-                                Project budget updates are reflected in real-time
-                            </span>
-                            <span id="last-updated">Last updated: {{ moment().format('YYYY-MM-DD HH:mm:ss') }}</span>
-                        </div>
-                    {% else %}
-                        <div class="text-center py-12">
-                            <i class="fas fa-chart-bar text-4xl text-gray-300 mb-4"></i>
-                            <h3 class="text-lg font-medium text-gray-800 mb-2">No Budget Data Available</h3>
-                            <p class="text-gray-500">No project budgets have been created yet.</p>
-                        </div>
                     {% endif %}
                 </div>
-            </div>
+            
+            {% elif budgets_from_sabitha %}
+                <!-- Regular Budget Overview for Non-Senior Users -->
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                    <div class="bg-blue-50 rounded-lg p-4">
+                        <div class="flex items-center">
+                            <div class="flex-shrink-0">
+                                <i class="fas fa-wallet text-blue-600 text-2xl"></i>
+                            </div>
+                            <div class="ml-4">
+                                <p class="text-sm font-medium text-blue-600">Total Projects</p>
+                                <p class="text-2xl font-bold text-blue-900">{{ budgets_from_sabitha|length }}</p>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Add other budget cards here as needed -->
+                </div>
+                
+            {% else %}
+                <div class="text-center py-12">
+                    <i class="fas fa-chart-bar text-4xl text-gray-300 mb-4"></i>
+                    <h3 class="text-lg font-medium text-gray-800 mb-2">No Budget Data Available</h3>
+                    <p class="text-gray-500">No project budgets have been created yet.</p>
+                </div>
+            {% endif %}
         </div>
+    </div>
+</div>
 
         <!-- Team Management Tab (RM only) - REMOVED PENDING APPROVALS SUB-TAB -->
         {% if is_rm %}
@@ -1041,6 +945,7 @@
                                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
                                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Days</th>
                                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Document</th>
                                         <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                                     </tr>
                                 </thead>
@@ -1077,6 +982,25 @@
                                                 {{ leave.description }}
                                             </div>
                                         </td>
+                                                                                           <!-- In the pending team leaves table in hr_finance.html -->
+<td class="px-4 py-4 whitespace-nowrap text-sm">
+    {% if leave.health_document and leave.health_document|length %}
+        <div class="flex space-x-2">
+            <a href="{{ url_for('view_leave_document', leave_id=leave.id) }}" 
+               target="_blank" 
+               class="text-blue-600 hover:text-blue-800 text-xs px-2 py-1 bg-blue-50 rounded-md border border-blue-200 hover:bg-blue-100 transition-colors">
+                <i class="fas fa-eye mr-1"></i>View
+            </a>
+            <a href="{{ url_for('download_leave_document', leave_id=leave.id) }}" 
+               class="text-green-600 hover:text-green-800 text-xs px-2 py-1 bg-green-50 rounded-md border border-green-200 hover:bg-green-100 transition-colors">
+                <i class="fas fa-download mr-1"></i>Download
+            </a>
+        </div>
+    {% else %}
+        <span class="text-gray-400 text-xs">No document</span>
+    {% endif %}
+</td>
+
                                         <td class="px-4 py-3 text-center">
                                             <div class="flex justify-center space-x-2">
                                                 <form method="post" action="{{ url_for('approve_manager_leave_request') }}" style="display: inline;">
@@ -1586,6 +1510,7 @@
                                             <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Assigned By</th>
                                             <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Assigned To</th>
                                             <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Project</th>
+                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Assigned On</th>
                                             <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Due Date</th>
                                             <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                                             <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Task Description</th>
@@ -1612,6 +1537,7 @@
                                                 </div>
                                             </td>
                                             <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">{{ assignment.project_name or 'General Task' }}</td>
+                                            <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">{{ assignment.assigned_on }}</td>
                                             <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">{{ assignment.due_date }}</td>
                                             <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
                                                 <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full
@@ -1860,8 +1786,6 @@
     </div>
 </div>
 
-
-
 <!-- JavaScript for functionality -->
 <script>
 document.addEventListener('DOMContentLoaded', function() {
@@ -1876,7 +1800,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
     
     // Auto-refresh budget data every 30 seconds
-    setInterval(refreshBudgetData, 30000);
+    //setInterval(refreshBudgetData, 30000);
     
     // Show employee history tab if hash is present
     if (window.location.hash === '#employee-history') {
@@ -1894,8 +1818,8 @@ function showTab(tabId) {
         btn.classList.add('text-gray-500', 'border-transparent');
     });
     
-    document.querySelector(`[data-tab="${tabId}"]`).classList.add('text-blue-600', 'border-blue-600');
-    document.querySelector(`[data-tab="${tabId}"]`).classList.remove('text-gray-500', 'border-transparent');
+    document.querySelector(`[data-tab="₹{tabId}"]`).classList.add('text-blue-600', 'border-blue-600');
+    document.querySelector(`[data-tab="₹{tabId}"]`).classList.remove('text-gray-500', 'border-transparent');
     
     // Update content visibility
     tabContents.forEach(content => {
@@ -2086,6 +2010,48 @@ function rejectLeave(leaveId) {
     }
 }
 
+document.addEventListener('DOMContentLoaded', function() {
+    // Main tab functionality
+    const tabButtons = document.querySelectorAll('.tab-button');
+    const tabContents = document.querySelectorAll('.tab-content');
+
+    tabButtons.forEach(button => {
+        button.addEventListener('click', () => {
+            const tabId = button.getAttribute('data-tab');
+            
+            // Update tab button styles
+            tabButtons.forEach(btn => {
+                btn.classList.remove('text-blue-600', 'border-blue-600', 'active');
+                btn.classList.add('text-gray-500', 'border-transparent');
+            });
+            
+            // Set active tab
+            button.classList.add('text-blue-600', 'border-blue-600', 'active');
+            button.classList.remove('text-gray-500', 'border-transparent');
+            
+            // Update tab content visibility
+            tabContents.forEach(content => {
+                content.classList.add('hidden');
+            });
+            
+            // Show selected tab content
+            const targetContent = document.getElementById(tabId);
+            if (targetContent) {
+                targetContent.classList.remove('hidden');
+            }
+        });
+    });
+
+    // Auto-show overview tab by default if no hash
+    if (!window.location.hash) {
+        const overviewTab = document.getElementById('overview');
+        if (overviewTab) {
+            overviewTab.classList.remove('hidden');
+        }
+    }
+});
+
+
 // Real-time budget refresh function
 async function refreshBudgetData() {
     try {
@@ -2126,6 +2092,36 @@ window.onclick = function(event) {
         rejectRMModal.classList.add('hidden');
     }
 }
+
+// Function to reject team leave with reason
+function rejectTeamLeave(leaveId) {
+    const reason = prompt('Please provide a reason for rejecting this leave request:');
+    if (reason && reason.trim()) {
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = '{{ url_for("reject_team_leave") }}';
+        
+        const leaveIdInput = document.createElement('input');
+        leaveIdInput.type = 'hidden';
+        leaveIdInput.name = 'leave_id';
+        leaveIdInput.value = leaveId;
+        
+        const reasonInput = document.createElement('input');
+        reasonInput.type = 'hidden';
+        reasonInput.name = 'rejection_reason';
+        reasonInput.value = reason.trim();
+        
+        form.appendChild(leaveIdInput);
+        form.appendChild(reasonInput);
+        document.body.appendChild(form);
+        form.submit();
+    } else if (reason === '') {
+        alert('Rejection reason is required.');
+    }
+}
+
+
+
 </script>
 
 
