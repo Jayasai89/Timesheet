@@ -41,8 +41,9 @@ SQL_DATABASE = os.getenv('SQL_DATABASE')
 SQL_USERNAME = os.getenv('SQL_USERNAME')
 SQL_PASSWORD = os.getenv('SQL_PASSWORD')
 
-UPLOAD_DIR = os.getenv('UPLOAD_DIR', 'Uploads')
+UPLOAD_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'Uploads')
 os.makedirs(UPLOAD_DIR, exist_ok=True)
+print(f" Upload directory: {UPLOAD_DIR}")
 APP_TITLE = os.getenv('APP_TITLE', 'Timesheet & Leave System')
 
 CLIENT_ID = os.getenv('CLIENT_ID')
@@ -75,7 +76,7 @@ TOKEN_URL = f"https://login.microsoftonline.com/{TENANT_ID}/oauth2/v2.0/token"
 SCOPES = ["openid", "profile", "email", "User.Read"]
 
 # Configuration for different user roles and privileges
-MANAGER_ROLES = ['Manager', 'Admin Manager', 'Lead Staffing Specialist']
+MANAGER_ROLES = ['Manager' ]
 HR_FINANCE_ROLES = ['Hr & Finance Controller', 'Finance Manager']
 LEAD_ROLES = ['Lead', 'Finance Manager']
 ADMIN_ROLES = ['Admin Manager', 'Lead Staffing Specialist']
@@ -214,89 +215,182 @@ def _get_remaining_balances(username: str):
         'paid': max(0, int(r['paid_rem'])),
         'casual': max(0, int(r['casual_rem']))
     }
-
-# --------------------
-# Organizational hierarchy helpers
-# --------------------
+# Organizational hierarchy helpers - CORRECTED VERSION
 def get_direct_reports(rm_username: str) -> List[str]:
-    """Get direct reports for a manager"""
+    """Get direct reports for a manager - RM ONLY"""
     df = run_query("SELECT username FROM report WHERE rm = ?", (rm_username,))
     if df.empty:
         return []
     return df["username"].astype(str).tolist()
 
 def get_all_reports_recursive(supervisor: str) -> List[str]:
-    """Get all reports recursively (including sub-reports)"""
+    """Get all reports recursively (including sub-reports) - RM ONLY"""
     try:
-        sql = """
-        WITH Rec AS (
-            SELECT emp_id FROM reporting_hierarchy WHERE supervisor_id = ?
-            UNION ALL
-            SELECT rh.emp_id FROM reporting_hierarchy rh
-            INNER JOIN Rec r ON rh.supervisor_id = r.emp_id
-        )
-        SELECT emp_id FROM Rec
-        """
-        df = run_query(sql, (supervisor,))
-        if not df.empty:
-            return df["emp_id"].astype(str).tolist()
-    except Exception:
-        pass
-    
-    direct = get_direct_reports(supervisor)
-    all_list = list(direct)
-    for d in direct:
-        sub = get_direct_reports(d)
-        for s in sub:
-            if s not in all_list:
-                all_list.append(s)
-    return all_list
-def get_approver(username):
-    """Get the approver for a given username based on hierarchy"""
+        recursive_df = run_query("""
+            WITH RecursiveHierarchy AS (
+                -- Base case: direct reports (RM ONLY)
+                SELECT username 
+                FROM report 
+                WHERE rm = ?
+                
+                UNION ALL
+                
+                -- Recursive case: reports of reports (RM ONLY)
+                SELECT r.username
+                FROM report r
+                INNER JOIN RecursiveHierarchy rh ON r.rm = rh.username
+            )
+            SELECT DISTINCT username FROM RecursiveHierarchy
+        """, (supervisor,))
+        
+        if not recursive_df.empty:
+            return recursive_df["username"].astype(str).tolist()
+        else:
+            return []
+        
+    except Exception as e:
+        print(f"Error getting recursive reports: {e}")
+        return get_direct_reports(supervisor)
+
+def can_assign_work_to_user(assigner: str, assignee: str) -> bool:
+    """ASSIGNMENT: Hierarchical assignment allowed (direct + indirect reports)"""
+    team_members = get_all_reports_recursive(assigner)
+    return assignee in team_members
+
+def get_direct_reports(rm_username: str) -> List[str]:
+    """Get direct reports for ANY user who acts as RM - including Admin Manager and Lead Staffing Specialist"""
     try:
-        # First, check direct reporting manager
-        rm_query = run_query("SELECT rm FROM report WHERE username = ?", (username,))
-        if not rm_query.empty and rm_query.iloc[0]['rm']:
-            return rm_query.iloc[0]['rm']
+        # Query the report table to find users where rm = current_user
+        df = run_query("SELECT username FROM report WHERE rm = ?", (rm_username,))
         
-        # If no direct RM, find their manager from users table based on role hierarchy
-        user_role_query = run_query("SELECT role FROM users WHERE username = ?", (username,))
-        if not user_role_query.empty:
-            user_role = user_role_query.iloc[0]['role']
-            
-            # Find appropriate manager based on role
-            if user_role in ['Employee', 'Intern']:
-                manager_query = run_query("""
-                    SELECT username FROM users 
-                    WHERE role IN ('Rm', 'Manager', 'Admin Manager') 
-                    AND status = 'Active' 
-                    ORDER BY 
-                        CASE role 
-                            WHEN 'Rm' THEN 1 
-                            WHEN 'Manager' THEN 2 
-                            WHEN 'Admin Manager' THEN 3 
-                        END
-                    LIMIT 1
-                """)
-            elif user_role == 'Rm':
-                manager_query = run_query("""
-                    SELECT username FROM users 
-                    WHERE role IN ('Manager', 'Admin Manager') 
-                    AND status = 'Active' 
-                    LIMIT 1
-                """)
-            else:
-                return None  # Top-level roles don't need approval
-            
-            if not manager_query.empty:
-                return manager_query.iloc[0]['username']
+        if df.empty:
+            print(f" DEBUG: No direct reports found for {rm_username} in reports table")
+            return []
         
+        direct_reports = df["username"].astype(str).tolist()
+        print(f" DEBUG: Direct reports for {rm_username}: {direct_reports}")
+        return direct_reports
+        
+    except Exception as e:
+        print(f" Error getting direct reports for {rm_username}: {e}")
+        return []
+
+def get_work_assignable_employees(rm_username: str) -> List[str]:
+    """Get employees to whom this user can assign work - based on reports table RM relationship"""
+    try:
+        # Same logic as get_direct_reports - anyone can be an RM regardless of their role
+        assignable_df = run_query("SELECT username FROM report WHERE rm = ?", (rm_username,))
+        
+        if not assignable_df.empty:
+            assignable = assignable_df["username"].astype(str).tolist()
+            print(f" DEBUG: {rm_username} can assign work to: {assignable}")
+            return assignable
+        
+        print(f"⚠ DEBUG: No assignable employees found for {rm_username}")
+        return []
+        
+    except Exception as e:
+        print(f" Error getting assignable employees for {rm_username}: {e}")
+        return []
+
+def get_rm_for_employee(employee_username: str) -> str:
+    """Get the DIRECT RM for an employee from report table - UPDATED VERSION"""
+    try:
+        # Get direct RM from report table
+        rm_query = run_query("SELECT rm FROM report WHERE username = ?", (employee_username,))
+        
+        if not rm_query.empty:
+            rm = rm_query.iloc[0]['rm']
+            print(f" DEBUG: Employee {employee_username} -> RM: {rm}")
+            return rm
+        
+        # If no direct RM found, log it
+        print(f"⚠ WARNING: No RM found for employee {employee_username} in report table")
         return None
         
     except Exception as e:
-        print(f"Error getting approver for {username}: {e}")
+        print(f" Error getting RM for {employee_username}: {e}")
         return None
 
+def get_manager_for_employee(employee_username: str) -> str:
+    """Get the manager for an employee (different from RM)"""
+    try:
+        manager_query = run_query("SELECT manager FROM report WHERE username = ?", (employee_username,))
+        if not manager_query.empty:
+            return manager_query.iloc[0]['manager']
+        return None
+    except Exception as e:
+        print(f"Error getting manager for {employee_username}: {e}")
+        return None
+
+def can_approve_timesheet(approver: str, employee: str) -> bool:
+    """Check if approver can approve timesheet - ONLY RM can approve"""
+    try:
+        rm_query = run_query("SELECT rm FROM report WHERE username = ?", (employee,))
+        if not rm_query.empty:
+            assigned_rm = rm_query.iloc[0]['rm']
+            return approver == assigned_rm  # Only direct RM can approve
+        return False
+    except:
+        return False
+
+def can_approve_leave(approver: str, employee: str) -> bool:
+    """Check if approver can approve leave - ONLY RM can approve"""
+    try:
+        rm_query = run_query("SELECT rm FROM report WHERE username = ?", (employee,))
+        if not rm_query.empty:
+            assigned_rm = rm_query.iloc[0]['rm']
+            return approver == assigned_rm  # Only direct RM can approve
+        return False
+    except:
+        return False
+
+def can_view_employee_data(viewer: str, employee: str) -> bool:
+    """Check if viewer can see employee data - Both RM and Manager can view"""
+    try:
+        report_query = run_query("SELECT rm, manager FROM report WHERE username = ?", (employee,))
+        if not report_query.empty:
+            assigned_rm = report_query.iloc[0]['rm']
+            assigned_manager = report_query.iloc[0]['manager']
+            return viewer == assigned_rm or viewer == assigned_manager
+        return False
+    except:
+        return False
+
+def get_pending_approvals_for_rm(rm_username: str):
+    """Get pending approvals for RM - ONLY direct RM assignments"""
+    
+    # Get employees where this user is the RM (not manager)
+    rm_employees = run_query("SELECT username FROM report WHERE rm = ?", (rm_username,))
+    
+    if rm_employees.empty:
+        return pd.DataFrame(), pd.DataFrame()
+    
+    employee_list = rm_employees['username'].tolist()
+    placeholders = ",".join(["?"] * len(employee_list))
+    
+    # Get pending timesheets
+    pending_timesheets = run_query(f"""
+        SELECT id, username, work_date, project_name, work_desc, hours, break_hours
+        FROM timesheets 
+        WHERE username IN ({placeholders}) AND rm_status = 'Pending'
+        ORDER BY work_date ASC
+    """, tuple(employee_list))
+    
+    # Get pending leaves
+  # Get pending leaves with document info
+    pending_leaves = run_query(f"""
+        SELECT l.id, l.username, l.start_date, l.end_date, l.leave_type, l.description,
+               l.health_document,
+               CASE WHEN l.health_document IS NOT NULL THEN 1 ELSE 0 END as has_document,
+               u.role as employee_role,
+               DATEDIFF(day, l.start_date, l.end_date) + 1 as duration_days
+        FROM leaves l
+        LEFT JOIN users u ON l.username = u.username
+        WHERE l.username IN ({placeholders}) AND l.rm_status = 'Pending'
+        ORDER BY l.start_date ASC
+    """, tuple(employee_list))
+    return pending_timesheets, pending_leaves
 
 def fix_approver_columns():
     """Ensure approver columns exist and are populated"""
@@ -383,9 +477,7 @@ def get_approver_for_user(username: str) -> str:
         return None
     except:
         return None
-
-# --------------------
-# Template filters
+    # Template filters
 # --------------------
 @app.template_filter('dateformat')
 def dateformat(value, fmt='%Y-%m-%d'):
@@ -744,7 +836,7 @@ def logout():
 def debug_test():
     """Test route to verify Flask is working"""
     return f"""
-    <h1>🎉 Flask App is Working!</h1>
+    <h1> Flask App is Working!</h1>
     <p><strong>App Title:</strong> {APP_TITLE}</p>
     <p><strong>Current Time:</strong> {datetime.now()}</p>
     <p><strong>Redirect URI:</strong> {REDIRECT_URI}</p>
@@ -760,6 +852,47 @@ def debug_routes():
     for rule in app.url_map.iter_rules():
         routes.append(f"<li><strong>{rule.endpoint}</strong>: {rule.rule} [{','.join(rule.methods)}]</li>")
     return f"<h2>Available Routes:</h2><ul>{''.join(routes)}</ul>"
+
+@app.route('/reset_password', methods=['POST'])
+def reset_password():
+    """Self-service password reset - user can reset their own password"""
+    try:
+        username = request.form.get('username', '').strip()
+        new_password = request.form.get('new_password', '').strip()
+        
+        if not username or not new_password:
+            return jsonify({'success': False, 'message': 'Username and new password are required.'})
+        
+        if len(new_password) < 6:
+            return jsonify({'success': False, 'message': 'Password must be at least 6 characters long.'})
+        
+        # Check if user exists and is active
+        user_check = run_query("""
+            SELECT username, name, email, status FROM users 
+            WHERE username = ? AND status = 'Active'
+        """, (username,))
+        
+        if user_check.empty:
+            return jsonify({'success': False, 'message': 'Username not found or account is inactive.'})
+        
+        # Update the password
+        ok = run_exec("""
+            UPDATE users 
+            SET password = ? 
+            WHERE username = ? AND status = 'Active'
+        """, (new_password, username))
+        
+        if ok:
+            print(f" Password reset successful for user: {username}")
+            return jsonify({'success': True, 'message': 'Password reset successfully!'})
+        else:
+            return jsonify({'success': False, 'message': 'Failed to update password. Please try again.'})
+            
+    except Exception as e:
+        print(f" Password reset error: {str(e)}")
+        return jsonify({'success': False, 'message': 'An error occurred during password reset.'})
+
+
 
 # --------------------
 # Dashboard Route
@@ -792,18 +925,83 @@ def dashboard():
     else:
         flash(f"Role '{role}' not specifically mapped, showing employee view.")
         return view_employee(user)
-
-# --------------------
+    
+    # --------------------
 # Manager View Function - COMPLETE
 # --------------------
 def view_manager(user):
-    """Manager dashboard view - ROLE BASED, NO HARDCODED NAMES"""
+    """Manager dashboard view - ROLE BASED with REAL-TIME BUDGET UPDATES"""
     
     # Get user role and permissions
     user_role = session.get('role', '')
     has_company_access = has_company_wide_access(user)
     is_senior_manager = user_role in ['Manager', 'Admin Manager']
     
+    # REAL-TIME BUDGET CALCULATIONS (same as HR Finance view)
+    try:
+        total_budget_df = run_query("SELECT total_budget FROM company_budget WHERE id = 1")
+        if not total_budget_df.empty and len(total_budget_df) > 0:
+            total_company_budget = float(total_budget_df['total_budget'].iloc[0])
+        else:
+            total_company_budget = 50000000.0
+    except Exception as e:
+        print(f" Budget retrieval error: {e}")
+        total_company_budget = 50000000.0
+
+    # Calculate ONLY PROJECT allocations (exclude salary/asset projects)
+    try:
+        project_allocated_df = run_query("""
+            SELECT COALESCE(SUM(CAST(budget_amount AS DECIMAL(18,2))), 0) as allocated 
+            FROM projects 
+            WHERE hr_approval_status = 'Approved' 
+            AND budget_amount IS NOT NULL
+            AND CAST(budget_amount AS DECIMAL(18,2)) > 0
+            AND project_name NOT LIKE 'Salary%'
+            AND project_name NOT LIKE 'Asset Purchase%'
+        """)
+        
+        project_allocated = float(project_allocated_df['allocated'].iloc[0]) if not project_allocated_df.empty else 0.0
+        
+    except Exception as e:
+        print(f" Project allocation calculation error: {e}")
+        project_allocated = 0.0
+
+    # Calculate PAYROLL & ASSET allocations separately
+    try:
+        # Current payroll costs
+        payroll_df = run_query("""
+            SELECT COALESCE(SUM(CAST(yearly_salary AS DECIMAL(18,2))), 0) as total_payroll
+            FROM users 
+            WHERE status = 'Active' AND yearly_salary IS NOT NULL
+        """)
+        current_payroll = float(payroll_df['total_payroll'].iloc[0]) if not payroll_df.empty else 0.0
+
+        # Asset purchases (approved asset requests)  
+        asset_allocated_df = run_query("""
+            SELECT COALESCE(SUM(CAST(amount AS DECIMAL(18,2))), 0) as asset_total
+            FROM asset_requests 
+            WHERE status = 'Approved'
+        """)
+        asset_allocated = float(asset_allocated_df['asset_total'].iloc[0]) if not asset_allocated_df.empty else 0.0
+
+        # Total payroll & asset allocation
+        payroll_asset_allocated = current_payroll + asset_allocated
+        
+    except Exception as e:
+        print(f" Payroll & Asset calculation error: {e}")
+        current_payroll = 0.0
+        asset_allocated = 0.0
+        payroll_asset_allocated = 0.0
+
+    # Calculate remaining budget CORRECTLY (SAME AS HR FINANCE)
+    remaining_company_budget = total_company_budget - project_allocated - payroll_asset_allocated
+    
+    print(f" MANAGER VIEW BUDGET CALCULATION:")
+    print(f"   Total Budget: ₹{total_company_budget:,.2f}")
+    print(f"   Project Allocations: ₹{project_allocated:,.2f}")
+    print(f"   Payroll & Asset Allocations: ₹{payroll_asset_allocated:,.2f}")
+    print(f"   Remaining Available: ₹{remaining_company_budget:,.2f}")
+
     # Get form filters
     if request.method == 'POST':
         team_start = request.form.get('team_start', '')
@@ -834,13 +1032,8 @@ def view_manager(user):
     direct_team = get_direct_reports(user)
     all_team = get_all_reports_recursive(user)
     is_rm = len(direct_team) > 0 or has_company_access
-    
-    # Initialize budget variables
-    total_company_budget = 0.0
-    remaining_company_budget = 0.0
-    complete_budget_overview = {'projects': [], 'payroll_total': 0.0}
-    
-    # Get manager's projects
+
+    # Get manager's projects (EXCLUDING SALARY/ASSET PROJECTS)
     my_projects = run_query("""
         SELECT project_id, project_name, description, created_on, end_date, status, 
                cost_center, budget_amount, hr_approval_status, created_by
@@ -850,24 +1043,25 @@ def view_manager(user):
         AND project_name NOT LIKE 'Asset Purchase%'
         ORDER BY created_on DESC
     """, (user,))
-    
+
     # Get all employees for project assignment
     all_employees = run_query("""
         SELECT username, role, name FROM users 
         WHERE role IN ('Employee', 'Intern', 'Lead') AND status = 'Active'
         ORDER BY username
     """)
-    
-    # Get approved projects
+
+    # Get approved projects (EXCLUDING SALARY/ASSET PROJECTS)
     all_projects = run_query("""
-        SELECT project_name, cost_center 
-        FROM projects 
-        WHERE (status = 'Approved' OR hr_approval_status = 'Approved')
-        AND project_name NOT LIKE 'Salary%'
-        ORDER BY project_name
+    SELECT project_id, project_name, created_by, cost_center, description, 
+           hr_approval_status, budget_amount, end_date, created_on
+    FROM projects
+    WHERE project_name NOT LIKE 'Salary%'
+    AND project_name NOT LIKE 'Asset Purchase%'
+    ORDER BY created_on DESC
     """)
-    
-    # Get expenses
+
+    # Get expenses (EXCLUDING SALARY/ASSET EXPENSES)
     expenses = run_query("""
         SELECT id, spent_by, project_name, category, 
                COALESCE(CAST(amount AS DECIMAL(18,2)), 0) as amount, 
@@ -877,11 +1071,12 @@ def view_manager(user):
             SELECT project_name FROM projects 
             WHERE (created_by = ? OR hr_approval_status = 'Approved')
             AND project_name NOT LIKE 'Salary Increase%'
+            AND project_name NOT LIKE 'Asset Purchase%'
         )
         ORDER BY date DESC
     """, (user, user))
-    
-    # Get budget data
+
+    # Get budget data (EXCLUDING SALARY/ASSET PROJECTS)
     budgets_from_sabitha = run_query("""
         SELECT 
             p.project_name as budget_name,
@@ -897,9 +1092,10 @@ def view_manager(user):
         WHERE p.hr_approval_status = 'Approved'
         AND COALESCE(CAST(p.budget_amount AS DECIMAL(18,2)), 0) > 0
         AND p.project_name NOT LIKE 'Salary Increase%'
+        AND p.project_name NOT LIKE 'Asset Purchase%'
         ORDER BY p.created_on DESC
     """)
-    
+
     # Get payroll history
     payroll_history = run_query("""
         SELECT u.username, u.name, u.role, 
@@ -911,7 +1107,7 @@ def view_manager(user):
         WHERE u.status = 'Active'
         ORDER BY u.monthly_salary DESC
     """)
-    
+
     # Initialize team-related variables
     pending_timesheets = pd.DataFrame()
     pending_leaves = pd.DataFrame()
@@ -921,54 +1117,26 @@ def view_manager(user):
     team_leave_history = pd.DataFrame()
     all_employee_work_history = pd.DataFrame()
     all_employee_leave_history = pd.DataFrame()
-    
+
+    # Complete Budget Overview for company access users
+    complete_budget_overview = {
+        'projects': budgets_from_sabitha.to_dict('records') if not budgets_from_sabitha.empty else [],
+        'payroll_total': current_payroll
+    }
+
     # FOR COMPANY-WIDE ACCESS (Senior Managers)
     if has_company_access:
-        try:
-            # Get total company budget
-            budget_df = run_query("SELECT total_budget FROM company_budget WHERE id = 1")
-            total_company_budget = float(budget_df['total_budget'].iloc[0]) if not budget_df.empty else 0.0
-        except:
-            total_company_budget = 0.0
-        
-        # Get project budgets
-        project_budgets = run_query("""
-            SELECT project_name, cost_center, 
-                   COALESCE(CAST(budget_amount AS DECIMAL(18,2)), 0) as amount
-            FROM projects 
-            WHERE hr_approval_status = 'Approved' 
-            AND budget_amount IS NOT NULL
-            AND CAST(budget_amount AS DECIMAL(18,2)) > 0
-            AND project_name NOT LIKE 'Salary Increase%'
-            ORDER BY project_name
-        """)
-        
-        # Get payroll total
-        payroll_total_df = run_query("""
-            SELECT COALESCE(SUM(CAST(yearly_salary AS DECIMAL(18,2))), 0) as total
-            FROM users WHERE status = 'Active'
-        """)
-        
-        payroll_total = float(payroll_total_df['total'].iloc[0]) if not payroll_total_df.empty else 0.0
-        
-        complete_budget_overview = {
-            'projects': project_budgets.to_dict('records') if not project_budgets.empty else [],
-            'payroll_total': payroll_total
-        }
-        
-        allocated_projects = sum(p['amount'] for p in complete_budget_overview['projects'])
-        remaining_company_budget = total_company_budget - allocated_projects - payroll_total
-        
         # Get pending RM assignments for company-wide approval
         pending_rm_assignments = run_query("""
-            SELECT id, assigned_by, assigned_to, project_name, task_desc, start_date, end_date, 
-                   due_date, assigned_on, manager_status, manager_approver,
-                   COALESCE(rm_rejection_reason, '') as rejection_reason
+            SELECT id, assigned_by, assigned_to, project_name, task_desc, start_date, 
+                due_date, assigned_on, manager_status, manager_approver,
+                COALESCE(rm_rejection_reason, '') as rejection_reason
             FROM assigned_work 
             WHERE manager_status IN ('Pending', 'Approved', 'Rejected')
             ORDER BY assigned_on DESC
         """)
-        
+
+
         # Get ALL asset requests
         approved_assets = run_query("""
             SELECT id, asset_type, quantity, amount, for_employee, description, 
@@ -979,7 +1147,7 @@ def view_manager(user):
                 CASE WHEN status = 'Approved' THEN 1 ELSE 2 END,
                 approved_date DESC, requested_date DESC
         """)
-        
+
         # Get ALL employee work history with filters
         all_work_query = """
             SELECT TOP 500 t.username, t.work_date, t.project_name, t.work_desc, t.hours, 
@@ -991,7 +1159,7 @@ def view_manager(user):
             WHERE 1=1
         """
         all_work_params = []
-        
+
         if team_start:
             all_work_query += " AND t.work_date >= ?"
             all_work_params.append(team_start)
@@ -1007,10 +1175,10 @@ def view_manager(user):
         if team_desc:
             all_work_query += " AND t.work_desc LIKE ?"
             all_work_params.append(f"%{team_desc}%")
-        
+
         all_work_query += " ORDER BY t.work_date DESC, t.id DESC"
         all_employee_work_history = run_query(all_work_query, tuple(all_work_params))
-        
+
         # Get ALL employee leave history with filters
         all_leave_query = """
             SELECT TOP 500 l.username, l.start_date, l.end_date, l.leave_type, l.description, 
@@ -1021,7 +1189,7 @@ def view_manager(user):
             WHERE 1=1
         """
         all_leave_params = []
-        
+
         if leave_start:
             all_leave_query += " AND l.start_date >= ?"
             all_leave_params.append(leave_start)
@@ -1037,29 +1205,35 @@ def view_manager(user):
         if leave_desc:
             all_leave_query += " AND l.description LIKE ?"
             all_leave_params.append(f"%{leave_desc}%")
-        
+
         all_leave_query += " ORDER BY l.start_date DESC"
         all_employee_leave_history = run_query(all_leave_query, tuple(all_leave_params))
-    
+
     # FOR REGULAR TEAM MANAGERS
     if is_rm and direct_team:
         placeholders = ",".join(["?"] * len(direct_team))
-        
+
         # Get pending approvals for direct team
         pending_timesheets = run_query(f"""
             SELECT id, username, work_date, project_name, work_desc, hours, break_hours
-            FROM timesheets 
+            FROM timesheets
             WHERE username IN ({placeholders}) AND rm_status = 'Pending'
             ORDER BY work_date ASC
         """, tuple(direct_team))
-        
+
+
         pending_leaves = run_query(f"""
-            SELECT id, username, start_date, end_date, leave_type, description, rm_status
-            FROM leaves 
-            WHERE username IN ({placeholders}) AND rm_status = 'Pending'
-            ORDER BY start_date ASC
-        """, tuple(direct_team))
-        
+    SELECT l.id, l.username, l.start_date, l.end_date, l.leave_type, l.description, 
+           l.rm_status, l.health_document,
+           CASE WHEN l.health_document IS NOT NULL THEN 1 ELSE 0 END as has_document,
+           DATEDIFF(day, l.start_date, l.end_date) + 1 as duration_days,
+           u.name as employee_name
+    FROM leaves l
+    JOIN users u ON l.username = u.username
+    WHERE l.username IN ({placeholders}) AND l.rm_status = 'Pending'
+    ORDER BY l.start_date ASC
+""", tuple(direct_team))
+
         # Get team history with filters
         work_query = f"""
             SELECT TOP 500 t.username, t.work_date, t.project_name, t.work_desc, t.hours, 
@@ -1071,7 +1245,7 @@ def view_manager(user):
             WHERE t.username IN ({placeholders})
         """
         work_params = list(direct_team)
-        
+
         if team_start:
             work_query += " AND t.work_date >= ?"
             work_params.append(team_start)
@@ -1087,10 +1261,10 @@ def view_manager(user):
         if team_desc:
             work_query += " AND t.work_desc LIKE ?"
             work_params.append(f"%{team_desc}%")
-        
+
         work_query += " ORDER BY t.work_date DESC"
         team_work_history = run_query(work_query, tuple(work_params))
-        
+
         # Team leave history with filters
         leave_query = f"""
             SELECT TOP 500 l.username, l.start_date, l.end_date, l.leave_type, l.description, 
@@ -1101,7 +1275,7 @@ def view_manager(user):
             WHERE l.username IN ({placeholders})
         """
         leave_params = list(direct_team)
-        
+
         if leave_start:
             leave_query += " AND l.start_date >= ?"
             leave_params.append(leave_start)
@@ -1117,21 +1291,21 @@ def view_manager(user):
         if leave_desc:
             leave_query += " AND l.description LIKE ?"
             leave_params.append(f"%{leave_desc}%")
-        
+
         leave_query += " ORDER BY l.start_date DESC"
         team_leave_history = run_query(leave_query, tuple(leave_params))
-    
+
     # Calculate leave duration
     leave_records = pending_leaves.to_dict('records') if not pending_leaves.empty else []
     leave_records = calculate_leave_duration(leave_records)
-    
+
     team_leave_records = team_leave_history.to_dict('records') if not team_leave_history.empty else []
     team_leave_records = calculate_leave_duration(team_leave_records)
-    
+
     all_leave_records = all_employee_leave_history.to_dict('records') if not all_employee_leave_history.empty else []
     all_leave_records = calculate_leave_duration(all_leave_records)
 
-    # Return template with ALL variables
+    # Return template with ALL variables INCLUDING REAL-TIME BUDGET DATA
     return render_template('manager_dashboard.html',
         user=user,
         role=session['role'],
@@ -1139,6 +1313,15 @@ def view_manager(user):
         has_company_access=has_company_access,
         is_senior_manager=is_senior_manager,
         is_rm=is_rm,
+        
+        # REAL-TIME BUDGET DATA (same as HR Finance)
+        total_budget=float(total_company_budget),
+        project_allocated=float(project_allocated),
+        payroll_asset_allocated=float(payroll_asset_allocated),
+        remaining_allocation=float(remaining_company_budget),  
+        current_payroll=float(current_payroll),
+        asset_allocated=float(asset_allocated),
+
         my_projects=my_projects.to_dict('records') if not my_projects.empty else [],
         all_employees=all_employees.to_dict('records') if not all_employees.empty else [],
         all_projects=all_projects.to_dict('records') if not all_projects.empty else [],
@@ -1154,8 +1337,9 @@ def view_manager(user):
         can_view_all_history=has_company_access,
         all_employee_work_history=all_employee_work_history.to_dict('records') if not all_employee_work_history.empty else [],
         all_employee_leave_history=all_leave_records,
-        total_company_budget=total_company_budget,
-        remaining_company_budget=remaining_company_budget,
+        total_company_budget=float(total_company_budget),
+        remaining_company_budget=float(remaining_company_budget),
+        remaining_budget=float(remaining_company_budget),
         complete_budget_overview=complete_budget_overview,
         team_start=team_start,
         team_end=team_end,
@@ -1168,15 +1352,13 @@ def view_manager(user):
         leave_type=leave_type,
         leave_desc=leave_desc
     )
-
-
 # --------------------
 # HR Finance View Function - COMPLETE
 # --------------------
 def view_hr_finance(user):
-    """HR & Finance dashboard view with REAL-TIME budget calculations"""
+    """HR & Finance dashboard view with SEPARATED project and payroll/asset tracking"""
     
-    # STEP 1: Get total budget (this stays fixed)
+    # STEP 1: Get total budget
     try:
         total_budget_df = run_query("SELECT total_budget FROM company_budget WHERE id = 1")
         if not total_budget_df.empty and len(total_budget_df) > 0:
@@ -1184,7 +1366,7 @@ def view_hr_finance(user):
         else:
             run_exec("""
                 IF NOT EXISTS (SELECT * FROM company_budget WHERE id = 1)
-                INSERT INTO [timesheet_db].[dbo].[company_budget] (id, total_budget, updated_by, updated_on, reason)
+                INSERT INTO [timesheet_db].[dbo]. [company_budget] (id, total_budget, updated_by, updated_on, reason)
                 VALUES (1, 50000000, 'system', GETDATE(), 'Initial budget setup')
             """)
             total_budget = 50000000.0
@@ -1192,9 +1374,9 @@ def view_hr_finance(user):
         print(f" Budget retrieval error: {e}")
         total_budget = 50000000.0
 
-    # STEP 2: REAL-TIME calculation of allocated budget
+    # STEP 2: Calculate ONLY PROJECT allocations (exclude salary/asset projects)
     try:
-        allocated_df = run_query("""
+        project_allocated_df = run_query("""
             SELECT COALESCE(SUM(CAST(budget_amount AS DECIMAL(18,2))), 0) as allocated 
             FROM projects 
             WHERE hr_approval_status = 'Approved' 
@@ -1204,26 +1386,56 @@ def view_hr_finance(user):
             AND project_name NOT LIKE 'Asset Purchase%'
         """)
         
-        allocated = float(allocated_df['allocated'].iloc[0]) if not allocated_df.empty else 0.0
-        remaining_allocation = total_budget - allocated
-        
-        print(f" REAL-TIME BUDGET VALUES:")
-        print(f"   Total Budget: ₹{total_budget:,.2f}")
-        print(f"   Allocated: ₹{allocated:,.2f}")
-        print(f"   Remaining: ₹{remaining_allocation:,.2f}")
+        project_allocated = float(project_allocated_df['allocated'].iloc[0]) if not project_allocated_df.empty else 0.0
         
     except Exception as e:
-        print(f" Allocation calculation error: {e}")
-        allocated = 0.0
-        remaining_allocation = total_budget
+        print(f" Project allocation calculation error: {e}")
+        project_allocated = 0.0
 
-    # Budget Summary with FRESH data
+    # STEP 3: Calculate PAYROLL & ASSET allocations separately
+    try:
+        # Current payroll costs
+        payroll_df = run_query("""
+            SELECT COALESCE(SUM(CAST(yearly_salary AS DECIMAL(18,2))), 0) as total_payroll
+            FROM users 
+            WHERE status = 'Active' AND yearly_salary IS NOT NULL
+        """)
+        current_payroll = float(payroll_df['total_payroll'].iloc[0]) if not payroll_df.empty else 0.0
+
+        # Asset purchases (approved asset requests)  
+        asset_allocated_df = run_query("""
+            SELECT COALESCE(SUM(CAST(amount AS DECIMAL(18,2))), 0) as asset_total
+            FROM asset_requests 
+            WHERE status = 'Approved'
+        """)
+        asset_allocated = float(asset_allocated_df['asset_total'].iloc[0]) if not asset_allocated_df.empty else 0.0
+
+        # Total payroll & asset allocation
+        payroll_asset_allocated = current_payroll + asset_allocated
+        
+    except Exception as e:
+        print(f" Payroll & Asset calculation error: {e}")
+        current_payroll = 0.0
+        asset_allocated = 0.0
+        payroll_asset_allocated = 0.0
+
+    # STEP 4: Calculate remaining budget CORRECTLY
+    remaining_allocation = total_budget - project_allocated - payroll_asset_allocated
+    
+    print(f" HR FINANCE BUDGET CALCULATION:")
+    print(f"   Total Budget: ₹{total_budget:,.2f}")
+    print(f"   Project Allocations: ₹{project_allocated:,.2f}")
+    print(f"   Payroll & Asset Allocations: ₹{payroll_asset_allocated:,.2f}")
+    print(f"   Remaining Available: ₹{remaining_allocation:,.2f}")
+
+    # CORRECTED Budget Summary query - ONLY actual projects
     try:
         budget_summary = run_query("""
             SELECT 
                 p.project_name, 
                 p.created_by,
                 p.cost_center,
+                p.created_on,
                 CAST(p.budget_amount AS DECIMAL(18,2)) as total_budget,
                 COALESCE(SUM(CAST(e.amount AS DECIMAL(18,2))), 0) as used_amount,
                 CAST(p.budget_amount AS DECIMAL(18,2)) - COALESCE(SUM(CAST(e.amount AS DECIMAL(18,2))), 0) as remaining
@@ -1231,11 +1443,14 @@ def view_hr_finance(user):
             LEFT JOIN expenses e ON p.project_name = e.project_name
             WHERE p.hr_approval_status = 'Approved' 
             AND p.budget_amount IS NOT NULL
+            AND CAST(p.budget_amount AS DECIMAL(18,2)) > 0
             AND p.project_name NOT LIKE 'Salary%'
             AND p.project_name NOT LIKE 'Asset Purchase%'
-            GROUP BY p.project_name, p.created_by, p.cost_center, p.budget_amount
+            GROUP BY p.project_name, p.created_by, p.cost_center, p.budget_amount, p.created_on
+            ORDER BY p.created_on DESC
         """)
     except Exception as e:
+        print(f"Budget summary error: {e}")
         budget_summary = pd.DataFrame()
 
     # All Expenses
@@ -1249,24 +1464,38 @@ def view_hr_finance(user):
     except Exception as e:
         expense_summary = pd.DataFrame()
 
-    # Pending Projects (for budget allocation dropdown)
+    # Projects needing budget allocation (already approved)
     try:
-        pending_projects = run_query("""
-            SELECT project_name, created_by, description
+        projects_needing_budget = run_query("""
+            SELECT project_id, project_name, created_by, description, created_on, end_date, cost_center
             FROM projects
             WHERE hr_approval_status = 'Approved'
             AND (budget_amount IS NULL OR budget_amount = 0)
             AND project_name NOT LIKE 'Salary%'
             AND project_name NOT LIKE 'Asset Purchase%'
+            ORDER BY created_on DESC
+        """)
+    except Exception as e:
+        projects_needing_budget = pd.DataFrame()
+
+    # Projects pending HR approval
+    try:
+        pending_projects = run_query("""
+            SELECT project_id, project_name, created_by, description, created_on, end_date, cost_center
+            FROM projects
+            WHERE hr_approval_status = 'Pending'
+            AND project_name NOT LIKE 'Salary%'
+            AND project_name NOT LIKE 'Asset Purchase%'
+            ORDER BY created_on DESC
         """)
     except Exception as e:
         pending_projects = pd.DataFrame()
 
-    # All Projects
+    # All Projects (ONLY real projects for management view)
     try:
         all_projects = run_query("""
             SELECT project_id, project_name, created_by, cost_center, description, 
-                   hr_approval_status, budget_amount, end_date
+                   hr_approval_status, budget_amount, end_date, created_on
             FROM projects
             WHERE project_name NOT LIKE 'Salary%'
             AND project_name NOT LIKE 'Asset Purchase%'
@@ -1283,7 +1512,7 @@ def view_hr_finance(user):
                    CAST(COALESCE(yearly_salary, 0) AS DECIMAL(18,2)) as yearly_salary
             FROM users
             WHERE status = 'Active'
-            ORDER BY username
+            ORDER BY yearly_salary DESC
         """)
         
         total_monthly_payroll = sum(float(s['monthly_salary'] or 0) for s in employee_salaries.to_dict('records'))
@@ -1324,11 +1553,14 @@ def view_hr_finance(user):
             SELECT id, asset_type, quantity, 
                    CAST(COALESCE(amount, 0) AS DECIMAL(18,2)) as amount, 
                    for_employee, description, requested_by, requested_date, status, 
-                   rejection_reason
+                   rejection_reason, approved_by, approved_date
             FROM asset_requests
-            WHERE status IN ('Pending', 'Approved', 'Rejected')
             ORDER BY 
-                CASE WHEN status = 'Pending' THEN 1 ELSE 2 END,
+                CASE 
+                    WHEN status = 'Pending' THEN 1 
+                    WHEN status = 'Approved' THEN 2 
+                    ELSE 3 
+                END,
                 requested_date DESC
         """)
         
@@ -1347,81 +1579,206 @@ def view_hr_finance(user):
         print(f"Asset requests error: {e}")
         asset_requests = pd.DataFrame()
 
-    # Team Approvals - Get Sabitha's direct reports
+    # Team Approvals - FIXED: Only show team members' work/leave
     try:
-        sabitha_team = []
-        for name_variant in ['Sabitha', 'sabitha']:
-            team = get_direct_reports(name_variant)
-            if team:
-                sabitha_team = team
-                break
+        # Get direct reports for HR Finance Controller
+        team_members = get_direct_reports(user)
         
+        # If no direct reports found, try alternative methods to find team
+        if not team_members:
+            # Try alternative method: Check report table with different column names
+            team_query = run_query("""
+                SELECT username FROM report WHERE rm = ? OR manager = ?
+            """, (user, user))
+            
+            if not team_query.empty:
+                team_members = team_query['username'].tolist()
+                print(f"DEBUG: Alternative method found team members: {team_members}")
+        
+        # Initialize empty DataFrames
         pending_team_work = pd.DataFrame()
         pending_team_leaves = pd.DataFrame()
         
-        if sabitha_team:
-            placeholders = ",".join(["?"] * len(sabitha_team))
+        # ONLY get pending items IF there are actual team members
+        if team_members:
+            placeholders = ",".join(["?"] * len(team_members))
             
+            # Get pending work for team members ONLY
             pending_team_work = run_query(f"""
                 SELECT id, username, work_date, project_name, work_desc, hours, 
-                       COALESCE(break_hours, 0) as break_hours
+                    COALESCE(break_hours, 0) as break_hours
                 FROM timesheets 
                 WHERE username IN ({placeholders}) AND rm_status = 'Pending'
                 ORDER BY work_date ASC
-            """, tuple(sabitha_team))
+            """, tuple(team_members))
             
+            # Get pending leave for team members ONLY
+            # Get pending leave for team members ONLY (UPDATED with document info)
+            # Replace the existing pending_team_leaves query with this enhanced version:
             pending_team_leaves = run_query(f"""
-                SELECT id, username, start_date, end_date, leave_type, description, rm_status
-                FROM leaves 
-                WHERE username IN ({placeholders}) AND rm_status = 'Pending'
-                ORDER BY start_date ASC
-            """, tuple(sabitha_team))
+    SELECT l.id, l.username, l.start_date, l.end_date, l.leave_type, l.description, 
+           l.rm_status, l.health_document,
+           CASE WHEN l.health_document IS NOT NULL THEN 1 ELSE 0 END as has_document,
+           DATEDIFF(day, l.start_date, l.end_date) + 1 as duration_days,
+           u.name as employee_name
+    FROM leaves l
+    JOIN users u ON l.username = u.username
+    WHERE l.username IN ({placeholders}) AND l.rm_status = 'Pending'
+    ORDER BY l.start_date ASC
+""", tuple(team_members))
+
+
+            
+            print(f"DEBUG: Found {len(pending_team_work)} pending work items and {len(pending_team_leaves)} pending leave items for team: {team_members}")
+        else:
+            print(f"DEBUG: HR Finance user {user} has no team members reporting to them")
+
     except Exception as e:
         print(f"Team approvals error: {e}")
         pending_team_work = pd.DataFrame()
         pending_team_leaves = pd.DataFrame()
-        sabitha_team = []
+        team_members = []
+
+
+
+    # NEW: Get all employees for work assignment
+    try:
+        all_employees = run_query("""
+            SELECT username, role, name FROM users 
+            WHERE status = 'Active'
+            ORDER BY username
+        """)
+    except Exception as e:
+        all_employees = pd.DataFrame()
+
+    # NEW: Get all work assignments
+    try:
+        # Update the work_assignments query
+        work_assignments = run_query("""
+            SELECT TOP 500 assigned_by, assigned_to, project_name, task_desc as work_description, 
+                start_date, due_date, manager_status as status
+            FROM assigned_work
+            ORDER BY due_date ASC, start_date ASC
+        """)
+
+    except Exception as e:
+        work_assignments = pd.DataFrame()
 
     return render_template('hr_finance.html',
         user=user,
         role=session['role'],
         today=date.today().isoformat(),
-        # Financial Overview with real-time calculations
+        
+        # UPDATED Financial Overview with separated allocations
         total_budget=float(total_budget),
-        allocated=float(allocated), 
+        project_allocated=float(project_allocated),  # Only real projects
+        payroll_asset_allocated=float(payroll_asset_allocated),  # Payroll + Assets
         remaining_allocation=float(remaining_allocation),
-        # Data for tables
+        current_payroll=float(current_payroll),
+        asset_allocated=float(asset_allocated),
+        
+        # Data for tables (ONLY real projects)
         budget_summary=budget_summary.to_dict('records') if not budget_summary.empty else [],
         expense_summary=expense_summary.to_dict('records') if not expense_summary.empty else [],
         pending_projects=pending_projects.to_dict('records') if not pending_projects.empty else [],
         all_projects=all_projects.to_dict('records') if not all_projects.empty else [],
+        
         # Payroll data
         employee_salaries=employee_salaries.to_dict('records') if not employee_salaries.empty else [],
         total_monthly_payroll=float(total_monthly_payroll),
         total_annual_payroll=float(total_annual_payroll),
+        
         # Employee records
         employee_timesheets=employee_timesheets.to_dict('records') if not employee_timesheets.empty else [],
         employee_leaves=employee_leaves.to_dict('records') if not employee_leaves.empty else [],
+        
         # Asset requests and team approvals
         asset_requests=asset_requests.to_dict('records') if not asset_requests.empty else [],
         pending_team_work=pending_team_work.to_dict('records') if not pending_team_work.empty else [],
         pending_team_leaves=pending_team_leaves.to_dict('records') if not pending_team_leaves.empty else [],
-        has_team=len(sabitha_team) > 0,
-        sabitha_team=sabitha_team
+        has_team=len(team_members) > 0,
+        team_members=team_members,
+        
+        # NEW: Work assignment data
+        all_employees=all_employees.to_dict('records') if not all_employees.empty else [],
+        work_assignments=work_assignments.to_dict('records') if not work_assignments.empty else []
     )
 
 # --------------------
 # Lead View Function - COMPLETE
 # --------------------
 def view_lead(user):
-    """Lead dashboard with complete oversight of all company data"""
+    """Lead dashboard with complete oversight of all company data - ENHANCED"""
     
-    # Get company budget
+    # STEP 1: Get total budget (same as HR Finance)
     try:
-        company_budget_df = run_query("SELECT total_budget FROM company_budget WHERE id = 1")
-        total_company_budget = float(company_budget_df['total_budget'].iloc[0]) if not company_budget_df.empty else 0.0
-    except:
-        total_company_budget = 0.0
+        total_budget_df = run_query("SELECT total_budget FROM company_budget WHERE id = 1")
+        if not total_budget_df.empty and len(total_budget_df) > 0:
+            total_company_budget = float(total_budget_df['total_budget'].iloc[0])
+        else:
+            run_exec("""
+                IF NOT EXISTS (SELECT * FROM company_budget WHERE id = 1)
+                INSERT INTO [timesheet_db].[dbo]. [company_budget] (id, total_budget, updated_by, updated_on, reason)
+                VALUES (1, 50000000, 'system', GETDATE(), 'Initial budget setup')
+            """)
+            total_company_budget = 50000000.0
+    except Exception as e:
+        print(f" Budget retrieval error: {e}")
+        total_company_budget = 50000000.0
+
+    # STEP 2: Calculate ONLY PROJECT allocations (exclude salary/asset projects)
+    try:
+        project_allocated_df = run_query("""
+            SELECT COALESCE(SUM(CAST(budget_amount AS DECIMAL(18,2))), 0) as allocated 
+            FROM projects 
+            WHERE hr_approval_status = 'Approved' 
+            AND budget_amount IS NOT NULL
+            AND CAST(budget_amount AS DECIMAL(18,2)) > 0
+            AND project_name NOT LIKE 'Salary%'
+            AND project_name NOT LIKE 'Asset Purchase%'
+        """)
+        
+        project_allocated = float(project_allocated_df['allocated'].iloc[0]) if not project_allocated_df.empty else 0.0
+        
+    except Exception as e:
+        print(f" Project allocation calculation error: {e}")
+        project_allocated = 0.0
+
+    # STEP 3: Calculate PAYROLL & ASSET allocations separately
+    try:
+        # Current payroll costs
+        payroll_df = run_query("""
+            SELECT COALESCE(SUM(CAST(yearly_salary AS DECIMAL(18,2))), 0) as total_payroll
+            FROM users 
+            WHERE status = 'Active' AND yearly_salary IS NOT NULL
+        """)
+        current_payroll = float(payroll_df['total_payroll'].iloc[0]) if not payroll_df.empty else 0.0
+
+        # Asset purchases (approved asset requests)  
+        asset_allocated_df = run_query("""
+            SELECT COALESCE(SUM(CAST(amount AS DECIMAL(18,2))), 0) as asset_total
+            FROM asset_requests 
+            WHERE status = 'Approved'
+        """)
+        asset_allocated = float(asset_allocated_df['asset_total'].iloc[0]) if not asset_allocated_df.empty else 0.0
+
+        # Total payroll & asset allocation
+        payroll_asset_allocated = current_payroll + asset_allocated
+        
+    except Exception as e:
+        print(f" Payroll & Asset calculation error: {e}")
+        current_payroll = 0.0
+        asset_allocated = 0.0
+        payroll_asset_allocated = 0.0
+
+    # STEP 4: Calculate remaining budget CORRECTLY
+    remaining_company_budget = total_company_budget - project_allocated - payroll_asset_allocated
+    
+    print(f" LEAD VIEW BUDGET CALCULATION:")
+    print(f"   Total Budget: ₹{total_company_budget:,.2f}")
+    print(f"   Project Allocations: ₹{project_allocated:,.2f}")
+    print(f"   Payroll & Asset Allocations: ₹{payroll_asset_allocated:,.2f}")
+    print(f"   Remaining Available: ₹{remaining_company_budget:,.2f}")
     
     # Get form filters for work history
     work_start = request.args.get('work_start', '').strip()
@@ -1488,18 +1845,16 @@ def view_lead(user):
     """)
     
     # Get ALL employee payroll data (monthly and yearly salaries)
+    # Get ALL employee payroll data (monthly and yearly salaries)
     payment_rate_cards = run_query("""
         SELECT u.username, u.name, u.role, 
-               COALESCE(CAST(u.monthly_salary AS DECIMAL(18,2)), 0) as monthly_salary, 
-               COALESCE(CAST(u.yearly_salary AS DECIMAL(18,2)), 0) as yearly_salary,
-               COALESCE(ed.employment_type, 'Full-Time') as employment_type, 
-               ed.joining_date
+            COALESCE(CAST(u.monthly_salary AS DECIMAL(18,2)), 0) as monthly_salary, 
+            COALESCE(CAST(u.yearly_salary AS DECIMAL(18,2)), 0) as yearly_salary
         FROM users u
-        LEFT JOIN employee_details ed ON u.username = ed.username
         WHERE u.status = 'Active'
         ORDER BY u.monthly_salary DESC
     """)
-    
+
     # Get ALL employee work history with filters
     work_base_query = """
         SELECT username, work_date, project_name, work_desc, hours, break_hours,
@@ -1561,6 +1916,31 @@ def view_lead(user):
     
     all_employee_leave_history = run_query(leave_base_query, tuple(leave_params))
     
+    # Get ALL work assignments
+    work_assignments = run_query("""
+        SELECT TOP 500 id, assigned_by, assigned_to, project_name, task_desc, 
+               start_date, due_date, assigned_on, manager_status, rm_status,
+               COALESCE(rm_rejection_reason, '') as rejection_reason
+        FROM assigned_work
+        ORDER BY assigned_on DESC
+    """)
+    
+    # Get ALL asset requests
+    asset_requests = run_query("""
+        SELECT id, asset_type, quantity, 
+               CAST(COALESCE(amount, 0) AS DECIMAL(18,2)) as amount, 
+               for_employee, description, requested_by, requested_date, 
+               status, approved_by, approved_date, rejection_reason
+        FROM asset_requests
+        ORDER BY 
+            CASE 
+                WHEN status = 'Pending' THEN 1 
+                WHEN status = 'Approved' THEN 2 
+                ELSE 3 
+            END,
+            requested_date DESC
+    """)
+    
     # Get system requests
     system_requests = run_query("""
         SELECT TOP 50 id, requested_by, item, CAST(amount AS DECIMAL(18,2)) as amount, 
@@ -1593,7 +1973,6 @@ def view_lead(user):
     budget_records = budget_summary.to_dict('records') if not budget_summary.empty else []
     total_allocated_budget = sum(float(row.get('total_budget', 0) or 0) for row in budget_records)
     total_used_budget = sum(float(row.get('used_amount', 0) or 0) for row in budget_records)
-    remaining_company_budget = total_company_budget - total_allocated_budget
     
     # Calculate payroll totals
     payroll_records = payment_rate_cards.to_dict('records') if not payment_rate_cards.empty else []
@@ -1617,10 +1996,14 @@ def view_lead(user):
         role=session['role'],
         today=date.today().isoformat(),
         
-        # Financial Overview (EXCLUDING SALARY)
+        # ENHANCED Financial Overview (same as HR Finance)
         total_budget=float(total_company_budget),
-        allocated=float(total_allocated_budget),
+        project_allocated=float(project_allocated),
+        payroll_asset_allocated=float(payroll_asset_allocated),
         remaining_allocation=float(remaining_company_budget),
+        current_payroll=float(current_payroll),
+        asset_allocated=float(asset_allocated),
+        allocated=float(total_allocated_budget),
         
         # Project & Budget Data (NO SALARY PROJECTS)
         my_projects=my_projects.to_dict('records') if not my_projects.empty else [],
@@ -1638,6 +2021,10 @@ def view_lead(user):
         # ALL Employee Work & Leave History with Filters
         all_employee_work_history=all_employee_work_history.to_dict('records') if not all_employee_work_history.empty else [],
         all_employee_leave_history=all_leave_records,
+        
+        # Work Assignments and Assets
+        work_assignments=work_assignments.to_dict('records') if not work_assignments.empty else [],
+        asset_requests=asset_requests.to_dict('records') if not asset_requests.empty else [],
         
         # System Data
         system_requests=system_requests.to_dict('records') if not system_requests.empty else [],
@@ -1657,12 +2044,17 @@ def view_lead(user):
         leave_type=leave_type,
         leave_status=leave_status
     )
-
-# --------------------
-# Employee View Function - COMPLETE
+# Employee View Function - COMPLETE WITH WORK ASSIGNMENTS
 # --------------------
 def view_employee(user):
-    """Employee dashboard view with FIXED SQL Server syntax"""
+    """Employee dashboard view - FIXED without problematic columns"""
+
+    # Check if user is an RM
+    direct_reports = get_direct_reports(user)
+    all_team = get_all_reports_recursive(user)
+    is_rm = len(direct_reports) > 0 or len(all_team) > 0
+
+    # Get projects list
     projects_df = run_query("""
         SELECT project_name FROM projects 
         WHERE hr_approval_status = 'Approved' 
@@ -1671,232 +2063,254 @@ def view_employee(user):
         ORDER BY project_name
     """)
     proj_list = ["(non-project)"] + projects_df["project_name"].astype(str).tolist() if not projects_df.empty else ["(non-project)"]
-    # FIXED QUERY - REMOVED 'priority' COLUMN
-    assigned_work_df = run_query("""
-    SELECT id, assigned_by, project_name, task_desc, start_date, due_date, 
-           assigned_on, manager_status, rm_status,
-           CASE 
-               WHEN due_date < GETDATE() AND rm_status != 'Completed' THEN 'Overdue'
-               WHEN due_date <= DATEADD(day, 3, GETDATE()) AND rm_status != 'Completed' THEN 'Due Soon'
-               ELSE 'Active'
-           END as urgency_status
-    FROM assigned_work 
-    WHERE assigned_to = ? AND manager_status = 'Approved'
-    ORDER BY 
-        CASE WHEN due_date < GETDATE() THEN 1 ELSE 2 END,
-        due_date ASC, assigned_on DESC
-""", (user,))
-
     
+    # SECTION 1: Get work assigned TO this user (SIMPLIFIED QUERY)
+    assigned_work_df = pd.DataFrame()
+    try:
+        assigned_work_df = run_query("""
+            SELECT aw.id, aw.assigned_by, aw.project_name, aw.task_desc, aw.start_date, aw.due_date, 
+                   aw.assigned_on, aw.rm_status,
+                   CASE 
+                       WHEN aw.due_date < GETDATE() AND aw.rm_status != 'Completed' THEN 'Overdue'
+                       WHEN aw.due_date <= DATEADD(day, 3, GETDATE()) AND aw.rm_status != 'Completed' THEN 'Due Soon'
+                       ELSE 'Active'
+                   END as urgency_status,
+                   u.name as assigned_by_name
+            FROM assigned_work aw 
+            LEFT JOIN users u ON aw.assigned_by = u.username
+            WHERE aw.assigned_to = ? 
+            ORDER BY 
+                CASE WHEN aw.due_date < GETDATE() THEN 1 ELSE 2 END,
+                aw.due_date ASC, aw.assigned_on DESC
+        """, (user,))
+    except Exception as e:
+        print(f"Error fetching assigned work: {e}")
+        assigned_work_df = pd.DataFrame()
+
+    # SECTION 2: Get work assigned BY this user (if RM) - SIMPLIFIED
+    my_assigned_work_df = pd.DataFrame()
+    if is_rm:
+        try:
+            my_assigned_work_df = run_query("""
+                SELECT 
+                    aw.id, aw.assigned_to, aw.task_desc, aw.project_name, aw.start_date, aw.due_date,
+                    aw.assigned_on, aw.rm_status,
+                    u.name as assigned_to_name,
+                    CASE 
+                        WHEN aw.due_date < GETDATE() AND aw.rm_status != 'Completed' THEN 'Overdue'
+                        WHEN aw.due_date <= DATEADD(day, 3, GETDATE()) AND aw.rm_status != 'Completed' THEN 'Due Soon'
+                        ELSE 'Active'
+                    END as urgency_status
+                FROM assigned_work aw
+                LEFT JOIN users u ON aw.assigned_to = u.username
+                WHERE aw.assigned_by = ?
+                ORDER BY aw.assigned_on DESC, aw.due_date ASC
+            """, (user,))
+        except Exception as e:
+            print(f"Error fetching my assigned work: {e}")
+            my_assigned_work_df = pd.DataFrame()
+
+    # SECTION 3: Get personal work history
     work_history_df = run_query("""
         SELECT id, work_date, project_name, work_desc, hours, break_hours, start_time, end_time,
-        CASE WHEN hours>8 THEN hours-8 ELSE 0 END AS overtime_hours,
-        rm_status, rm_rejection_reason FROM timesheets WHERE username = ? ORDER BY work_date DESC, id DESC
+               CASE WHEN hours > 8 THEN hours - 8 ELSE 0 END AS overtime_hours,
+               rm_status, rm_rejection_reason, rm_approver
+        FROM timesheets 
+        WHERE username = ? 
+        ORDER BY work_date DESC, id DESC
     """, (user,))
     
-    leaves_df = run_query(
-        "SELECT id, start_date, end_date, leave_type, description, rm_status, rm_rejection_reason, cancellation_requested, cancellation_status FROM leaves WHERE username = ? ORDER BY id DESC",
-        (user,)
-    )
+    # SECTION 4: Get personal leave history
+    leaves_df = run_query("""
+        SELECT id, start_date, end_date, leave_type, description, rm_status, rm_rejection_reason, 
+               rm_approver, cancellation_requested, cancellation_status, health_document,
+               CASE WHEN health_document IS NOT NULL THEN 1 ELSE 0 END as has_document,
+               DATEDIFF(day, start_date, end_date) + 1 as duration_days
+        FROM leaves 
+        WHERE username = ? 
+        ORDER BY start_date DESC
+    """, (user,))
     
+    # SECTION 5: Get remaining leave balances
     remaining_leaves = _get_remaining_balances(user)
     
-    direct_team = get_direct_reports(user)
-    team = get_all_reports_recursive(user)
-    is_rm = len(direct_team) > 0
+    # SECTION 6: Get employees for work assignment (if user is RM)
+    employees_df = pd.DataFrame()
+    if is_rm and all_team:
+        try:
+            placeholders = ",".join(["?"] * len(all_team))
+            employees_df = run_query(f"""
+                SELECT u.username, u.role, u.name 
+                FROM users u 
+                WHERE u.username IN ({placeholders}) 
+                AND u.status = 'Active' 
+                ORDER BY u.name, u.username
+            """, tuple(all_team))
+        except Exception as e:
+            print(f"Error fetching team members: {e}")
     
-    # Fix the approver queries - use rm_approver instead of approver for now
-    approver_query = run_query("SELECT COUNT(*) as count FROM timesheets WHERE rm_approver = ? AND rm_status = 'Pending'", (user,))
-    leave_approver_query = run_query("SELECT COUNT(*) as count FROM leaves WHERE rm_approver = ? AND rm_status = 'Pending'", (user,))
-    
-    is_approver = (not approver_query.empty and approver_query.iloc[0]['count'] > 0) or \
-                  (not leave_approver_query.empty and leave_approver_query.iloc[0]['count'] > 0)
-    
-    if is_approver and not is_rm:
-        is_rm = True
-        # Get all users who have this person as approver
-        approver_team = run_query("SELECT DISTINCT username FROM timesheets WHERE rm_approver = ? UNION SELECT DISTINCT username FROM leaves WHERE rm_approver = ?", (user, user))
-        if not approver_team.empty:
-            team.extend(approver_team['username'].tolist())
-            team = list(set(team))
-    
+    # SECTION 7: Get pending approvals (if user is RM)
     pending_timesheets = pd.DataFrame()
     pending_leaves = pd.DataFrame()
+    
+    if is_rm and all_team:
+        try:
+            placeholders = ",".join(["?"] * len(all_team))
+            
+            # Get pending timesheet approvals
+            pending_timesheets = run_query(f"""
+                SELECT t.id, t.username, t.work_date, t.project_name, t.work_desc, t.hours, 
+                       COALESCE(t.break_hours, 0) as break_hours, t.start_time, t.end_time,
+                       u.name as employee_name
+                FROM timesheets t
+                JOIN users u ON t.username = u.username
+                WHERE t.username IN ({placeholders}) AND t.rm_status = 'Pending'
+                ORDER BY t.work_date ASC
+            """, tuple(all_team))
+
+            # Get pending leave approvals
+            pending_leaves = run_query(f"""
+                SELECT l.id, l.username, l.start_date, l.end_date, l.leave_type, l.description, 
+                       l.rm_status, l.health_document,
+                       DATEDIFF(day, l.start_date, l.end_date) + 1 as duration_days,
+                       u.name as employee_name,
+                       CASE WHEN l.health_document IS NOT NULL THEN 1 ELSE 0 END as has_document
+                FROM leaves l
+                JOIN users u ON l.username = u.username
+                WHERE l.username IN ({placeholders}) AND l.rm_status = 'Pending'
+                ORDER BY l.start_date ASC
+            """, tuple(all_team))
+        except Exception as e:
+            print(f"Error fetching pending approvals: {e}")
+    
+    # SECTION 8: Get team work history with filters (if RM)
     team_work_history = pd.DataFrame()
     team_leaves = pd.DataFrame()
-    employees = pd.DataFrame()
     
-    # Get filter parameters
-    team_start = request.args.get('team_work_start', '').strip()
-    team_end = request.args.get('team_work_end', '').strip()
-    team_user = request.args.get('team_work_emp', '').strip()
-    team_proj = request.args.get('team_work_proj', '').strip()
-    team_desc = request.args.get('team_work_desc', '').strip()
-    team_status = request.args.get('team_work_status', '').strip()
+    if is_rm and all_team:
+        try:
+            # Apply filters from request args
+            team_start = request.args.get('team_work_start', '').strip()
+            team_end = request.args.get('team_work_end', '').strip()
+            team_user = request.args.get('team_work_emp', '').strip()
+            team_proj = request.args.get('team_work_proj', '').strip()
+            team_desc = request.args.get('team_work_desc', '').strip()
+            team_status = request.args.get('team_work_status', '').strip()
+            
+            # Build dynamic query for team work history
+            placeholders = ",".join(["?"] * len(all_team))
+            work_base_query = f"""
+                SELECT TOP 500 t.id, t.username, t.project_name, t.work_date, t.work_desc, 
+                       t.hours, COALESCE(t.break_hours, 0) as break_hours, 
+                       t.start_time, t.end_time,
+                       CASE WHEN t.hours > 8 THEN t.hours - 8 ELSE 0 END AS overtime_hours, 
+                       t.rm_status, t.rm_rejection_reason, t.rm_approver,
+                       u.name as employee_name
+                FROM timesheets t
+                JOIN users u ON t.username = u.username
+                WHERE t.username IN ({placeholders})
+            """
+            work_params = list(all_team)
+            
+            # Add filters
+            if team_start:
+                work_base_query += " AND t.work_date >= ?"
+                work_params.append(team_start)
+            if team_end:
+                work_base_query += " AND t.work_date <= ?"
+                work_params.append(team_end)
+            if team_user:
+                work_base_query += " AND t.username = ?"
+                work_params.append(team_user)
+            if team_proj:
+                work_base_query += " AND t.project_name = ?"
+                work_params.append(team_proj)
+            if team_desc:
+                work_base_query += " AND t.work_desc LIKE ?"
+                work_params.append(f"%{team_desc}%")
+            if team_status:
+                work_base_query += " AND t.rm_status = ?"
+                work_params.append(team_status)
+                
+            work_base_query += " ORDER BY t.work_date DESC, t.username"
+            team_work_history = run_query(work_base_query, tuple(work_params))
+            
+            # Team leaves
+            placeholders = ",".join(["?"] * len(all_team))
+            team_leaves = run_query(f"""
+                SELECT TOP 500 l.id, l.username, l.start_date, l.end_date, l.leave_type, 
+                       l.description, l.rm_status, l.rm_rejection_reason, l.rm_approver,
+                       l.cancellation_requested, l.cancellation_status, l.health_document,
+                       DATEDIFF(day, l.start_date, l.end_date) + 1 as duration_days,
+                       u.name as employee_name,
+                       CASE WHEN l.health_document IS NOT NULL THEN 1 ELSE 0 END as has_document
+                FROM leaves l
+                JOIN users u ON l.username = u.username
+                WHERE l.username IN ({placeholders})
+                ORDER BY l.start_date DESC, l.username
+            """, tuple(all_team))
+        except Exception as e:
+            print(f"Error fetching team history: {e}")
     
-    team_leaves_start = request.args.get('team_leave_start', '').strip()
-    team_leaves_end = request.args.get('team_leave_end', '').strip()
-    team_leaves_user = request.args.get('team_leave_emp', '').strip()
-    team_leaves_type = request.args.get('team_leave_type', '').strip()
-    team_leaves_desc = request.args.get('team_leave_desc', '').strip()
-    team_leaves_status = request.args.get('team_leave_status', '').strip()
+    # Calculate statistics
+    work_stats = {
+        'assigned_to_me': len(assigned_work_df.to_dict('records')) if not assigned_work_df.empty else 0,
+        'my_assignments': len(my_assigned_work_df.to_dict('records')) if not my_assigned_work_df.empty else 0,
+        'pending_approvals': len(pending_timesheets.to_dict('records')) + len(pending_leaves.to_dict('records')) if is_rm else 0,
+        'overdue_assignments': len([w for w in assigned_work_df.to_dict('records') if w.get('urgency_status') == 'Overdue']) if not assigned_work_df.empty else 0
+    }
     
-    if is_rm and team:
-        employees = run_query(
-            f"SELECT username, role, name FROM users WHERE username IN ({','.join(['?' for _ in team])}) AND status = 'Active' ORDER BY username",
-            tuple(team)
-        )
-        
-        # Fix: Use rm_approver instead of approver
-        pending_timesheets = run_query("""
-    SELECT id, username, work_date, project_name, work_desc, hours, break_hours
-    FROM timesheets 
-    WHERE rm_approver = ? AND rm_status = 'Pending'
-    ORDER BY work_date ASC
-""", (user,))
-
-# Replace existing pending leave queries with:
-        pending_leaves = run_query("""
-    SELECT id, username, start_date, end_date, leave_type, description, rm_status
-    FROM leaves 
-    WHERE rm_approver = ? AND rm_status = 'Pending'
-    ORDER BY start_date ASC
-""", (user,))
-        
-        # Fixed SQL Server syntax - replace LIMIT with TOP
-        placeholders_team = ",".join(["?"] * len(team))
-        work_base_query = f"""SELECT TOP 500 id, username, project_name, work_date, work_desc, hours, break_hours, start_time, end_time,
-                         CASE WHEN hours>8 THEN hours-8 ELSE 0 END AS overtime_hours, 
-                         rm_status, rm_rejection_reason FROM timesheets WHERE username IN ({placeholders_team})"""
-        work_params = list(team)
-        
-        # Build dynamic WHERE clauses
-        where_conditions = []
-        
-        if team_start:
-            where_conditions.append("work_date >= ?")
-            work_params.append(team_start)
-            
-        if team_end:
-            where_conditions.append("work_date <= ?")
-            work_params.append(team_end)
-            
-        if team_user:
-            where_conditions.append("username = ?")
-            work_params.append(team_user)
-            
-        if team_proj:
-            where_conditions.append("project_name = ?")
-            work_params.append(team_proj)
-            
-        if team_desc:
-            where_conditions.append("work_desc LIKE ?")
-            work_params.append(f"%{team_desc}%")
-            
-        if team_status:
-            where_conditions.append("rm_status = ?")
-            work_params.append(team_status)
-        
-        if where_conditions:
-            work_query = work_base_query + " AND " + " AND ".join(where_conditions)
-        else:
-            work_query = work_base_query
-            
-        work_query += " ORDER BY work_date DESC"
-        
-        team_work_history = run_query(work_query, tuple(work_params))
-        team_leaves = run_query(f"""
-            SELECT TOP 500 username, start_date, end_date, leave_type, description, 
-                   rm_status, rm_rejection_reason, rm_approver,
-                   cancellation_requested, cancellation_status,
-                   DATEDIFF(day, start_date, end_date) + 1 as duration_days
-            FROM leaves 
-            WHERE rm_approver = ?
-            ORDER BY start_date DESC
-        """, (user,))
-        # Similar fix for leaves query
-        leaves_base_query = f"""SELECT TOP 500 id, username, start_date, end_date, leave_type, description, 
-                           rm_status, rm_rejection_reason, cancellation_requested, cancellation_status,
-                           DATEDIFF(day, start_date, end_date) + 1 as duration_days
-                           FROM leaves WHERE username IN ({placeholders_team})"""
-        leaves_params = list(team)
-        
-        leave_where_conditions = []
-        
-        if team_leaves_start:
-            leave_where_conditions.append("start_date >= ?")
-            leaves_params.append(team_leaves_start)
-            
-        if team_leaves_end:
-            leave_where_conditions.append("end_date <= ?")
-            leaves_params.append(team_leaves_end)
-            
-        if team_leaves_user:
-            leave_where_conditions.append("username = ?")
-            leaves_params.append(team_leaves_user)
-            
-        if team_leaves_type:
-            leave_where_conditions.append("leave_type = ?")
-            leaves_params.append(team_leaves_type)
-            
-        if team_leaves_desc:
-            leave_where_conditions.append("description LIKE ?")
-            leaves_params.append(f"%{team_leaves_desc}%")
-            
-        if team_leaves_status:
-            leave_where_conditions.append("rm_status = ?")
-            leaves_params.append(team_leaves_status)
-        
-        if leave_where_conditions:
-            leaves_query = leaves_base_query + " AND " + " AND ".join(leave_where_conditions)
-        else:
-            leaves_query = leaves_base_query
-            
-        leaves_query += " ORDER BY start_date DESC"
-        
-        team_leaves = run_query(leaves_query, tuple(leaves_params))
-    
-    # Pass structured data to template with filter values
+    # Pass all data to template
     return render_template('employee.html',
         user=user,
         role=session['role'],
-        proj_list=proj_list,
-        assigned_work=assigned_work_df.to_dict('records'),
-        work_history_rows=work_history_df.to_dict('records'),
-        work_history_cols=work_history_df.columns.tolist(),
-        leave_rows=leaves_df.to_dict('records'),
-        leave_cols=leaves_df.columns.tolist(),
         is_rm=is_rm,
-        pending_timesheets=pending_timesheets.to_dict('records'),
-        pending_leaves=pending_leaves.to_dict('records'),
-        employees=employees.to_dict('records'),
-        employee_history_rows=team_work_history.to_dict('records'),
-        employee_history_cols=team_work_history.columns.tolist() if not team_work_history.empty else [],
-        team_leaves=team_leaves.to_dict('records'),
-        team_leaves_columns=team_leaves.columns.tolist() if not team_leaves.empty else [],
-        remaining_leaves=remaining_leaves,
         today=date.today().isoformat(),
-        # Pass all filter values to maintain state
-        team_start=team_start,
-        team_end=team_end,
-        team_user=team_user,
-        team_proj=team_proj,
-        team_desc=team_desc,
-        team_status=team_status,
-        team_leaves_start=team_leaves_start,
-        team_leaves_end=team_leaves_end,
-        team_leaves_user=team_leaves_user,
-        team_leaves_type=team_leaves_type,
-        team_leaves_desc=team_leaves_desc,
-        team_leaves_status=team_leaves_status
+        
+        # Project and assignment data
+        proj_list=proj_list,
+        assigned_work=assigned_work_df.to_dict('records') if not assigned_work_df.empty else [],
+        my_assigned_work=my_assigned_work_df.to_dict('records') if not my_assigned_work_df.empty else [],
+        
+        # Personal work and leave data
+        work_history_rows=work_history_df.to_dict('records') if not work_history_df.empty else [],
+        work_history_cols=work_history_df.columns.tolist() if not work_history_df.empty else [],
+        leave_rows=leaves_df.to_dict('records') if not leaves_df.empty else [],
+        leave_cols=leaves_df.columns.tolist() if not leaves_df.empty else [],
+        remaining_leaves=remaining_leaves,
+        
+        # RM-specific data
+        employees=employees_df.to_dict('records') if not employees_df.empty else [],
+        pending_timesheets=pending_timesheets.to_dict('records') if not pending_timesheets.empty else [],
+        pending_leaves=pending_leaves.to_dict('records') if not pending_leaves.empty else [],
+        
+        # Team history data
+        employee_history_rows=team_work_history.to_dict('records') if not team_work_history.empty else [],
+        employee_history_cols=team_work_history.columns.tolist() if not team_work_history.empty else [],
+        team_leaves=team_leaves.to_dict('records') if not team_leaves.empty else [],
+        team_leaves_columns=team_leaves.columns.tolist() if not team_leaves.empty else [],
+        
+        # Statistics
+        work_stats=work_stats,
+        
+        # Team info
+        direct_reports=direct_reports,
+        all_team=all_team,
+        has_team=len(all_team) > 0,
+        
+        # Filter values
+        team_start=request.args.get('team_work_start', ''),
+        team_end=request.args.get('team_work_end', ''),
+        team_user=request.args.get('team_work_emp', ''),
+        team_proj=request.args.get('team_work_proj', ''),
+        team_desc=request.args.get('team_work_desc', ''),
+        team_status=request.args.get('team_work_status', ''),
     )
 
-
-# --------------------
 # Intern View Function - COMPLETE
 # --------------------
 def view_intern(user):
-    """Intern dashboard view"""
+    """Intern dashboard view - FIXED to show assigned work properly"""
     
     # Get projects list
     projects_df = run_query("""
@@ -1908,12 +2322,20 @@ def view_intern(user):
     """)
     proj_list = ["(non-project)"] + projects_df["project_name"].astype(str).tolist() if not projects_df.empty else ["(non-project)"]
     
-    # Get assigned work
+    # FIXED: Get ALL assigned work for this intern
     assigned_work_df = run_query("""
-        SELECT id, assigned_by, project_name, task_desc, start_date, due_date
-        FROM assigned_work 
-        WHERE assigned_to = ? AND rm_status = 'Approved'
-        ORDER BY id DESC
+        SELECT aw.id, aw.assigned_by, aw.project_name, aw.task_desc, aw.start_date, aw.due_date,
+               aw.assigned_on, aw.rm_status, aw.manager_status,
+               u.name as assigned_by_name,
+               CASE 
+                   WHEN aw.due_date < GETDATE() AND aw.rm_status NOT IN ('Completed', 'Rejected') THEN 'Overdue'
+                   WHEN aw.due_date <= DATEADD(day, 3, GETDATE()) AND aw.rm_status NOT IN ('Completed', 'Rejected') THEN 'Due Soon'
+                   ELSE 'Active'
+               END as urgency_status
+        FROM assigned_work aw
+        LEFT JOIN users u ON aw.assigned_by = u.username
+        WHERE aw.assigned_to = ? 
+        ORDER BY aw.assigned_on DESC, aw.due_date ASC
     """, (user,))
     
     # Get work history
@@ -1931,7 +2353,8 @@ def view_intern(user):
         SELECT id, start_date, end_date, leave_type, description, 
                rm_status, rm_rejection_reason, rm_approver, 
                cancellation_requested, cancellation_status, health_document,
-               CASE WHEN health_document IS NOT NULL THEN 1 ELSE 0 END as document_path
+               CASE WHEN health_document IS NOT NULL THEN 1 ELSE 0 END as document_path,
+               DATEDIFF(day, start_date, end_date) + 1 as duration_days
         FROM leaves 
         WHERE username = ? 
         ORDER BY id DESC
@@ -1960,26 +2383,89 @@ def view_intern(user):
         today=date.today().isoformat()
     )
 
-# --------------------
-# Admin Manager View Function - COMPLETE
+# Admin Manager View Function - COMPLETE WITH FIXED DATA
 # --------------------
 def view_admin_manager(user):
-    """Admin Manager dashboard view with complete employee management"""
+    """Admin Manager dashboard view with COMPLETE employee management, asset handling, and team management - UPDATED with proper data"""
+    user_role = session.get('role', '')
+    can_manage_payroll = user_role == 'Lead Staffing Specialist'
+    is_admin_manager = user_role == 'Admin Manager'
+    is_lead_staffing = user_role == 'Lead Staffing Specialist'
     
-    # Get all active employees (from users and employee_details tables)
+    # Get direct reports from reports table (where rm = current user)
+    direct_reports_list = get_direct_reports(user)
+    assignable_employees_list = get_work_assignable_employees(user)
+    
+    print(f" DEBUG view_admin_manager: User {user} ({user_role})")
+    print(f" DEBUG: Direct reports: {direct_reports_list}")
+    print(f" DEBUG: Assignable employees: {assignable_employees_list}")
+    
+    # Convert to proper format for template
+    direct_reports_data = []
+    if direct_reports_list:
+        placeholders = ",".join(["?"] * len(direct_reports_list))
+        direct_reports_query = run_query(f"""
+            SELECT username, name, role FROM users 
+            WHERE username IN ({placeholders}) AND status = 'Active'
+            ORDER BY name, username
+        """, tuple(direct_reports_list))
+        
+        if not direct_reports_query.empty:
+            direct_reports_data = direct_reports_query.to_dict('records')
+    
+    # Get all employees with their reporting structure
     all_employees = run_query("""
         SELECT u.username, u.password, u.role, u.email, u.monthly_salary, u.yearly_salary, 
                u.name, u.status,
                ed.joining_date, ed.employment_type, ed.blood_group, ed.mobile_number,
                ed.emergency_contact, ed.id_card, ed.id_card_provided, ed.photo_url,
                ed.linkedin_url, ed.laptop_provided, ed.email_provided, ed.asset_details,
-               ed.adhaar_number, ed.pan_number, ed.duration
+               ed.adhaar_number, ed.pan_number, ed.duration,
+               r.rm, r.manager
         FROM users u
         LEFT JOIN employee_details ed ON u.username = ed.username
-        WHERE u.status = 'Active'
+        LEFT JOIN report r ON u.username = r.username
+        WHERE u.status IN ('Active', 'Inactive', 'Suspended')
         ORDER BY u.role, u.username
     """)
     
+    # Get work assigned BY this admin manager
+    my_assigned_work = pd.DataFrame()
+    if direct_reports_list:
+        placeholders = ",".join(["?"] * len(direct_reports_list))
+        my_assigned_work = run_query(f"""
+            SELECT aw.id, aw.assigned_to, aw.task_desc, aw.project_name, aw.start_date, 
+                   aw.end_date, aw.due_date, aw.assigned_on, aw.rm_status, aw.manager_status, 
+                   aw.work_type, aw.rm_approver, aw.rm_rejection_reason,
+                   u.name as assigned_to_name,
+                   CASE 
+                       WHEN aw.due_date < GETDATE() AND aw.rm_status != 'Completed' THEN 'Overdue'
+                       WHEN aw.due_date <= DATEADD(day, 3, GETDATE()) AND aw.rm_status != 'Completed' THEN 'Due Soon'
+                       ELSE 'Active'
+                   END as urgency_status
+            FROM assigned_work aw
+            LEFT JOIN users u ON aw.assigned_to = u.username
+            WHERE aw.assigned_by = ? AND aw.assigned_to IN ({placeholders})
+            ORDER BY aw.assigned_on DESC, aw.due_date ASC
+        """, (user,) + tuple(direct_reports_list))
+    
+    # Get work assigned TO this admin manager
+    work_assigned_to_me = run_query("""
+        SELECT aw.id, aw.assigned_by, aw.task_desc, aw.project_name, aw.start_date, 
+               aw.end_date, aw.due_date, aw.assigned_on, aw.rm_status, aw.manager_status, 
+               aw.work_type, aw.rm_rejection_reason,
+               u.name as assigned_by_name,
+               CASE 
+                   WHEN aw.due_date < GETDATE() AND aw.rm_status != 'Completed' THEN 'Overdue'
+                   WHEN aw.due_date <= DATEADD(day, 3, GETDATE()) AND aw.rm_status != 'Completed' THEN 'Due Soon'
+                   ELSE 'Active'
+               END as urgency_status
+        FROM assigned_work aw
+        LEFT JOIN users u ON aw.assigned_by = u.username
+        WHERE aw.assigned_to = ?
+        ORDER BY aw.assigned_on DESC, aw.due_date ASC
+    """, (user,))
+
     # Get all managers for dropdown
     all_managers = run_query("""
         SELECT username, name, role FROM users 
@@ -1995,14 +2481,7 @@ def view_admin_manager(user):
         ORDER BY resigned_date DESC
     """)
     
-    # Get pending asset requests with amount
-    pending_asset_requests = run_query("""
-        SELECT id, asset_type, quantity, amount, for_employee, description, requested_date, status, requested_by
-        FROM asset_requests
-        WHERE status = 'Pending'
-        ORDER BY requested_date DESC
-    """)
-    
+    # Get projects list for work assignments
     projects_df = run_query("""
         SELECT project_name FROM projects 
         WHERE hr_approval_status = 'Approved' 
@@ -2012,14 +2491,14 @@ def view_admin_manager(user):
     """)
     proj_list = ["(non-project)"] + projects_df["project_name"].astype(str).tolist() if not projects_df.empty else ["(non-project)"]
 
+    # Get ALL asset requests with proper schema alignment
     try:
         all_asset_requests = run_query("""
             SELECT id, asset_type, quantity, 
-                   CAST(COALESCE(amount, 0) AS DECIMAL(18,2)) as amount, 
+                   COALESCE(CAST(amount AS DECIMAL(18,2)), 0) as amount, 
                    for_employee, description, requested_by, requested_date, 
                    status, approved_by, approved_date, rejection_reason
             FROM asset_requests
-            WHERE status IN ('Pending', 'Approved', 'Rejected')
             ORDER BY 
                 CASE 
                     WHEN status = 'Pending' THEN 1 
@@ -2034,8 +2513,16 @@ def view_admin_manager(user):
             for record in asset_records:
                 try:
                     record['amount'] = float(record['amount']) if record['amount'] is not None else 0.0
+                    record['rejection_reason'] = record['rejection_reason'] or ''
+                    record['for_employee'] = record['for_employee'] or ''
+                    # Format dates
+                    if record.get('requested_date') and hasattr(record['requested_date'], 'strftime'):
+                        record['requested_date'] = record['requested_date'].strftime('%Y-%m-%d')
+                    if record.get('approved_date') and hasattr(record['approved_date'], 'strftime'):
+                        record['approved_date'] = record['approved_date'].strftime('%Y-%m-%d')
                 except (ValueError, TypeError):
                     record['amount'] = 0.0
+                    record['rejection_reason'] = ''
             all_asset_requests_list = asset_records
         else:
             all_asset_requests_list = []
@@ -2044,14 +2531,14 @@ def view_admin_manager(user):
         print(f"Asset requests error: {e}")
         all_asset_requests_list = []
 
-    # Calculate totals by status
-    pending_requests = [r for r in all_asset_requests_list if r['status'] == 'Pending']
-    approved_requests = [r for r in all_asset_requests_list if r['status'] == 'Approved']
-    rejected_requests = [r for r in all_asset_requests_list if r['status'] == 'Rejected']
+    # Calculate asset request totals by status
+    pending_asset_requests = [r for r in all_asset_requests_list if r['status'] == 'Pending']
+    approved_asset_requests = [r for r in all_asset_requests_list if r['status'] == 'Approved']
+    rejected_asset_requests = [r for r in all_asset_requests_list if r['status'] == 'Rejected']
     
-    total_pending_cost = sum(r.get('amount', 0) for r in pending_requests)
-    total_approved_cost = sum(r.get('amount', 0) for r in approved_requests)
-    total_rejected_cost = sum(r.get('amount', 0) for r in rejected_requests)
+    total_pending_cost = sum(r.get('amount', 0) for r in pending_asset_requests)
+    total_approved_cost = sum(r.get('amount', 0) for r in approved_asset_requests)
+    total_rejected_cost = sum(r.get('amount', 0) for r in rejected_asset_requests)
 
     # Get personal work history for this admin
     personal_work_history = run_query("""
@@ -2068,7 +2555,8 @@ def view_admin_manager(user):
         SELECT id, start_date, end_date, leave_type, description, 
                rm_status, rm_rejection_reason, rm_approver, 
                cancellation_requested, cancellation_status, health_document,
-               CASE WHEN health_document IS NOT NULL THEN 1 ELSE 0 END as document_path
+               CASE WHEN health_document IS NOT NULL THEN 1 ELSE 0 END as document_path,
+               DATEDIFF(day, start_date, end_date) + 1 as duration_days
         FROM leaves 
         WHERE username = ? 
         ORDER BY id DESC
@@ -2079,57 +2567,120 @@ def view_admin_manager(user):
     
     # Get assigned work for this admin
     personal_assigned_work = run_query("""
-        SELECT id, assigned_by, project_name, task_desc, start_date, due_date
+        SELECT id, assigned_by, project_name, task_desc, start_date, due_date,
+               rm_status, assigned_on
         FROM assigned_work 
-        WHERE assigned_to = ? AND rm_status = 'Approved'
-        ORDER BY id DESC
+        WHERE assigned_to = ?
+        ORDER BY assigned_on DESC
     """, (user,))
     
     # Get team members and their work/leave history
-    direct_reports = get_direct_reports(user)
     team_work_history = pd.DataFrame()
     team_leave_history = pd.DataFrame()
     pending_work_approvals = pd.DataFrame()
     pending_leave_approvals = pd.DataFrame()
     
-    if direct_reports:
-        placeholders = ",".join(["?"] * len(direct_reports))
+    if direct_reports_list:
+        placeholders = ",".join(["?"] * len(direct_reports_list))
         
-        # Team work history
-        team_work_history = run_query(f"""
-            SELECT TOP 500 username, work_date, project_name, work_desc, hours, break_hours,
-                   CASE WHEN hours > 8 THEN hours - 8 ELSE 0 END AS overtime_hours,
-                   rm_status, rm_rejection_reason, rm_approver
-            FROM timesheets 
-            WHERE username IN ({placeholders})
-            ORDER BY work_date DESC
-        """, tuple(direct_reports))
+        # Team work history with filters
+        work_start = request.args.get('team_work_start', '').strip()
+        work_end = request.args.get('team_work_end', '').strip()
+        work_user = request.args.get('team_work_emp', '').strip()
+        work_proj = request.args.get('team_work_proj', '').strip()
+        work_status = request.args.get('team_work_status', '').strip()
         
-        # Team leave history
-        team_leave_history = run_query(f"""
-            SELECT TOP 500 username, start_date, end_date, leave_type, description, 
-                   rm_status, rm_rejection_reason, rm_approver,
-                   cancellation_requested, cancellation_status
-            FROM leaves 
-            WHERE username IN ({placeholders})
-            ORDER BY start_date DESC
-        """, tuple(direct_reports))
+        work_query = f"""
+            SELECT TOP 500 t.username, t.work_date, t.project_name, t.work_desc, t.hours, 
+                   COALESCE(t.break_hours, 0) as break_hours,
+                   CASE WHEN t.hours > 8 THEN t.hours - 8 ELSE 0 END AS overtime_hours,
+                   t.rm_status, t.rm_rejection_reason, t.rm_approver,
+                   u.name as employee_name
+            FROM timesheets t
+            JOIN users u ON t.username = u.username
+            WHERE t.username IN ({placeholders})
+        """
+        work_params = list(direct_reports_list)
         
-        # Pending approvals
+        if work_start:
+            work_query += " AND t.work_date >= ?"
+            work_params.append(work_start)
+        if work_end:
+            work_query += " AND t.work_date <= ?"
+            work_params.append(work_end)
+        if work_user:
+            work_query += " AND t.username = ?"
+            work_params.append(work_user)
+        if work_proj:
+            work_query += " AND t.project_name = ?"
+            work_params.append(work_proj)
+        if work_status:
+            work_query += " AND t.rm_status = ?"
+            work_params.append(work_status)
+            
+        work_query += " ORDER BY t.work_date DESC"
+        team_work_history = run_query(work_query, tuple(work_params))
+        
+        # Team leave history with filters
+        leave_start = request.args.get('team_leave_start', '').strip()
+        leave_end = request.args.get('team_leave_end', '').strip()
+        leave_user = request.args.get('team_leave_emp', '').strip()
+        leave_type = request.args.get('team_leave_type', '').strip()
+        leave_status = request.args.get('team_leave_status', '').strip()
+        
+        leave_query = f"""
+            SELECT TOP 500 l.username, l.start_date, l.end_date, l.leave_type, l.description, 
+                   l.rm_status, l.rm_rejection_reason, l.rm_approver,
+                   l.cancellation_requested, l.cancellation_status,
+                   DATEDIFF(day, l.start_date, l.end_date) + 1 as duration_days,
+                   u.name as employee_name
+            FROM leaves l
+            JOIN users u ON l.username = u.username
+            WHERE l.username IN ({placeholders})
+        """
+        leave_params = list(direct_reports_list)
+        
+        if leave_start:
+            leave_query += " AND l.start_date >= ?"
+            leave_params.append(leave_start)
+        if leave_end:
+            leave_query += " AND l.end_date <= ?"
+            leave_params.append(leave_end)
+        if leave_user:
+            leave_query += " AND l.username = ?"
+            leave_params.append(leave_user)
+        if leave_type:
+            leave_query += " AND l.leave_type = ?"
+            leave_params.append(leave_type)
+        if leave_status:
+            leave_query += " AND l.rm_status = ?"
+            leave_params.append(leave_status)
+            
+        leave_query += " ORDER BY l.start_date DESC"
+        team_leave_history = run_query(leave_query, tuple(leave_params))
+
+        # Pending approvals (only for direct reports where current user is RM)
         pending_work_approvals = run_query(f"""
-            SELECT id, username, work_date, project_name, work_desc, hours, break_hours
-            FROM timesheets 
-            WHERE username IN ({placeholders}) AND rm_status = 'Pending'
-            ORDER BY work_date DESC
-        """, tuple(direct_reports))
+            SELECT t.id, t.username, t.work_date, t.project_name, t.work_desc, t.hours, 
+                   COALESCE(t.break_hours, 0) as break_hours, t.start_time, t.end_time,
+                   u.name as employee_name
+            FROM timesheets t
+            JOIN users u ON t.username = u.username
+            WHERE t.username IN ({placeholders}) AND t.rm_status = 'Pending' AND t.rm_approver = ?
+            ORDER BY t.work_date ASC
+        """, tuple(direct_reports_list + [user]))
         
         pending_leave_approvals = run_query(f"""
-            SELECT id, username, start_date, end_date, leave_type, description, rm_status,
-                   cancellation_requested, cancellation_status
-            FROM leaves 
-            WHERE username IN ({placeholders}) AND rm_status = 'Pending'
-            ORDER BY start_date DESC
-        """, tuple(direct_reports))
+            SELECT l.id, l.username, l.start_date, l.end_date, l.leave_type, l.description, 
+                   l.rm_status, l.health_document,
+                   DATEDIFF(day, l.start_date, l.end_date) + 1 as duration_days,
+                   u.name as employee_name,
+                   CASE WHEN l.health_document IS NOT NULL THEN 1 ELSE 0 END as has_document
+            FROM leaves l
+            JOIN users u ON l.username = u.username
+            WHERE l.username IN ({placeholders}) AND l.rm_status = 'Pending' AND l.rm_approver = ?
+            ORDER BY l.start_date ASC
+        """, tuple(direct_reports_list + [user]))
     
     # Calculate leave duration for team leaves
     team_leave_records = team_leave_history.to_dict('records') if not team_leave_history.empty else []
@@ -2138,57 +2689,195 @@ def view_admin_manager(user):
     pending_leave_records = pending_leave_approvals.to_dict('records') if not pending_leave_approvals.empty else []
     pending_leave_records = calculate_leave_duration(pending_leave_records)
     
-    pending_asset_requests_list = pending_asset_requests.to_dict('records') if not pending_asset_requests.empty else []
-    total_pending_asset_cost = sum(item.get('amount') or 0 for item in pending_asset_requests_list)
+    # Calculate statistics - FIXED
+    active_employees_count = len([emp for emp in all_employees.to_dict('records') if emp.get('status') == 'Active'])
+    inactive_employees_count = len([emp for emp in all_employees.to_dict('records') if emp.get('status') == 'Inactive'])
+    suspended_employees_count = len([emp for emp in all_employees.to_dict('records') if emp.get('status') == 'Suspended'])
     
-    # Calculate statistics
-    active_employees_count = len(all_employees.to_dict('records'))
-    total_monthly_payroll = sum(float(emp['monthly_salary'] or 0) for emp in all_employees.to_dict('records'))
-    total_yearly_payroll = sum(float(emp['yearly_salary'] or 0) for emp in all_employees.to_dict('records'))
-    paid_employees_count = len([emp for emp in all_employees.to_dict('records') if emp['monthly_salary'] and emp['monthly_salary'] > 0])
+    # Calculate payroll totals - FIXED
+    all_emp_records = all_employees.to_dict('records') if not all_employees.empty else []
+    total_monthly_payroll = 0.0
+    total_yearly_payroll = 0.0
+    paid_employees_count = 0
+    
+    for emp in all_emp_records:
+        if emp.get('status') == 'Active':
+            monthly = float(emp.get('monthly_salary') or 0)
+            yearly = float(emp.get('yearly_salary') or 0)
+            total_monthly_payroll += monthly
+            total_yearly_payroll += yearly
+            if monthly > 0:
+                paid_employees_count += 1
+    
+    # Get employee statistics by role
+    employee_stats_by_role = {}
+    for emp in all_emp_records:
+        if emp.get('status') == 'Active':
+            role = emp.get('role')
+            if role:
+                if role not in employee_stats_by_role:
+                    employee_stats_by_role[role] = 0
+                employee_stats_by_role[role] += 1
+    
+    # Get recent activities
+    recent_hires = run_query("""
+        SELECT TOP 10 u.username, u.name, u.role, ed.joining_date
+        FROM users u
+        LEFT JOIN employee_details ed ON u.username = ed.username
+        WHERE u.status = 'Active' AND ed.joining_date >= DATEADD(day, -30, GETDATE())
+        ORDER BY ed.joining_date DESC
+    """)
+    
+    # Get work assignment statistics - FIXED
+    my_assigned_work_records = my_assigned_work.to_dict('records') if not my_assigned_work.empty else []
+    work_assigned_to_me_records = work_assigned_to_me.to_dict('records') if not work_assigned_to_me.empty else []
+    
+    assignment_stats = {
+        'total_assignments': len(my_assigned_work_records),
+        'pending_assignments': len([w for w in my_assigned_work_records if w.get('rm_status') == 'Pending']),
+        'overdue_assignments': len([w for w in my_assigned_work_records if w.get('urgency_status') == 'Overdue']),
+        'my_pending_work': len([w for w in work_assigned_to_me_records if w.get('rm_status') == 'Pending']),
+    }
+    
+    # Get company performance metrics - FIXED
+    try:
+        monthly_metrics = run_query("""
+            SELECT 
+                (SELECT COUNT(*) FROM timesheets WHERE MONTH(work_date) = MONTH(GETDATE()) AND YEAR(work_date) = YEAR(GETDATE())) as monthly_timesheets,
+                (SELECT COUNT(*) FROM leaves WHERE MONTH(start_date) = MONTH(GETDATE()) AND YEAR(start_date) = YEAR(GETDATE())) as monthly_leaves,
+                (SELECT AVG(CAST(hours AS FLOAT)) FROM timesheets WHERE MONTH(work_date) = MONTH(GETDATE()) AND YEAR(work_date) = YEAR(GETDATE()) AND rm_status = 'Approved') as avg_hours
+        """)
+        
+        company_metrics = {
+            'total_employees': active_employees_count,
+            'total_timesheets_this_month': 0,
+            'total_leaves_this_month': 0,
+            'avg_working_hours': 0.0,
+            'employee_satisfaction': 85.0  # Default value
+        }
+        
+        if not monthly_metrics.empty:
+            metrics = monthly_metrics.iloc[0]
+            company_metrics.update({
+                'total_timesheets_this_month': int(metrics.get('monthly_timesheets', 0) or 0),
+                'total_leaves_this_month': int(metrics.get('monthly_leaves', 0) or 0),
+                'avg_working_hours': float(metrics.get('avg_hours', 0) or 0)
+            })
+    except Exception as e:
+        print(f"Error calculating company metrics: {e}")
+        company_metrics = {
+            'total_employees': active_employees_count,
+            'total_timesheets_this_month': 0,
+            'total_leaves_this_month': 0,
+            'avg_working_hours': 0.0,
+            'employee_satisfaction': 85.0
+        }
+    
+    # Get department-wise breakdown
+    department_breakdown = []
+    try:
+        dept_stats = run_query("""
+            SELECT role, 
+                   COUNT(*) as total_count,
+                   SUM(CASE WHEN status = 'Active' THEN 1 ELSE 0 END) as active_count,
+                   AVG(CAST(COALESCE(monthly_salary, 0) AS FLOAT)) as avg_salary
+            FROM users 
+            WHERE role IS NOT NULL
+            GROUP BY role
+            ORDER BY total_count DESC
+        """)
+        
+        if not dept_stats.empty:
+            department_breakdown = dept_stats.to_dict('records')
+    except Exception as e:
+        print(f"Error calculating department breakdown: {e}")
     
     return render_template('admin_manager.html',
         user=user,
         role=session['role'],
         today=date.today().isoformat(),
-        # Employee data
-        all_employees=all_employees.to_dict('records') if not all_employees.empty else [],
+        
+        # Employee data - FIXED
+        all_employees=all_emp_records,
         all_managers=all_managers.to_dict('records') if not all_managers.empty else [],
         resigned_employees=resigned_employees.to_dict('records') if not resigned_employees.empty else [],
-        pending_asset_requests=pending_asset_requests_list,
-        total_pending_asset_cost=total_pending_asset_cost,
-        # Team history data
+        recent_hires=recent_hires.to_dict('records') if not recent_hires.empty else [],
+        
+        # Asset requests data - FIXED
+        all_asset_requests=all_asset_requests_list,
+        pending_asset_requests=pending_asset_requests,
+        approved_asset_requests=approved_asset_requests,
+        rejected_asset_requests=rejected_asset_requests,
+        total_pending_asset_cost=float(total_pending_cost),
+        total_approved_asset_cost=float(total_approved_cost),
+        total_rejected_asset_cost=float(total_rejected_cost),
+
+        # Work assignments - FIXED
+        my_assigned_work=my_assigned_work_records,
+        work_assigned_to_me=work_assigned_to_me_records,
+        assignment_stats=assignment_stats,
+        
+        # Team history data - FIXED
         team_work_history=team_work_history.to_dict('records') if not team_work_history.empty else [],
         team_leave_history=team_leave_records,
-        # Approval data
+        
+        # Approval data (only for direct reports) - FIXED
         pending_work_approvals=pending_work_approvals.to_dict('records') if not pending_work_approvals.empty else [],
         pending_leave_approvals=pending_leave_records,
-        # Statistics
-        active_employees_count=active_employees_count,
-        total_monthly_payroll=total_monthly_payroll,
-        total_yearly_payroll=total_yearly_payroll,
-        paid_employees_count=paid_employees_count,
-        # Team info
-        has_team=len(direct_reports) > 0,
-        direct_reports=direct_reports,
+        
+        # Statistics - ALL FIXED
+        active_employees_count=int(active_employees_count),
+        inactive_employees_count=int(inactive_employees_count),
+        suspended_employees_count=int(suspended_employees_count),
+        total_monthly_payroll=float(total_monthly_payroll),
+        total_yearly_payroll=float(total_yearly_payroll),
+        paid_employees_count=int(paid_employees_count),
+        employee_stats_by_role=employee_stats_by_role,
+        
+        # Company performance metrics - FIXED
+        company_metrics=company_metrics,
+        department_breakdown=department_breakdown,
+        
+        # Permission flags
+        can_manage_payroll=can_manage_payroll,
+        is_admin_manager=is_admin_manager,
+        is_lead_staffing=is_lead_staffing,
+        
+        # Team info - FIXED with proper data structure
+        direct_reports=direct_reports_data,  # This is now a list of dictionaries with username, name, role
+        assignable_employees=direct_reports_data,  # Same as direct_reports for template compatibility
+        has_team=len(direct_reports_data) > 0,
+        can_assign_work=len(direct_reports_data) > 0,
         proj_list=proj_list,
+        
+        # Personal admin data
         personal_assigned_work=personal_assigned_work.to_dict('records') if not personal_assigned_work.empty else [],
         personal_work_history=personal_work_history.to_dict('records') if not personal_work_history.empty else [],
         personal_leaves=personal_leaves.to_dict('records') if not personal_leaves.empty else [],
         personal_remaining_leaves=personal_remaining_leaves,
-        all_asset_requests=all_asset_requests_list,
-        approved_asset_requests=approved_requests,
-        rejected_asset_requests=rejected_requests,
-        total_approved_asset_cost=total_approved_cost,
-        total_rejected_asset_cost=total_rejected_cost,  
+        
+        # Filter values for team history
+        work_start=request.args.get('team_work_start', ''),
+        work_end=request.args.get('team_work_end', ''),
+        work_user=request.args.get('team_work_emp', ''),
+        work_proj=request.args.get('team_work_proj', ''),
+        work_status=request.args.get('team_work_status', ''),
+        leave_start=request.args.get('team_leave_start', ''),
+        leave_end=request.args.get('team_leave_end', ''),
+        leave_user=request.args.get('team_leave_emp', ''),
+        leave_type=request.args.get('team_leave_type', ''),
+        leave_status=request.args.get('team_leave_status', ''),
+        
+        # Additional admin features
+        system_alerts=[],
+        pending_system_actions=len(pending_asset_requests) + len(pending_work_approvals.to_dict('records') if not pending_work_approvals.empty else []),
+        last_backup_date=datetime.now().strftime('%Y-%m-%d'),
+        
+        # Add missing variables that template expects
+        my_work_assignments=my_assigned_work_records,  # Alternative name
+        work_assigned_to_admin=work_assigned_to_me_records,  # Alternative name
     )
 
-# This is just part 1 of the COMPLETE code. Due to length limits, I'll need to continue with all the action routes and additional functionality in the next response.
-
-# Let me provide the rest in parts - would you like me to continue with all
-# --------------------
-# Action Routes - COMPLETE SET
-# --------------------
 @app.route('/submit_timesheet', methods=['POST'])
 def submit_timesheet_action():
     if 'username' not in session:
@@ -2201,9 +2890,16 @@ def submit_timesheet_action():
     start_t_str = request.form.get('start_t')
     end_t_str = request.form.get('end_t')
     brk = request.form.get('brk', 0.0)
+
+    # Validate date is not in the future
+    if work_date:
+        work_date_obj = datetime.strptime(work_date, '%Y-%m-%d').date()
+        if work_date_obj > date.today():
+            flash(" Cannot submit timesheet for future dates.")
+            return redirect(url_for('dashboard'))
     
     if not all([project, work_date, desc, start_t_str, end_t_str]):
-        flash("All fields are required for timesheet submission.")
+        flash(" All fields are required for timesheet submission.")
         return redirect(url_for('dashboard'))
     
     try:
@@ -2222,19 +2918,31 @@ def submit_timesheet_action():
         start_time_str = start_t.strftime("%H:%M:%S")
         end_time_str = end_t.strftime("%H:%M:%S")
         
+        #  CRITICAL FIX: Get the DIRECT RM for this user
+        rm_approver = get_rm_for_employee(user)
+        
+        if not rm_approver:
+            flash(" No reporting manager found. Please contact admin to set up reporting structure.")
+            return redirect(url_for('dashboard'))
+        
+        print(f" DEBUG: Timesheet submission - User: {user} -> RM Approver: {rm_approver}")
+        
         ok = run_exec("""
             INSERT INTO [timesheet_db].[dbo].[timesheets]
-            (username, project_name, work_desc, hours, work_date, start_time, end_time, break_hours, rm_status, manager_status, cost_center)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'Pending', '-', ?)
-        """, (user, proj_val, desc, int(round(hours)), work_date, start_time_str, end_time_str, float(brk), cost_center))
+            (username, project_name, work_desc, hours, work_date, start_time, end_time, 
+             break_hours, rm_status, manager_status, cost_center, rm_approver)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'Pending', '-', ?, ?)
+        """, (user, proj_val, desc, int(round(hours)), work_date, start_time_str, 
+              end_time_str, float(brk), cost_center, rm_approver))
         
         if ok:
-            flash("Timesheet submitted (awaiting RM approval).")
+            flash(f" Timesheet submitted successfully to RM: {rm_approver} (awaiting approval).")
         else:
-            flash("Failed to submit timesheet.")
+            flash(" Failed to submit timesheet.")
     
     except Exception as e:
-        flash(f"Error submitting timesheet: {str(e)}")
+        flash(f" Error submitting timesheet: {str(e)}")
+        print(f"Timesheet submission error: {e}")
     
     return redirect(url_for('dashboard'))
 
@@ -2250,13 +2958,13 @@ def request_leave_action():
     description = request.form.get('description')
     
     if not all([leave_type, start_d, end_d, description]):
-        flash("All fields are required for leave request.")
+        flash(" All fields are required for leave request.")
         return redirect(url_for('dashboard'))
     
     valid_leave_types = ['Other', 'Casual', 'Personal', 'Sick', 'Vacation']
     
     if leave_type not in valid_leave_types:
-        flash(f"Invalid leave type: '{leave_type}'. Must be one of: {', '.join(valid_leave_types)}")
+        flash(f" Invalid leave type: '{leave_type}'. Must be one of: {', '.join(valid_leave_types)}")
         return redirect(url_for('dashboard'))
     
     try:
@@ -2264,11 +2972,11 @@ def request_leave_action():
         end_date = datetime.strptime(end_d, '%Y-%m-%d').date()
         
         if start_date > end_date:
-            flash("Start date cannot be after end date.")
+            flash(" Start date cannot be after end date.")
             return redirect(url_for('dashboard'))
         
         if start_date < date.today():
-            flash("Cannot apply for leave in the past.")
+            flash(" Cannot apply for leave in the past.")
             return redirect(url_for('dashboard'))
         
         days_requested = (end_date - start_date).days + 1
@@ -2285,7 +2993,7 @@ def request_leave_action():
         balance_key = leave_balance_mapping.get(leave_type, 'casual')
         
         if remaining.get(balance_key, 0) < days_requested:
-            flash(f"Insufficient {leave_type} leave balance. Available: {remaining.get(balance_key, 0)} days, Requested: {days_requested} days")
+            flash(f" Insufficient {leave_type} leave balance. Available: {remaining.get(balance_key, 0)} days, Requested: {days_requested} days")
             return redirect(url_for('dashboard'))
         
         # Handle document upload for sick leave > 2 days
@@ -2300,32 +3008,43 @@ def request_leave_action():
                     file_ext = file.filename.rsplit('.', 1)[1].lower() if '.' in file.filename else ''
                     
                     if file_ext not in allowed_extensions:
-                        flash("Invalid file type. Please upload PDF, JPG, PNG, DOC, or DOCX files only.")
+                        flash(" Invalid file type. Please upload PDF, JPG, PNG, DOC, or DOCX files only.")
                         return redirect(url_for('dashboard'))
                     
                     timestamp = int(datetime.now().timestamp())
                     doc_name = f"{user}_{timestamp}_{secure_filename(file.filename)}"
                     file.save(os.path.join(app.config['UPLOAD_FOLDER'], doc_name))
             else:
-                flash("Please upload the required medical certificate for sick leave > 2 days.")
+                flash(" Please upload the required medical certificate for sick leave > 2 days.")
                 return redirect(url_for('dashboard'))
+        
+        #  CRITICAL FIX: Get the DIRECT RM for this user
+        rm_approver = get_rm_for_employee(user)
+        
+        if not rm_approver:
+            flash(" No reporting manager found. Please contact admin to set up reporting structure.")
+            return redirect(url_for('dashboard'))
+        
+        print(f" DEBUG: Leave submission - User: {user} -> RM Approver: {rm_approver}")
         
         ok = run_exec("""
             INSERT INTO [timesheet_db].[dbo].[leaves] (username, start_date, end_date, leave_type, description, 
                               rm_status, rm_approver, health_document, cancellation_requested, 
                               cancellation_status)
-            VALUES (?, ?, ?, ?, ?, 'Pending', NULL, ?, 0, NULL)
-        """, (user, start_d, end_d, leave_type, description, doc_name))
+            VALUES (?, ?, ?, ?, ?, 'Pending', ?, ?, 0, NULL)
+        """, (user, start_d, end_d, leave_type, description, rm_approver, doc_name))
         
         if ok:
-            flash(f"{leave_type} leave request submitted successfully for {days_requested} day(s) from {start_d} to {end_d}.")
+            flash(f" {leave_type} leave request submitted successfully to RM: {rm_approver} for {days_requested} day(s) from {start_d} to {end_d}.")
         else:
-            flash("Failed to submit leave request.")
+            flash(" Failed to submit leave request.")
     
     except Exception as e:
-        flash(f"Error submitting leave request: {str(e)}")
+        flash(f" Error submitting leave request: {str(e)}")
+        print(f"Leave submission error: {e}")
     
     return redirect(url_for('dashboard'))
+
 
 @app.route('/approve_timesheet', methods=['POST'])
 def approve_timesheet_action():
@@ -2334,22 +3053,52 @@ def approve_timesheet_action():
     
     user = session['username']
     ts_id = request.form.get('id')
-    team = get_all_reports_recursive(user)
     
-    if not team:
-        flash("No team members to approve timesheets for.")
+    if not ts_id:
+        flash(" Timesheet ID is required.")
         return redirect(url_for('dashboard'))
     
-    placeholders = ",".join(["?"] * len(team))
-    ok = run_exec(
-        f"UPDATE timesheets SET rm_status='Approved', rm_approver=? WHERE id=? AND username IN ({placeholders})",
-        (user, int(ts_id)) + tuple(team)
-    )
+    try:
+        # Get timesheet and employee details
+        timesheet_query = run_query("""
+            SELECT t.username, t.rm_approver, r.rm, r.manager
+            FROM timesheets t
+            LEFT JOIN report r ON t.username = r.username
+            WHERE t.id = ? AND t.rm_status = 'Pending'
+        """, (int(ts_id),))
+        
+        if timesheet_query.empty:
+            flash(" Timesheet not found or already processed.")
+            return redirect(url_for('dashboard'))
+        
+        timesheet = timesheet_query.iloc[0]
+        employee_username = timesheet['username']
+        assigned_rm = timesheet['rm']  # From report table
+        assigned_manager = timesheet['manager']  # From report table
+        
+        #  ONLY RM CAN APPROVE - Manager cannot approve
+        if user != assigned_rm:
+            if user == assigned_manager:
+                flash(f" You are the manager for {employee_username}, but only the RM ({assigned_rm}) can approve timesheets.")
+            else:
+                flash(f" You cannot approve timesheet for {employee_username}. Only RM ({assigned_rm}) can approve.")
+            return redirect(url_for('dashboard'))
+        
+        # Approve the timesheet
+        ok = run_exec("""
+            UPDATE timesheets 
+            SET rm_status = 'Approved', rm_approver = ?
+            WHERE id = ? AND rm_status = 'Pending'
+        """, (user, int(ts_id)))
+        
+        if ok:
+            flash(f" Timesheet approved for {employee_username}")
+        else:
+            flash(" Failed to approve timesheet")
     
-    if ok:
-        flash("Timesheet approved")
-    else:
-        flash("Failed to approve timesheet")
+    except Exception as e:
+        flash(f" Error approving timesheet: {str(e)}")
+    
     return redirect(url_for('dashboard'))
 
 @app.route('/approve_leave', methods=['POST'])
@@ -2359,37 +3108,61 @@ def approve_leave_action():
     
     user = session['username']
     leave_id = request.form.get('id')
-    team = get_all_reports_recursive(user)
     
-    if not team:
-        flash("No team members to approve leaves for.")
+    if not leave_id:
+        flash(" Leave ID is required.")
         return redirect(url_for('dashboard'))
     
-    placeholders = ",".join(["?"] * len(team))
-    
-    leave_details = run_query(
-        f"SELECT username, leave_type, start_date, end_date FROM leaves WHERE id=? AND username IN ({placeholders})",
-        (int(leave_id),) + tuple(team)
-    )
-    
-    if not leave_details.empty:
-        username = leave_details.iloc[0]['username']
-        leave_type = str(leave_details.iloc[0]['leave_type'])
-        start_date = parse(str(leave_details.iloc[0]['start_date']))
-        end_date = parse(str(leave_details.iloc[0]['end_date']))
+    try:
+        # Get leave and employee details
+        leave_query = run_query("""
+            SELECT l.username, l.leave_type, l.start_date, l.end_date, r.rm, r.manager
+            FROM leaves l
+            LEFT JOIN report r ON l.username = r.username
+            WHERE l.id = ? AND l.rm_status = 'Pending'
+        """, (int(leave_id),))
+        
+        if leave_query.empty:
+            flash(" Leave not found or already processed.")
+            return redirect(url_for('dashboard'))
+        
+        leave_details = leave_query.iloc[0]
+        employee_username = leave_details['username']
+        assigned_rm = leave_details['rm']
+        assigned_manager = leave_details['manager']
+        
+        #  ONLY RM CAN APPROVE - Manager cannot approve
+        if user != assigned_rm:
+            if user == assigned_manager:
+                flash(f" You are the manager for {employee_username}, but only the RM ({assigned_rm}) can approve leaves.")
+            else:
+                flash(f" You cannot approve leave for {employee_username}. Only RM ({assigned_rm}) can approve.")
+            return redirect(url_for('dashboard'))
+        
+        # Calculate leave days and apply balance
+        leave_type = str(leave_details['leave_type'])
+        start_date = parse(str(leave_details['start_date']))
+        end_date = parse(str(leave_details['end_date']))
         leave_days = (end_date - start_date).days + 1
         
-        _apply_leave_balance(username, leave_type, leave_days, +1)
+        # Apply leave balance deduction
+        _apply_leave_balance(employee_username, leave_type, leave_days, +1)
+        
+        # Approve the leave
+        ok = run_exec("""
+            UPDATE leaves 
+            SET rm_status = 'Approved', rm_approver = ?
+            WHERE id = ? AND rm_status = 'Pending'
+        """, (user, int(leave_id)))
+        
+        if ok:
+            flash(f" Leave approved for {employee_username} ({leave_days} days)")
+        else:
+            flash(" Failed to approve leave")
     
-    ok = run_exec(
-        f"UPDATE leaves SET rm_status='Approved', rm_approver=? WHERE id=? AND username IN ({placeholders})",
-        (user, int(leave_id)) + tuple(team)
-    )
+    except Exception as e:
+        flash(f" Error approving leave: {str(e)}")
     
-    if ok:
-        flash("Leave approved")
-    else:
-        flash("Failed to approve leave")
     return redirect(url_for('dashboard'))
 
 @app.route('/reject_timesheet', methods=['POST'])
@@ -2400,22 +3173,35 @@ def reject_timesheet_action():
     user = session['username']
     timesheet_id = request.form.get('id')
     reason = request.form.get('rejection_reason', 'Not specified')
-    team = get_all_reports_recursive(user)
     
-    if not team:
-        flash("No team members to reject timesheets for.")
+    if not timesheet_id:
+        flash(" Timesheet ID is required.")
         return redirect(url_for('dashboard'))
     
-    placeholders = ",".join(["?"] * len(team))
-    ok = run_exec(
-        f"UPDATE timesheets SET rm_status='Rejected', rm_approver=?, rm_rejection_reason=? WHERE id=? AND username IN ({placeholders})",
-        (user, reason, int(timesheet_id)) + tuple(team)
-    )
+    #  CRITICAL FIX: Only reject if user is the ASSIGNED RM
+    timesheet_check = run_query("""
+        SELECT t.username, r.rm FROM timesheets t
+        LEFT JOIN report r ON t.username = r.username
+        WHERE t.id = ? AND r.rm = ? AND t.rm_status = 'Pending'
+    """, (int(timesheet_id), user))
+    
+    if timesheet_check.empty:
+        flash(" You can only reject timesheets where you are the assigned RM.")
+        return redirect(url_for('dashboard'))
+    
+    employee_username = timesheet_check.iloc[0]['username']
+    
+    ok = run_exec("""
+        UPDATE timesheets 
+        SET rm_status = 'Rejected', rm_approver = ?, rm_rejection_reason = ? 
+        WHERE id = ? AND rm_status = 'Pending'
+    """, (user, reason, int(timesheet_id)))
     
     if ok:
-        flash("Timesheet rejected with reason.")
+        flash(f" Timesheet rejected for {employee_username} with reason: {reason}")
     else:
-        flash("Failed to reject timesheet.")
+        flash(" Failed to reject timesheet.")
+    
     return redirect(url_for('dashboard'))
 
 @app.route('/reject_leave', methods=['POST'])
@@ -2425,23 +3211,36 @@ def reject_leave_action():
     
     user = session['username']
     leave_id = request.form.get('id')
-    reason = request.form.get('reason')
-    team = get_all_reports_recursive(user)
+    reason = request.form.get('reason', 'Not specified')
     
-    if not team:
-        flash("No team members to reject leaves for.")
+    if not leave_id:
+        flash(" Leave ID is required.")
         return redirect(url_for('dashboard'))
     
-    placeholders = ",".join(["?"] * len(team))
-    ok = run_exec(
-        f"UPDATE leaves SET rm_status='Rejected', rm_approver=?, rm_rejection_reason=? WHERE id=? AND username IN ({placeholders})",
-        (user, reason, int(leave_id)) + tuple(team)
-    )
+    #  CRITICAL FIX: Only reject if user is the ASSIGNED RM
+    leave_check = run_query("""
+        SELECT l.username, r.rm FROM leaves l
+        LEFT JOIN report r ON l.username = r.username
+        WHERE l.id = ? AND r.rm = ? AND l.rm_status = 'Pending'
+    """, (int(leave_id), user))
+    
+    if leave_check.empty:
+        flash(" You can only reject leaves where you are the assigned RM.")
+        return redirect(url_for('dashboard'))
+    
+    employee_username = leave_check.iloc[0]['username']
+    
+    ok = run_exec("""
+        UPDATE leaves 
+        SET rm_status = 'Rejected', rm_approver = ?, rm_rejection_reason = ? 
+        WHERE id = ? AND rm_status = 'Pending'
+    """, (user, reason, int(leave_id)))
     
     if ok:
-        flash("Leave rejected")
+        flash(f" Leave rejected for {employee_username} with reason: {reason}")
     else:
-        flash("Failed to reject leave")
+        flash(" Failed to reject leave.")
+    
     return redirect(url_for('dashboard'))
 
 # --------------------
@@ -2657,7 +3456,57 @@ def reject_manager_leave_request():
     
     return redirect(url_for('dashboard'))
 
-
+@app.route('/api/budget_refresh')
+def budget_refresh():
+    """API endpoint to get current budget status for real-time updates"""
+    if 'username' not in session:
+        return jsonify({'error': 'Unauthorized'}), 401
+    
+    try:
+        # Get current budget data
+        total_budget_df = run_query("SELECT total_budget FROM company_budget WHERE id = 1")
+        total_budget = float(total_budget_df['total_budget'].iloc[0]) if not total_budget_df.empty else 0.0
+        
+        # Project allocations
+        project_allocated_df = run_query("""
+            SELECT COALESCE(SUM(CAST(budget_amount AS DECIMAL(18,2))), 0) as allocated 
+            FROM projects 
+            WHERE hr_approval_status = 'Approved' 
+            AND budget_amount IS NOT NULL
+            AND CAST(budget_amount AS DECIMAL(18,2)) > 0
+            AND project_name NOT LIKE 'Salary%'
+            AND project_name NOT LIKE 'Asset Purchase%'
+        """)
+        project_allocated = float(project_allocated_df['allocated'].iloc[0]) if not project_allocated_df.empty else 0.0
+        
+        # Payroll & Asset allocations
+        payroll_df = run_query("""
+            SELECT COALESCE(SUM(CAST(yearly_salary AS DECIMAL(18,2))), 0) as total_payroll
+            FROM users 
+            WHERE status = 'Active' AND yearly_salary IS NOT NULL
+        """)
+        current_payroll = float(payroll_df['total_payroll'].iloc[0]) if not payroll_df.empty else 0.0
+        
+        asset_allocated_df = run_query("""
+            SELECT COALESCE(SUM(CAST(amount AS DECIMAL(18,2))), 0) as asset_total
+            FROM asset_requests 
+            WHERE status = 'Approved'
+        """)
+        asset_allocated = float(asset_allocated_df['asset_total'].iloc[0]) if not asset_allocated_df.empty else 0.0
+        
+        payroll_asset_allocated = current_payroll + asset_allocated
+        remaining_budget = total_budget - project_allocated - payroll_asset_allocated
+        
+        return jsonify({
+            'success': True,
+            'total_budget': total_budget,
+            'project_allocated': project_allocated,
+            'payroll_asset_allocated': payroll_asset_allocated,
+            'remaining_budget': remaining_budget
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 # --------------------
 # Project Management Routes
 # --------------------
@@ -2813,53 +3662,114 @@ def manager_assign_work_action():
     
     return redirect(url_for('dashboard'))
 
+
 @app.route('/rm_assign_work_action', methods=['POST'])
 def rm_assign_work_action():
-    """RM assign work action - Updated to handle multiple employees"""
+    """RM assign work action - UPDATED with proper validation"""
     if 'username' not in session:
         return redirect(url_for('login_sso'))
     
     user = session['username']
     employee_usernames = request.form.getlist('employee_username')
-    project_name = request.form.get('project_name')
-    task_desc = request.form.get('task_desc')
+    project_name = request.form.get('project_name', '')
+    task_desc = request.form.get('task_desc', '').strip()
     due_date = request.form.get('due_date')
     priority = request.form.get('priority', 'Medium')
     
     if not employee_usernames or not task_desc:
-        flash("Please select at least one employee and provide task description.")
+        flash(" Please select at least one employee and provide task description.")
         return redirect(url_for('dashboard'))
     
-    # Check if all selected employees are under this RM
-    direct_team = get_direct_reports(user)
-    invalid_employees = [emp for emp in employee_usernames if emp not in direct_team]
+    # Get all team members user can assign work to
+    all_team_members = get_all_reports_recursive(user)
+    
+    if not all_team_members:
+        flash(" You don't have any team members to assign work to.")
+        return redirect(url_for('dashboard'))
+    
+    # Validate that selected employees are in user's team
+    invalid_employees = [emp for emp in employee_usernames if emp not in all_team_members]
     
     if invalid_employees:
-        flash(f"You can only assign work to your direct reports. Invalid: {', '.join(invalid_employees)}")
+        flash(f" You can only assign work to your team members. Invalid: {', '.join(invalid_employees)}")
         return redirect(url_for('dashboard'))
     
     success_count = 0
     failed_employees = []
     
     for employee in employee_usernames:
-        ok = run_exec("""
-            INSERT INTO[timesheet_db].[dbo].[assigned_work] (assigned_by, assigned_to, task_desc, start_date, due_date, 
-                                     project_name, rm_status, manager_status, assigned_on)
-            VALUES (?, ?, ?, ?, ?, ?, 'Approved', 'Pending', ?)
-        """, (user, employee, task_desc, date.today(), due_date, project_name, date.today()))
-        
-        if ok:
-            success_count += 1
-        else:
+        try:
+            # Insert work assignment
+            ok = run_exec("""
+                INSERT INTO [timesheet_db].[dbo].[assigned_work] (
+                    assigned_by, assigned_to, task_desc, start_date, due_date, 
+                    project_name, rm_status, manager_status, assigned_on
+                ) VALUES (?, ?, ?, ?, ?, ?, 'Approved', 'Pending', ?)
+            """, (user, employee, task_desc, date.today(), due_date, 
+                  project_name, date.today()))
+            
+            if ok:
+                success_count += 1
+            else:
+                failed_employees.append(employee)
+                
+        except Exception as e:
+            print(f"Error assigning to {employee}: {e}")
             failed_employees.append(employee)
     
+    # Success/failure messages
     if success_count > 0:
-        flash(f"Work assigned successfully to {success_count} team member(s): {', '.join([emp for emp in employee_usernames if emp not in failed_employees])}")
+        successful_employees = [emp for emp in employee_usernames if emp not in failed_employees]
+        flash(f" Work assigned successfully to {success_count} team member(s): {', '.join(successful_employees)}")
     
     if failed_employees:
-        flash(f"Failed to assign work to: {', '.join(failed_employees)}")
+        flash(f" Failed to assign work to: {', '.join(failed_employees)}")
     
     return redirect(url_for('dashboard'))
+
+
+@app.route('/complete_work_assignment', methods=['POST'])
+def complete_work_assignment():
+    """Mark work assignment as completed"""
+    if 'username' not in session:
+        return redirect(url_for('login_sso'))
+    
+    user = session['username']
+    assignment_id = request.form.get('assignment_id')
+    completion_notes = request.form.get('completion_notes', '').strip()
+    
+    if not assignment_id:
+        flash(" Assignment ID is required.")
+        return redirect(url_for('dashboard'))
+    
+    try:
+        # Verify the assignment belongs to the current user
+        assignment_check = run_query("""
+            SELECT assigned_to, task_desc FROM assigned_work 
+            WHERE id = ? AND assigned_to = ?
+        """, (int(assignment_id), user))
+        
+        if assignment_check.empty:
+            flash(" Assignment not found or access denied.")
+            return redirect(url_for('dashboard'))
+        
+        # Update assignment status
+        ok = run_exec("""
+            UPDATE assigned_work 
+            SET status = 'Completed', completed_on = GETDATE(), completion_notes = ?
+            WHERE id = ? AND assigned_to = ?
+        """, (completion_notes, int(assignment_id), user))
+        
+        if ok:
+            flash(" Work assignment marked as completed!")
+        else:
+            flash(" Failed to update assignment status.")
+            
+    except Exception as e:
+        flash(f" Error completing assignment: {str(e)}")
+    
+    return redirect(url_for('dashboard'))
+
 
 @app.route('/approve_rm_assignment', methods=['POST'])
 def approve_rm_assignment():
@@ -2923,6 +3833,27 @@ def reject_rm_assignment():
 # --------------------
 # HR Finance Action Routes - COMPLETE
 # --------------------
+@app.route('/get_pending_approvals')
+def get_pending_approvals():
+    """Get projects that actually need HR approval"""
+    if 'username' not in session or session['role'] != 'Hr & Finance Controller':
+        return jsonify({'error': 'Access denied'}), 403
+    
+    try:
+        pending_approvals = run_query("""
+            SELECT project_id, project_name, created_by, description, created_on, end_date, cost_center
+            FROM projects
+            WHERE hr_approval_status = 'Pending'
+            ORDER BY created_on DESC
+        """)
+        
+        return jsonify({
+            'success': True,
+            'pending_projects': pending_approvals.to_dict('records') if not pending_approvals.empty else []
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/allocate_budget_action', methods=['POST'])
 def allocate_budget_action():
     """Allocate budget to a project from REMAINING budget"""
@@ -2980,9 +3911,9 @@ def allocate_budget_action():
 
 @app.route('/update_salary_action', methods=['POST'])
 def update_salary_action():
-    """Update employee salary and deduct increase from REMAINING budget"""
+    """Update employee salary and CORRECTLY deduct increase from remaining budget"""
     if 'username' not in session or session['role'] != 'Hr & Finance Controller':
-        flash("Access denied. HR & Finance Controller privileges required.")
+        flash(" Access denied. HR & Finance Controller privileges required.")
         return redirect(url_for('dashboard'))
     
     username = request.form.get('username')
@@ -3006,11 +3937,12 @@ def update_salary_action():
         
         if not current_salary_df.empty:
             current_monthly = float(current_salary_df.iloc[0]['monthly_salary']) if current_salary_df.iloc[0]['monthly_salary'] is not None else 0.0
-            salary_difference = (new_monthly - current_monthly) * 12  # Annual difference
+            current_yearly = float(current_salary_df.iloc[0]['yearly_salary']) if current_salary_df.iloc[0]['yearly_salary'] is not None else 0.0
+            yearly_increase = new_yearly - current_yearly
             
-            # If salary increased, deduct from remaining budget
-            if salary_difference > 0:
-                # Get budget status
+            # If salary increased, check and deduct from remaining budget
+            if yearly_increase > 0:
+                # Get budget status (CORRECTED calculation)
                 budget_df = run_query("SELECT total_budget FROM company_budget WHERE id = 1")
                 allocated_df = run_query("""
                     SELECT COALESCE(SUM(CAST(budget_amount AS DECIMAL(18,2))), 0) as allocated 
@@ -3019,46 +3951,41 @@ def update_salary_action():
                     AND budget_amount IS NOT NULL
                     AND CAST(budget_amount AS DECIMAL(18,2)) > 0
                 """)
+                payroll_df = run_query("""
+                    SELECT COALESCE(SUM(CAST(yearly_salary AS DECIMAL(18,2))), 0) as payroll
+                    FROM users 
+                    WHERE status = 'Active' AND yearly_salary IS NOT NULL
+                """)
                 
-                if not budget_df.empty and not allocated_df.empty:
+                if not budget_df.empty and not allocated_df.empty and not payroll_df.empty:
                     total_budget = float(budget_df['total_budget'].iloc[0])
                     allocated = float(allocated_df['allocated'].iloc[0])
-                    remaining_budget = total_budget - allocated
+                    current_total_payroll = float(payroll_df['payroll'].iloc[0])
+                    remaining_budget = total_budget - allocated - current_total_payroll
                     
-                    if remaining_budget >= salary_difference:
-                        salary_project_name = f"Salary Increase - {username} (₹{salary_difference:,.0f}/year)"
+                    if remaining_budget >= yearly_increase:
+                        salary_project_name = f"Salary Increase - {username} (₹{yearly_increase:,.0f}/year)"
                         
-                        # Try multiple valid status values
-                        valid_statuses = ['Approved', 'Pending', 'Rejected']
-                        project_created = False
+                        # Create salary increase project to track budget usage
+                        ok1 = run_exec("""
+                            INSERT INTO [timesheet_db].[dbo].[projects] (project_name, description, created_by, created_on, end_date, 
+                                                hr_approval_status, status, budget_amount, cost_center)
+                            VALUES (?, ?, ?, GETDATE(), DATEADD(year, 1, GETDATE()), 'Approved', 'Approved', ?, 'Payroll')
+                        """, (salary_project_name, 
+                             f"Annual salary increase allocation for {username}",
+                             session['username'], yearly_increase))
                         
-                        for status in valid_statuses:
-                            try:
-                                ok1 = run_exec("""
-                                    INSERT INTO[timesheet_db].[dbo].[projects] (project_name, description, created_by, created_on, end_date, 
-                                                        hr_approval_status, status, budget_amount, cost_center)
-                                    VALUES (?, ?, ?, GETDATE(), DATEADD(year, 1, GETDATE()), 'Approved', ?, ?, 'Payroll')
-                                """, (salary_project_name, 
-                                     f"Annual salary increase allocation for {username}",
-                                     session['username'], status, salary_difference))
-                                
-                                if ok1:
-                                    project_created = True
-                                    break
-                            except Exception as e:
-                                print(f"Failed with status {status}: {e}")
-                                continue
-                        
-                        if not project_created:
-                            flash(" Failed to create salary increase project entry. Please check database constraints.")
+                        if ok1:
+                            new_remaining = remaining_budget - yearly_increase
+                            flash(f" Salary increase approved! ₹{yearly_increase:,.2f}/year will be deducted from budget. New remaining: ₹{new_remaining:,.2f}")
+                        else:
+                            flash(" Failed to create salary increase project entry.")
                             return redirect(url_for('dashboard'))
-                        
-                        flash(f" Salary increase approved! ₹{salary_difference:,.2f}/year allocated from remaining budget.")
                     else:
-                        flash(f" Insufficient remaining budget for salary increase. Required: ₹{salary_difference:,.2f}, Available: ₹{remaining_budget:,.2f}")
+                        flash(f" Insufficient remaining budget for salary increase. Required: ₹{yearly_increase:,.2f}, Available: ₹{remaining_budget:,.2f}")
                         return redirect(url_for('dashboard'))
         
-        # Update salary
+        # Update salary in users table
         ok = run_exec("""
             UPDATE users 
             SET monthly_salary = ?, yearly_salary = ?
@@ -3067,6 +3994,8 @@ def update_salary_action():
         
         if ok:
             flash(f" Salary updated for {username}: ₹{new_monthly:,.2f}/month, ₹{new_yearly:,.2f}/year")
+            # Force page refresh to show updated budget
+            return redirect(url_for('dashboard') + '?tab=payroll')
         else:
             flash(" Failed to update salary.")
     
@@ -3077,6 +4006,7 @@ def update_salary_action():
         flash(f" Error updating salary: {str(e)}")
     
     return redirect(url_for('dashboard'))
+
 def get_asset_request_by_id(asset_request_id):
     df = run_query("SELECT * FROM asset_requests WHERE id = ?", (int(asset_request_id),))
     if df.empty:
@@ -3096,49 +4026,95 @@ def get_asset_request_by_id(asset_request_id):
     asset_request.rejection_reason = row.get('rejection_reason', None)
     return asset_request
 
-def process_approve_asset(asset_request_id, approver):
-    asset_request = get_asset_request_by_id(asset_request_id)
-    if not asset_request:
-        return False, "Asset request not found."
 
-    status = getattr(asset_request, 'status', '').strip().lower()
-    if status != 'pending':
-        return False, f"Asset request is not pending approval (status = '{asset_request.status}')."
-
-    if not is_approver_authorized(approver, asset_request): # type: ignore
-        return False, "Approver not authorized."
-
-    # Retrieve remaining budget first
-    remaining_budget = get_remaining_budget()  # type: ignore # <-- Make sure this is called and assigned
-
-    if asset_request.amount > remaining_budget:
-        return False, "Insufficient remaining budget to approve this asset request."
-
-    asset_request.status = 'approved'
-    asset_request.approved_by = approver
-    asset_request.approval_date = datetime.now()
-
-    # Now you can safely use remaining_budget
-    new_budget = remaining_budget - asset_request.amount
-    update_remaining_budget(new_budget) # type: ignore
-
-    save_asset_request(asset_request) # type: ignore
-
-    return True, "Asset request approved and budget updated successfully."
-
-@app.route('/approve-asset', methods=['POST'])
-def approve_asset():
-    asset_request_id = request.form.get('asset_request_id')
-    approver = session.get('username')
-    if not asset_request_id or not approver:
-        flash("Missing asset request or user information.")
+@app.route('/approve_asset_request_hr', methods=['POST'])
+def approve_asset_request_hr():
+    """Approve asset request and CORRECTLY deduct from remaining budget"""
+    if 'username' not in session or session['role'] != 'Hr & Finance Controller':
+        flash(" Access denied. HR & Finance Controller privileges required.")
         return redirect(url_for('dashboard'))
-    success, message = process_approve_asset(asset_request_id, approver)
-    if success:
-        flash("Asset request approved. Amount deducted from remaining budget.")
-    else:
-        flash(f"Failed to approve asset request: {message}")
+    
+    request_id = request.form.get('request_id')
+    
+    try:
+        request_details = run_query("""
+            SELECT CAST(COALESCE(amount, 0) AS DECIMAL(18,2)) as amount, 
+                   asset_type, for_employee, requested_by 
+            FROM asset_requests 
+            WHERE id = ? AND status = 'Pending'
+        """, (int(request_id),))
+        
+        if not request_details.empty:
+            amount = float(request_details.iloc[0]['amount']) if request_details.iloc[0]['amount'] is not None else 0.0
+            
+            if amount <= 0:
+                flash(" Invalid amount for asset request.")
+                return redirect(url_for('dashboard'))
+            
+            # Check remaining budget (CORRECTED calculation)
+            budget_df = run_query("SELECT total_budget FROM company_budget WHERE id = 1")
+            allocated_df = run_query("""
+                SELECT COALESCE(SUM(CAST(budget_amount AS DECIMAL(18,2))), 0) as allocated 
+                FROM projects 
+                WHERE hr_approval_status = 'Approved' 
+                AND budget_amount IS NOT NULL
+                AND CAST(budget_amount AS DECIMAL(18,2)) > 0
+            """)
+            payroll_df = run_query("""
+                SELECT COALESCE(SUM(CAST(yearly_salary AS DECIMAL(18,2))), 0) as payroll
+                FROM users 
+                WHERE status = 'Active' AND yearly_salary IS NOT NULL
+            """)
+            
+            if not budget_df.empty and not allocated_df.empty and not payroll_df.empty:
+                total_budget = float(budget_df['total_budget'].iloc[0])
+                allocated = float(allocated_df['allocated'].iloc[0])
+                payroll = float(payroll_df['payroll'].iloc[0])
+                remaining_budget = total_budget - allocated - payroll
+                
+                if remaining_budget >= amount:
+                    asset_project_name = f"Asset Purchase - {request_details.iloc[0]['asset_type']} (ID: {request_id})"
+                    
+                    # Create asset project entry to track budget usage
+                    ok1 = run_exec("""
+                        INSERT INTO [timesheet_db].[dbo].[projects] (project_name, description, created_by, created_on, end_date, 
+                                            hr_approval_status, status, budget_amount, cost_center)
+                        VALUES (?, ?, ?, GETDATE(), DATEADD(day, 30, GETDATE()), 'Approved', 'Approved', ?, 'Assets')
+                    """, (asset_project_name, 
+                         f"Asset purchase for {request_details.iloc[0]['for_employee'] or 'General Use'}",
+                         session['username'], amount))
+                    
+                    if ok1:
+                        # Update asset request status
+                        ok2 = run_exec("""
+                            UPDATE asset_requests 
+                            SET status = 'Approved', approved_by = ?, approved_date = GETDATE()
+                            WHERE id = ?
+                        """, (session['username'], int(request_id)))
+                        
+                        if ok2:
+                            new_remaining = remaining_budget - amount
+                            flash(f" Asset request approved! ₹{amount:,.2f} deducted from remaining budget. New remaining: ₹{new_remaining:,.2f}")
+                            
+                            # Force page refresh to show updated budget
+                            return redirect(url_for('dashboard') + '?tab=asset-approvals')
+                        else:
+                            flash(" Failed to update asset request status.")
+                    else:
+                        flash(" Failed to create asset project entry.")
+                else:
+                    flash(f" Insufficient remaining budget. Required: ₹{amount:,.2f}, Available: ₹{remaining_budget:,.2f}")
+            else:
+                flash(" Unable to retrieve budget information.")
+        else:
+            flash(" Asset request not found or already processed.")
+    
+    except Exception as e:
+        print(f" ASSET APPROVAL ERROR: {e}")
+        flash(f" Error approving asset request: {str(e)}")
+    
     return redirect(url_for('dashboard'))
+
 
 @app.route('/reject_asset_request_hr', methods=['POST'])
 def reject_asset_request_hr():
@@ -3202,7 +4178,7 @@ def create_project_hr():
     for status in valid_statuses:
         try:
             ok = run_exec("""
-                INSERT INTO[timesheet_db].[dbo].[projects] (project_name, description, created_by, created_on, end_date, 
+                INSERT INTO [timesheet_db].[dbo]. [projects] (project_name, description, created_by, created_on, end_date, 
                                    cost_center, hr_approval_status, status)
                 VALUES (?, ?, ?, ?, ?, ?, 'Approved', ?)
             """, (project_name, project_description, session['username'], date.today(), 
@@ -3222,63 +4198,93 @@ def create_project_hr():
     
     return redirect(url_for('dashboard'))
 
-@app.route('/approve_project_action', methods=['POST'])
-def approve_project_action():
-    """Approve project action (HR Finance)"""
+@app.route('/approve_project_hr_action', methods=['POST'])
+def approve_project_hr_action():
+    """Approve project (HR Finance specific) - Now with edit capability"""
     if 'username' not in session or session['role'] != 'Hr & Finance Controller':
-        flash("Access denied. HR & Finance Controller privileges required.")
+        flash(" Access denied. HR & Finance Controller privileges required.")
         return redirect(url_for('dashboard'))
     
     project_id = request.form.get('project_id')
-    project_name = request.form.get('project_name')
     
     if not project_id:
-        flash("Project ID is required.")
+        flash(" Project ID is required.")
         return redirect(url_for('dashboard'))
     
     try:
-        ok = run_exec("""
-            UPDATE projects 
-            SET hr_approval_status = 'Approved'
-            WHERE project_id = ?
+        # Get project details
+        project_details = run_query("""
+            SELECT project_name, created_by FROM projects WHERE project_id = ?
         """, (int(project_id),))
         
+        project_name = project_details.iloc[0]['project_name'] if not project_details.empty else f"Project #{project_id}"
+        
+        # Update project details AND approve it
+        ok = run_exec("""
+            UPDATE projects 
+            SET project_name = ?, 
+                cost_center = ?, 
+                description = ?, 
+                budget_amount = ?,
+                hr_approval_status = 'Approved', 
+                status = 'Approved'
+            WHERE project_id = ?
+        """, (
+            request.form.get('project_name', project_name),
+            request.form.get('cost_center'),
+            request.form.get('project_description'),
+            float(request.form.get('budget_amount', 0)),
+            int(project_id)
+        ))
+        
         if ok:
-            flash(f" Project '{project_name or project_id}' approved successfully.")
+            flash(f" Project '{project_name}' approved successfully!")
         else:
             flash(" Failed to approve project.")
     
     except Exception as e:
         flash(f" Error approving project: {str(e)}")
     
-    return redirect(url_for('dashboard'))
+    return redirect(url_for('dashboard') + '?tab=project-approvals')
 
-@app.route('/reject_project_action', methods=['POST'])
-def reject_project_action():
-    """Reject project action (HR Finance)"""
+@app.route('/reject_project_hr_action', methods=['POST'])
+def reject_project_hr_action():
+    """Reject project (HR Finance specific)"""
     if 'username' not in session or session['role'] != 'Hr & Finance Controller':
-        flash("Access denied.")
+        flash(" Access denied. HR & Finance Controller privileges required.")
         return redirect(url_for('dashboard'))
     
     project_id = request.form.get('project_id')
     rejection_reason = request.form.get('rejection_reason', 'Not specified')
     
+    if not project_id:
+        flash(" Project ID is required.")
+        return redirect(url_for('dashboard'))
+    
     try:
+        # Get project details
+        project_details = run_query("""
+            SELECT project_name FROM projects WHERE project_id = ?
+        """, (int(project_id),))
+        
+        project_name = project_details.iloc[0]['project_name'] if not project_details.empty else f"Project #{project_id}"
+        
+        # Reject the project
         ok = run_exec("""
             UPDATE projects 
-            SET hr_approval_status = 'Rejected', hr_rejection_reason = ?
+            SET hr_approval_status = 'Rejected', status = 'Rejected', hr_rejection_reason = ?
             WHERE project_id = ?
-        """, (rejection_reason, int(project_id)))
+        """, (rejection_reason, int(project_id),))
         
         if ok:
-            flash(f" Project rejected with reason: {rejection_reason}")
+            flash(f" Project '{project_name}' rejected. Reason: {rejection_reason}")
         else:
             flash(" Failed to reject project.")
     
     except Exception as e:
         flash(f" Error rejecting project: {str(e)}")
     
-    return redirect(url_for('dashboard'))
+    return redirect(url_for('dashboard') + '?tab=project-approvals')
 
 @app.route('/update_total_budget_action', methods=['POST'])
 def update_total_budget_action():
@@ -3330,7 +4336,88 @@ def update_total_budget_action():
     
     return redirect(url_for('dashboard'))
 
-# --------------------
+
+# HR Finance Work Assignment Route
+@app.route('/hr_assign_work_action', methods=['POST'])
+def hr_assign_work_action():
+    """HR assigns work to multiple employees"""
+    if 'username' not in session or session['role'] != 'Hr & Finance Controller':
+        flash("Access denied. HR & Finance Controller privileges required.")
+        return redirect(url_for('dashboard'))
+    
+    user = session['username']
+    employee_usernames = request.form.getlist('employees')
+    project_name = request.form.get('project_name', '')
+    task_desc = request.form.get('task_desc')
+    due_date = request.form.get('due_date')
+    start_date = request.form.get('start_date', date.today())
+    
+    if not employee_usernames or not task_desc:
+        flash("Please select at least one employee and provide task description.")
+        return redirect(url_for('dashboard'))
+    
+    success_count = 0
+    failed_employees = []
+    
+    for employee in employee_usernames:
+        try:
+            ok = run_exec("""
+                INSERT INTO [timesheet_db].[dbo].[assigned_work] (assigned_by, assigned_to, task_desc, start_date, due_date, 
+                                         project_name, rm_status, manager_status, assigned_on)
+                VALUES (?, ?, ?, ?, ?, ?, 'Approved', 'Approved', ?)
+            """, (user, employee, task_desc, start_date, due_date, project_name, date.today()))
+            
+            if ok:
+                success_count += 1
+            else:
+                failed_employees.append(employee)
+        except Exception as e:
+            print(f"Error assigning to {employee}: {e}")
+            failed_employees.append(employee)
+    
+    if success_count > 0:
+        flash(f" Work assigned successfully to {success_count} employee(s).")
+    
+    if failed_employees:
+        flash(f" Failed to assign work to: {', '.join(failed_employees)}")
+    
+    return redirect(url_for('dashboard'))
+
+# HR Finance Expense Recording Route
+@app.route('/hr_record_expense_action', methods=['POST'])
+def hr_record_expense_action():
+    """HR records expense"""
+    if 'username' not in session or session['role'] != 'Hr & Finance Controller':
+        flash("Access denied. HR & Finance Controller privileges required.")
+        return redirect(url_for('dashboard'))
+    
+    user = session['username']
+    project = request.form.get('project')
+    category = request.form.get('category')
+    amount = request.form.get('amount')
+    exp_date = request.form.get('exp_date')
+    desc = request.form.get('desc')
+    
+    if not project or not category or not amount or not desc:
+        flash("Please fill in all required fields.")
+        return redirect(url_for('dashboard'))
+    
+    try:
+        ok = run_exec("""
+            INSERT INTO [timesheet_db].[dbo].[expenses] (project_name, category, amount, date, description, spent_by)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (project, category, float(amount), exp_date, desc, user))
+        
+        if ok:
+            flash(" Expense recorded successfully.")
+        else:
+            flash(" Failed to record expense.")
+    except Exception as e:
+        flash(f" Error recording expense: {str(e)}")
+    
+    return redirect(url_for('dashboard'))
+
+
 # Employee Edit/Delete Routes
 # --------------------
 @app.route('/edit_timesheet_form/<int:timesheet_id>')
@@ -3682,52 +4769,63 @@ def cancel_leave_action():
     user = session['username']
     leave_id = request.form.get('id')
     
+    print(f"DEBUG: Received leave cancellation request - User: {user}, Leave ID: {leave_id}")
+    
     if not leave_id:
-        flash("Leave ID is required.")
+        flash("Leave ID is required for cancellation.")
         return redirect(url_for('dashboard'))
     
-    # Check if the leave belongs to the current user and is still pending
-    leave_details = run_query("""
-        SELECT username, rm_status FROM leaves 
-        WHERE id = ? AND username = ?
-    """, (int(leave_id), user))
-    
-    if leave_details.empty:
-        flash("Leave request not found or you don't have permission to cancel it.")
-        return redirect(url_for('dashboard'))
-    
-    rm_status = leave_details.iloc[0]['rm_status']
-    
-    if rm_status == 'Approved':
-        # If already approved, request cancellation
-        ok = run_exec("""
-            UPDATE leaves 
-            SET cancellation_requested = 1, cancellation_status = 'Pending'
+    try:
+        # Check if the leave belongs to the current user
+        leave_details = run_query("""
+            SELECT username, rm_status, leave_type, start_date, end_date FROM leaves 
             WHERE id = ? AND username = ?
         """, (int(leave_id), user))
         
-        if ok:
-            flash("Cancellation request submitted for approved leave.")
-        else:
-            flash("Failed to submit cancellation request.")
-    elif rm_status == 'Pending':
-        # If still pending, can directly cancel
-        ok = run_exec("""
-            UPDATE leaves 
-            SET rm_status = 'Rejected'
-            WHERE id = ? AND username = ?
-        """, (int(leave_id), user))
+        if leave_details.empty:
+            flash("Leave request not found or you don't have permission to cancel it.")
+            return redirect(url_for('dashboard'))
         
-        if ok:
-            flash("Leave request cancelled successfully.")
+        leave_record = leave_details.iloc[0]
+        rm_status = leave_record['rm_status']
+        leave_type = leave_record['leave_type']
+        start_date = parse(str(leave_record['start_date']))
+        end_date = parse(str(leave_record['end_date']))
+        leave_days = (end_date - start_date).days + 1
+        
+        if rm_status == 'Approved':
+            # If already approved, request cancellation
+            ok = run_exec("""
+                UPDATE leaves 
+                SET cancellation_requested = 1, cancellation_status = 'Pending'
+                WHERE id = ? AND username = ?
+            """, (int(leave_id), user))
+            
+            if ok:
+                flash(" Cancellation request submitted for approved leave. Awaiting manager approval.")
+            else:
+                flash(" Failed to submit cancellation request.")
+                
+        elif rm_status == 'Pending':
+            # If still pending, can directly cancel/delete
+            ok = run_exec("""
+                DELETE FROM leaves 
+                WHERE id = ? AND username = ? AND rm_status = 'Pending'
+            """, (int(leave_id), user))
+            
+            if ok:
+                flash(" Pending leave request cancelled successfully.")
+            else:
+                flash(" Failed to cancel leave request.")
         else:
-            flash("Failed to cancel leave request.")
-    else:
-        flash("Leave request cannot be cancelled.")
+            flash("Leave request cannot be cancelled.")
+    
+    except Exception as e:
+        print(f"ERROR in cancel_leave_action: {str(e)}")
+        flash(f" Error processing cancellation request: {str(e)}")
     
     return redirect(url_for('dashboard'))
 
-# --------------------
 # Admin Manager Routes - COMPLETE
 # --------------------
 @app.route('/add_employee_action', methods=['POST'])
@@ -3848,10 +4946,9 @@ def add_employee_action():
         flash(f"Error adding employee: {str(e)}")
     
     return redirect(url_for('dashboard'))
-
 @app.route('/request_asset_action', methods=['POST'])
 def request_asset_action():
-    """Request assets (sent to Divyaavasudevan & Sabitha) with amount"""
+    """Request assets with proper table schema alignment"""
     if 'username' not in session:
         return redirect(url_for('login_sso'))
     
@@ -3860,26 +4957,31 @@ def request_asset_action():
         return redirect(url_for('dashboard'))
     
     asset_type = request.form.get('asset_type')
-    quantity = request.form.get('quantity', 1)
-    amount = request.form.get('amount', 0)
+    quantity = request.form.get('quantity', 1)  # Default 1 as per table
+    amount = request.form.get('amount', 0)      # Handle as decimal
     for_employee = request.form.get('for_employee')
     description = request.form.get('description')
     
-    if not asset_type or not description or not amount:
-        flash("Asset type, description, and amount are required.")
+    if not asset_type or not description:
+        flash("Asset type and description are required.")
         return redirect(url_for('dashboard'))
     
     try:
-        amount_value = float(amount)
+        # Convert amount to decimal, handle None/empty values
+        amount_value = float(amount) if amount else None
+        quantity_value = int(quantity) if quantity else 1
+        
         ok = run_exec("""
             INSERT INTO [timesheet_db].[dbo].[asset_requests] (
-                asset_type, quantity, amount, for_employee, description, requested_by, 
-                requested_date, status, sent_to
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, 'Pending', 'Divyaavasudevan,Sabitha')
-        """, (asset_type, int(quantity), amount_value, for_employee, description, session['username'], date.today()))
+                asset_type, quantity, amount, for_employee, description, 
+                requested_by, requested_date, status
+            ) VALUES (?, ?, ?, ?, ?, ?, GETDATE(), 'Pending')
+        """, (asset_type, quantity_value, amount_value, for_employee, 
+              description, session['username']))
         
         if ok:
-            flash(f"Asset request for {quantity} {asset_type}(s) worth ${amount_value:,.2f} sent to Divyaavasudevan & Sabitha for approval.")
+            amount_text = f"worth ₹{amount_value:,.2f}" if amount_value else ""
+            flash(f"Asset request for {quantity_value} {asset_type}(s) {amount_text} submitted successfully.")
         else:
             flash("Failed to send asset request.")
     
@@ -3888,7 +4990,217 @@ def request_asset_action():
     
     return redirect(url_for('dashboard'))
 
-# --------------------
+# Add these routes after your existing admin manager routes
+
+@app.route('/admin_assign_work_to_team', methods=['POST'])
+def admin_assign_work_to_team():
+    """Admin Manager/Lead Staffing Specialist assigns work to direct reports ONLY"""
+    if 'username' not in session:
+        return redirect(url_for('login_sso'))
+    
+    # Check ONLY Admin Manager and Lead Staffing Specialist can use this
+    if session['role'] not in ('Admin Manager', 'Lead Staffing Specialist'):
+        flash(" Access denied. Only Admin Manager and Lead Staffing Specialist can assign work.")
+        return redirect(url_for('dashboard'))
+    
+    user = session['username']  # This would be Sabitha or Koyel
+    assignee_usernames = request.form.getlist('assignee_username')
+    project_name = request.form.get('project_name', '')
+    task_desc = request.form.get('task_desc', '').strip()
+    start_date = request.form.get('start_date')
+    end_date = request.form.get('end_date')
+    due_date = request.form.get('due_date')
+    work_type = request.form.get('work_type', 'Project')
+    
+    if not assignee_usernames or not task_desc:
+        flash(" Please select at least one team member and provide task description.")
+        return redirect(url_for('dashboard'))
+    
+    # Get ONLY direct reports where current user is the RM
+    direct_reports = get_direct_reports(user)
+    
+    print(f" DEBUG: {user} ({session['role']}) can assign work to direct reports: {direct_reports}")
+    
+    if not direct_reports:
+        flash(f" No direct reports found for {user}. You can only assign work to employees who directly report to you as RM.")
+        return redirect(url_for('dashboard'))
+    
+    # Validate that selected employees are DIRECT reports only
+    invalid_employees = [emp for emp in assignee_usernames if emp not in direct_reports]
+    
+    if invalid_employees:
+        flash(f" You can ONLY assign work to your DIRECT reports. Invalid selections: {', '.join(invalid_employees)}")
+        flash(f" Your direct reports: {', '.join(direct_reports)}")
+        return redirect(url_for('dashboard'))
+    
+    success_count = 0
+    failed_employees = []
+    
+    for assignee in assignee_usernames:
+        try:
+            # Double-check: is this user really a direct report?
+            rm_check = get_rm_for_employee(assignee)
+            if rm_check != user:
+                failed_employees.append(f"{assignee} (RM mismatch)")
+                continue
+            
+            # Insert work assignment
+            ok = run_exec("""
+                INSERT INTO [timesheet_db].[dbo].[assigned_work] (
+                    assigned_by, assigned_to, task_desc, start_date, end_date, due_date,
+                    project_name, rm_status, manager_status, assigned_on, work_type, rm_approver
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, 'Pending', 'Approved', GETDATE(), ?, ?)
+            """, (user, assignee, task_desc, start_date, end_date, due_date, 
+                  project_name, work_type, user))  # rm_approver is also the assigner
+            
+            if ok:
+                success_count += 1
+                print(f" {user} assigned work to {assignee}")
+            else:
+                failed_employees.append(assignee)
+                
+        except Exception as e:
+            print(f" Error assigning to {assignee}: {e}")
+            failed_employees.append(assignee)
+    
+    # Success/failure messages
+    if success_count > 0:
+        successful_employees = [emp for emp in assignee_usernames if emp not in failed_employees]
+        flash(f" Work assigned successfully to {success_count} direct report(s): {', '.join(successful_employees)}")
+    
+    if failed_employees:
+        flash(f" Failed to assign work to: {', '.join(failed_employees)}")
+    
+    return redirect(url_for('dashboard'))
+
+
+
+@app.route('/update_admin_assignment_status', methods=['POST'])
+def update_admin_assignment_status():
+    """Update work assignment status (Admin Manager)"""
+    if 'username' not in session:
+        return redirect(url_for('login_sso'))
+    
+    if session['role'] not in ('Admin Manager', 'Lead Staffing Specialist'):
+        flash(" Access denied.")
+        return redirect(url_for('dashboard'))
+    
+    assignment_id = request.form.get('assignment_id')
+    new_status = request.form.get('new_status')
+    
+    if not assignment_id or not new_status:
+        flash(" Assignment ID and status are required.")
+        return redirect(url_for('dashboard'))
+    
+    try:
+        # Update assignment status (only if assigned by current user)
+        ok = run_exec("""
+            UPDATE assigned_work 
+            SET rm_status = ?, updated_on = GETDATE()
+            WHERE id = ? AND assigned_by = ?
+        """, (new_status, int(assignment_id), session['username']))
+        
+        if ok:
+            flash(f" Assignment #{assignment_id} status updated to {new_status}")
+        else:
+            flash(" Failed to update assignment status or you do not have permission.")
+            
+    except Exception as e:
+        flash(f" Error updating assignment: {str(e)}")
+    
+    return redirect(url_for('dashboard'))
+
+
+
+@app.route('/admin_update_assignment_action', methods=['POST'])
+def admin_update_assignment_action():
+    """Update work assignment details (Admin Manager)"""
+    if 'username' not in session:
+        return redirect(url_for('login_sso'))
+    
+    # Check admin privileges
+    if session['role'] not in ('Admin Manager', 'Lead Staffing Specialist'):
+        flash(" Access denied. Admin Manager privileges required.")
+        return redirect(url_for('dashboard'))
+    
+    try:
+        assignment_id = request.form.get('assignment_id')
+        project_name = request.form.get('project_name', '').strip()
+        task_desc = request.form.get('task_desc', '').strip()
+        start_date = request.form.get('start_date', '').strip()
+        end_date = request.form.get('end_date', '').strip()
+        due_date = request.form.get('due_date', '').strip()
+        work_type = request.form.get('work_type', 'Project')
+        
+        if not task_desc:
+            flash(' Task description is required', 'error')
+            return redirect(url_for('dashboard'))
+        
+        # Update the assignment (only if assigned by current user)
+        update_query = """
+            UPDATE assigned_work 
+            SET project_name = ?, task_desc = ?, start_date = ?, end_date = ?, 
+                due_date = ?, work_type = ?, assigned_on = GETDATE()
+            WHERE id = ? AND assigned_by = ?
+        """
+        
+        params = [
+            project_name if project_name else None,
+            task_desc,
+            start_date if start_date else None,
+            end_date if end_date else None,
+            due_date if due_date else None,
+            work_type,
+            assignment_id,
+            session['username']
+        ]
+        
+        result = run_exec(update_query, params)
+        
+        if result:
+            flash(f' Assignment #{assignment_id} updated successfully', 'success')
+        else:
+            flash(' Failed to update assignment or you do not have permission', 'error')
+            
+    except Exception as e:
+        print(f"Error updating assignment: {e}")
+        flash(' Error updating assignment', 'error')
+    
+    return redirect(url_for('dashboard'))
+
+@app.route('/admin_delete_assignment_action', methods=['POST'])
+def admin_delete_assignment_action():
+    """Delete work assignment (Admin Manager)"""
+    if 'username' not in session:
+        return redirect(url_for('login_sso'))
+    
+    # Check admin privileges
+    if session['role'] not in ('Admin Manager', 'Lead Staffing Specialist'):
+        flash(" Access denied. Admin Manager privileges required.")
+        return redirect(url_for('dashboard'))
+    
+    assignment_id = request.form.get('assignment_id')
+    
+    if not assignment_id:
+        flash(" Assignment ID is required.")
+        return redirect(url_for('dashboard'))
+    
+    try:
+        # Delete assignment (only if assigned by current user)
+        ok = run_exec("""
+            DELETE FROM assigned_work 
+            WHERE id = ? AND assigned_by = ?
+        """, (int(assignment_id), session['username']))
+        
+        if ok:
+            flash(f" Assignment #{assignment_id} deleted successfully.")
+        else:
+            flash(" Failed to delete assignment or you do not have permission.")
+            
+    except Exception as e:
+        flash(f" Error deleting assignment: {str(e)}")
+    
+    return redirect(url_for('dashboard'))
 # API Routes - COMPLETE
 # --------------------
 @app.route('/api/budget_data')
@@ -3960,12 +5272,179 @@ def budget_usage_details():
             'success': False,
             'error': str(e)
         })
+#leave documnets----------
+@app.route('/view-leave-doc/<int:leave_id>')
+def view_leave_document(leave_id):
+    """View leave document in browser - Enhanced for RM access"""
+    if 'username' not in session:
+        flash("Access denied.")
+        return redirect(url_for('login_sso'))
+    
+    user = session['username']
+    user_role = session.get('role', '')
+    
+    try:
+        # Get leave details with document path
+        leave_doc = run_query("""
+            SELECT l.health_document, l.username, l.leave_type, l.start_date, l.end_date,
+                   r.rm, r.manager, u.role as employee_role
+            FROM leaves l
+            LEFT JOIN report r ON l.username = r.username
+            LEFT JOIN users u ON l.username = u.username
+            WHERE l.id = ?
+        """, (leave_id,))
+        
+        if leave_doc.empty:
+            flash("Leave request not found.")
+            return redirect(url_for('dashboard'))
+        
+        leave_data = leave_doc.iloc[0]
+        doc_filename = leave_data['health_document']
+        leave_username = leave_data['username']
+        employee_role = leave_data['employee_role']
+        assigned_rm = leave_data['rm']
+        assigned_manager = leave_data['manager']
+        
+        if not doc_filename:
+            flash("No document attached to this leave request.")
+            return redirect(url_for('dashboard'))
+        
+        # FIXED: Clearer permission checking with debug info
+        print(f" DEBUG: User {user} (role: {user_role}) accessing document for {leave_username}")
+        
+        # Define who can view documents
+        can_view_doc = False
+        access_reason = ""
+        
+        # 1. Employee viewing their own document
+        if user == leave_username:
+            can_view_doc = True
+            access_reason = "own document"
+        
+        # 2. HR & Finance Controller can view all documents
+        elif user_role == 'Hr & Finance Controller':
+            can_view_doc = True
+            access_reason = "HR & Finance Controller privilege"
+        
+        # 3. Manager roles can view all documents
+        elif user_role in ['Manager', 'Admin Manager', 'Lead', 'Finance Manager']:
+            can_view_doc = True
+            access_reason = f"{user_role} privilege"
+        
+        # 4. Team lead can view subordinate documents
+        elif user_role in ['Manager', 'Lead']:
+            team = get_all_reports_recursive(user)
+            if leave_username in team:
+                can_view_doc = True
+                access_reason = "team member document"
+        
+        # 5. Assigned RM or manager can view
+        elif user == assigned_rm:
+            can_view_doc = True
+            access_reason = "assigned RM"
+        elif user == assigned_manager:
+            can_view_doc = True
+            access_reason = "assigned manager"
+        
+        print(f" DEBUG: Access granted: {can_view_doc} ({access_reason})")
+        
+        if not can_view_doc:
+            flash(f" Access denied - you can only view documents for your team members. Your role: {user_role}")
+            return redirect(url_for('dashboard'))
+        
+        # Construct the file path properly
+        doc_path = os.path.join(UPLOAD_DIR, doc_filename)
+        
+        print(f" DEBUG: Document path: {doc_path}")
+        print(f" DEBUG: File exists: {os.path.exists(doc_path)}")
+        
+        if not os.path.exists(doc_path):
+            flash(f"Document file not found: {doc_filename}")
+            return redirect(url_for('dashboard'))
+        
+        # Get file extension to determine MIME type
+        file_ext = doc_filename.lower().split('.')[-1] if '.' in doc_filename else ''
+        
+        # Set appropriate MIME type
+        mime_types = {
+            'pdf': 'application/pdf',
+            'jpg': 'image/jpeg',
+            'jpeg': 'image/jpeg', 
+            'png': 'image/png',
+            'gif': 'image/gif',
+            'doc': 'application/msword',
+            'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        }
+        
+        mime_type = mime_types.get(file_ext, 'application/octet-stream')
+        
+        print(f" DEBUG: File extension: {file_ext}, MIME type: {mime_type}")
+        
+        # For PDFs and images, display inline
+        if file_ext in ['pdf', 'jpg', 'jpeg', 'png', 'gif']:
+            return send_file(doc_path, as_attachment=False, mimetype=mime_type)
+        else:
+            # For other files, force download
+            return send_file(doc_path, as_attachment=True, download_name=doc_filename)
+        
+    except Exception as e:
+        print(f" ERROR in view_leave_document: {str(e)}")
+        import traceback
+        traceback.print_exc()  # This will show the full error stack
+        flash(f"Error accessing document: {str(e)}")
+        return redirect(url_for('dashboard'))
 
-# --------------------
-# SocketIO Events
 
 
-# --------------------
+
+@app.route('/download-leave-doc/<int:leave_id>')
+def download_leave_document(leave_id):
+    """Force download leave document"""
+    if 'username' not in session:
+        flash("Access denied.")
+        return redirect(url_for('login_sso'))
+    
+    user = session['username']
+    
+    try:
+        leave_doc = run_query("""
+            SELECT health_document, username FROM leaves 
+            WHERE id = ?
+        """, (leave_id,))
+        
+        if leave_doc.empty:
+            flash("Leave request not found.")
+            return redirect(url_for('dashboard'))
+        
+        doc_filename = leave_doc.iloc[0]['health_document']
+        leave_username = leave_doc.iloc[0]['username']
+        
+        if not doc_filename:
+            flash("No document attached to this leave request.")
+            return redirect(url_for('dashboard'))
+        
+        # Check permissions
+        team = get_all_reports_recursive(user)
+        is_manager = session['role'] in ['Manager', 'Admin Manager', 'Hr & Finance Controller', 'Lead', 'Finance Manager']
+        can_download = (user == leave_username or leave_username in team or is_manager)
+        
+        if not can_download:
+            flash("Access denied - you can only download documents for your team members.")
+            return redirect(url_for('dashboard'))
+        
+        doc_path = os.path.join(UPLOAD_DIR, doc_filename)
+        
+        if not os.path.exists(doc_path):
+            flash(f"Document file not found: {doc_filename}")
+            return redirect(url_for('dashboard'))
+        
+        return send_file(doc_path, as_attachment=True, download_name=doc_filename)
+        
+    except Exception as e:
+        print(f" ERROR in download_leave_document: {str(e)}")
+        flash(f"Error downloading document: {str(e)}")
+        return redirect(url_for('dashboard'))
+    
 # Download Routes
 # --------------------
 @app.route('/download-financial-report')
@@ -4438,47 +5917,7 @@ def delete_project_Divyaavasudevan():
     
     return redirect(url_for('dashboard'))
 
-@app.route('/edit_project_Divyaavasudevan', methods=['POST'])
-def edit_project_Divyaavasudevan():
-    """Edit project (Divyaavasudevan/Manager specific)"""
-    if 'username' not in session:
-        return redirect(url_for('login_sso'))
-    
-    user = session['username']
-    project_id = request.form.get('project_id')
-    project_name = request.form.get('project_name')
-    description = request.form.get('description')
-    end_date = request.form.get('end_date')
-    cost_center = request.form.get('cost_center')
-    
-    # Check if user has permission to edit projects
-    is_Divyaavasudevan = user.lower() in ['Divyavasudevan', 'Divyaavasudevan']
-    is_manager = session['role'] in ['Manager', 'Admin Manager', 'Hr & Finance Controller']
-    
-    if not (is_Divyaavasudevan or is_manager):
-        flash(" Access denied. Manager privileges required.")
-        return redirect(url_for('dashboard'))
-    
-    if not all([project_id, project_name, description]):
-        flash(" Project ID, name, and description are required.")
-        return redirect(url_for('dashboard'))
-    
-    try:
-        ok = run_exec("""
-            UPDATE projects 
-            SET project_name = ?, description = ?, end_date = ?, cost_center = ?
-            WHERE project_id = ?
-        """, (project_name, description, end_date, cost_center, int(project_id)))
-        
-        if ok:
-            flash(f" Project '{project_name}' updated successfully.")
-        else:
-            flash(" Failed to update project.")
-    
-    except Exception as e:
-        flash(f" Error updating project: {str(e)}")
-    
-    return redirect(url_for('dashboard'))
+
 
 @app.route('/delete_expense_Divyaavasudevan', methods=['POST'])
 def delete_expense_Divyaavasudevan():
@@ -4885,6 +6324,7 @@ def reject_expense_action():
     
     return redirect(url_for('dashboard'))
 
+
 # Add missing budget-related routes:
 
 @app.route('/create_budget_action', methods=['POST'])
@@ -5126,73 +6566,36 @@ def export_data_action():
 
 @app.route('/edit_budget_allocation_action', methods=['POST'])
 def edit_budget_allocation_action():
-    """Edit budget allocation for existing project"""
+    """Edit budget allocation for project"""
     if 'username' not in session or session['role'] != 'Hr & Finance Controller':
-        flash(" Access denied. HR & Finance Controller privileges required.")
+        flash("Access denied. HR & Finance Controller privileges required.")
         return redirect(url_for('dashboard'))
     
     project_name = request.form.get('project_name')
-    new_budget = request.form.get('new_budget')
+    budget_amount = request.form.get('budget_amount')
     cost_center = request.form.get('cost_center')
     
-    if not project_name or not new_budget:
-        flash(" Project name and new budget amount are required.")
+    if not project_name or not budget_amount or not cost_center:
+        flash("All fields are required.")
         return redirect(url_for('dashboard'))
     
     try:
-        new_amount = float(new_budget)
+        budget_amount = float(budget_amount)
         
-        # Get current budget allocation
-        current_budget_df = run_query("""
-            SELECT COALESCE(CAST(budget_amount AS DECIMAL(18,2)), 0) as current_budget
-            FROM projects WHERE project_name = ?
-        """, (project_name,))
-        
-        current_budget = float(current_budget_df['current_budget'].iloc[0]) if not current_budget_df.empty else 0.0
-        budget_difference = new_amount - current_budget
-        
-        # Check if we have enough remaining budget for increase
-        if budget_difference > 0:
-            total_budget_df = run_query("SELECT total_budget FROM company_budget WHERE id = 1")
-            allocated_df = run_query("""
-                SELECT COALESCE(SUM(CAST(budget_amount AS DECIMAL(18,2))), 0) as allocated 
-                FROM projects 
-                WHERE hr_approval_status = 'Approved' 
-                AND budget_amount IS NOT NULL
-                AND CAST(budget_amount AS DECIMAL(18,2)) > 0
-                AND project_name != ?
-            """, (project_name,))
-            
-            if not total_budget_df.empty and not allocated_df.empty:
-                total_budget = float(total_budget_df['total_budget'].iloc[0])
-                other_allocated = float(allocated_df['allocated'].iloc[0])
-                remaining_budget = total_budget - other_allocated
-                
-                if budget_difference > remaining_budget:
-                    flash(f" Insufficient budget. Available: ₹{remaining_budget:,.2f}, Additional needed: ₹{budget_difference:,.2f}")
-                    return redirect(url_for('dashboard'))
-        
-        # Update budget allocation
         ok = run_exec("""
             UPDATE projects 
             SET budget_amount = ?, cost_center = ?
             WHERE project_name = ?
-        """, (new_amount, cost_center, project_name))
+        """, (budget_amount, cost_center, project_name))
         
         if ok:
-            if budget_difference > 0:
-                flash(f" Budget increased by ₹{budget_difference:,.2f} for '{project_name}'. New total: ₹{new_amount:,.2f}")
-            elif budget_difference < 0:
-                flash(f" Budget decreased by ₹{abs(budget_difference):,.2f} for '{project_name}'. New total: ₹{new_amount:,.2f}")
-            else:
-                flash(f" Budget allocation updated for '{project_name}': ₹{new_amount:,.2f}")
+            flash(f" Budget allocation updated for '{project_name}': ₹{budget_amount:,.2f}")
         else:
             flash(" Failed to update budget allocation.")
-    
     except ValueError:
         flash(" Invalid budget amount.")
     except Exception as e:
-        flash(f" Error updating budget: {str(e)}")
+        flash(f" Error updating budget allocation: {str(e)}")
     
     return redirect(url_for('dashboard'))
 
@@ -5419,7 +6822,7 @@ def bulk_budget_update_action():
             flash(f" Failed to update: {', '.join(failed_projects)}")
     
     except Exception as e:
-        flash(f"Error in bulk budget update: {str(e)}")
+        flash(f" Error in bulk budget update: {str(e)}")
     
     return redirect(url_for('dashboard'))
 
@@ -5427,7 +6830,7 @@ def bulk_budget_update_action():
 def generate_budget_report_action():
     """Generate detailed budget report"""
     if 'username' not in session or session['role'] != 'Hr & Finance Controller':
-        flash("Access denied. HR & Finance Controller privileges required.")
+        flash(" Access denied. HR & Finance Controller privileges required.")
         return redirect(url_for('dashboard'))
     
     report_type = request.form.get('report_type', 'summary')
@@ -5449,51 +6852,122 @@ def export_budget_data_action():
     
     flash(f" Budget data export to {export_format.upper()} format initiated.")
     return redirect(url_for('dashboard'))
-# Add these missing team management routes for HR Finance:
-
-@app.route('/approve_team_work', methods=['POST'])
-def approve_team_work():
-    """Approve team work (for HR Finance Controller managing Sabitha's team)"""
+# Fix Team Timesheet Approval Route
+@app.route('/approve_team_work_hr', methods=['POST'])
+def approve_team_work_hr():
+    """Approve team timesheet (HR specific) - Only for direct reports"""
     if 'username' not in session or session['role'] != 'Hr & Finance Controller':
-        flash(" Access denied. HR & Finance Controller privileges required.")
+        flash("Access denied. HR & Finance Controller privileges required.")
         return redirect(url_for('dashboard'))
     
-    timesheet_id = request.form.get('timesheet_id')
+    user = session['username']
+    work_id = request.form.get('work_id')
     
-    if not timesheet_id:
-        flash(" Timesheet ID is required.")
+    if not work_id:
+        flash("Work ID is required.")
         return redirect(url_for('dashboard'))
-    
-    # Get Sabitha's team members
-    sabitha_team = []
-    for name_variant in ['Sabitha', 'sabitha']:
-        team = get_direct_reports(name_variant)
-        if team:
-            sabitha_team = team
-            break
-    
-    if not sabitha_team:
-        flash(" No team members found for approval.")
-        return redirect(url_for('dashboard'))
-    
-    placeholders = ",".join(["?"] * len(sabitha_team))
     
     try:
+        # Get HR Finance team members
+        team_members = get_direct_reports(user)
+        
+        # If no direct reports found, try alternative method
+        if not team_members:
+            team_query = run_query("""
+                SELECT username FROM report WHERE rm = ? OR manager = ?
+            """, (user, user))
+            if not team_query.empty:
+                team_members = team_query['username'].tolist()
+        
+        if not team_members:
+            flash(" No team members found for approval.")
+            return redirect(url_for('dashboard'))
+        
+        placeholders = ",".join(["?"] * len(team_members))
+        
+        # Only approve if the work belongs to a team member
         ok = run_exec(f"""
             UPDATE timesheets 
-            SET rm_status = 'Approved', rm_approver = ?, rm_rejection_reason = NULL
+            SET rm_status = 'Approved', rm_approver = ?
             WHERE id = ? AND username IN ({placeholders}) AND rm_status = 'Pending'
-        """, (session['username'], int(timesheet_id)) + tuple(sabitha_team))
+        """, (user, int(work_id)) + tuple(team_members))
         
         if ok:
-            flash(" Team work approved successfully.")
+            flash(" Work approved successfully.")
         else:
-            flash(" Failed to approve team work or work not found.")
-    
+            flash(" Failed to approve work. Make sure this employee reports to you.")
     except Exception as e:
-        flash(f" Error approving team work: {str(e)}")
+        flash(f" Error approving work: {str(e)}")
     
     return redirect(url_for('dashboard'))
+
+@app.route('/approve_team_leave_hr', methods=['POST'])
+def approve_team_leave_hr():
+    """Approve team leave (HR specific) - Only for direct reports"""
+    if 'username' not in session or session['role'] != 'Hr & Finance Controller':
+        flash("Access denied. HR & Finance Controller privileges required.")
+        return redirect(url_for('dashboard'))
+    
+    user = session['username']
+    leave_id = request.form.get('leave_id')
+    
+    if not leave_id:
+        flash("Leave ID is required.")
+        return redirect(url_for('dashboard'))
+    
+    try:
+        # Get HR Finance team members
+        team_members = get_direct_reports(user)
+        
+        # If no direct reports found, try alternative method
+        if not team_members:
+            team_query = run_query("""
+                SELECT username FROM report WHERE rm = ? OR manager = ?
+            """, (user, user))
+            if not team_query.empty:
+                team_members = team_query['username'].tolist()
+        
+        if not team_members:
+            flash(" No team members found for approval.")
+            return redirect(url_for('dashboard'))
+        
+        placeholders = ",".join(["?"] * len(team_members))
+        
+        # Get leave details for balance update (only for team members)
+        leave_details = run_query(f"""
+            SELECT username, leave_type, start_date, end_date 
+            FROM leaves 
+            WHERE id = ? AND username IN ({placeholders}) AND rm_status = 'Pending'
+        """, (int(leave_id),) + tuple(team_members))
+        
+        if not leave_details.empty:
+            leave_username = leave_details.iloc[0]['username']
+            leave_type = str(leave_details.iloc[0]['leave_type'])
+            start_date = parse(str(leave_details.iloc[0]['start_date']))
+            end_date = parse(str(leave_details.iloc[0]['end_date']))
+            leave_days = (end_date - start_date).days + 1
+            
+            # Apply leave balance deduction
+            _apply_leave_balance(leave_username, leave_type, leave_days, +1)
+            
+            # Approve leave
+            ok = run_exec(f"""
+                UPDATE leaves 
+                SET rm_status = 'Approved', rm_approver = ?
+                WHERE id = ? AND username IN ({placeholders}) AND rm_status = 'Pending'
+            """, (user, int(leave_id)) + tuple(team_members))
+            
+            if ok:
+                flash(f" Leave approved for {leave_username} ({leave_days} days).")
+            else:
+                flash(" Failed to approve leave.")
+        else:
+            flash(" Leave not found or employee does not report to you.")
+    except Exception as e:
+        flash(f" Error approving leave: {str(e)}")
+    
+    return redirect(url_for('dashboard'))
+
 
 @app.route('/reject_team_work', methods=['POST'])
 def reject_team_work():
@@ -5541,70 +7015,6 @@ def reject_team_work():
     
     except Exception as e:
         flash(f" Error rejecting team work: {str(e)}")
-    
-    return redirect(url_for('dashboard'))
-
-@app.route('/approve_team_leave', methods=['POST'])
-def approve_team_leave():
-    """Approve team leave (for HR Finance Controller managing Sabitha's team)"""
-    if 'username' not in session or session['role'] != 'Hr & Finance Controller':
-        flash(" Access denied. HR & Finance Controller privileges required.")
-        return redirect(url_for('dashboard'))
-    
-    leave_id = request.form.get('leave_id')
-    
-    if not leave_id:
-        flash(" Leave ID is required.")
-        return redirect(url_for('dashboard'))
-    
-    # Get Sabitha's team members
-    sabitha_team = []
-    for name_variant in ['Sabitha', 'sabitha']:
-        team = get_direct_reports(name_variant)
-        if team:
-            sabitha_team = team
-            break
-    
-    if not sabitha_team:
-        flash(" No team members found for approval.")
-        return redirect(url_for('dashboard'))
-    
-    placeholders = ",".join(["?"] * len(sabitha_team))
-    
-    try:
-        # Get leave details for balance update
-        leave_details = run_query(f"""
-            SELECT username, leave_type, start_date, end_date 
-            FROM leaves 
-            WHERE id = ? AND username IN ({placeholders}) AND rm_status = 'Pending'
-        """, (int(leave_id),) + tuple(sabitha_team))
-        
-        if not leave_details.empty:
-            leave_username = leave_details.iloc[0]['username']
-            leave_type = str(leave_details.iloc[0]['leave_type'])
-            start_date = parse(str(leave_details.iloc[0]['start_date']))
-            end_date = parse(str(leave_details.iloc[0]['end_date']))
-            leave_days = (end_date - start_date).days + 1
-            
-            # Apply leave balance deduction
-            _apply_leave_balance(leave_username, leave_type, leave_days, +1)
-            
-            # Approve leave
-            ok = run_exec(f"""
-                UPDATE leaves 
-                SET rm_status = 'Approved', rm_approver = ?, rm_rejection_reason = NULL
-                WHERE id = ? AND username IN ({placeholders}) AND rm_status = 'Pending'
-            """, (session['username'], int(leave_id)) + tuple(sabitha_team))
-            
-            if ok:
-                flash(f" Team leave approved for {leave_username} ({leave_days} days).")
-            else:
-                flash(" Failed to approve team leave.")
-        else:
-            flash(" Leave not found in team or already processed.")
-    
-    except Exception as e:
-        flash(f" Error approving team leave: {str(e)}")
     
     return redirect(url_for('dashboard'))
 
@@ -6296,7 +7706,90 @@ def unlock_budget_action():
         flash(f" Error unlocking budget: {str(e)}")
     
     return redirect(url_for('dashboard'))
-# Add these missing Admin Manager routes:
+@app.route('/view-team-leave-doc/<int:leave_id>')
+def view_team_leave_document(leave_id):
+    """View leave document for team members (enhanced permissions)"""
+    if 'username' not in session:
+        flash("Access denied.")
+        return redirect(url_for('login_sso'))
+    
+    user = session['username']
+    
+    try:
+        # Get leave details with enhanced team access
+        leave_doc = run_query("""
+            SELECT l.health_document, l.username, l.leave_type, l.start_date, l.end_date,
+                   r.rm, r.manager, u.role as employee_role
+            FROM leaves l
+            LEFT JOIN report r ON l.username = r.username
+            LEFT JOIN users u ON l.username = u.username
+            WHERE l.id = ?
+        """, (leave_id,))
+        
+        if leave_doc.empty:
+            flash("Leave request not found.")
+            return redirect(url_for('dashboard'))
+        
+        leave_data = leave_doc.iloc[0]
+        doc_filename = leave_data['health_document']
+        leave_username = leave_data['username']
+        assigned_rm = leave_data['rm']
+        assigned_manager = leave_data['manager']
+        
+        if not doc_filename:
+            flash("No document attached to this leave request.")
+            return redirect(url_for('dashboard'))
+        
+        # Enhanced permission checking for team access
+        team = get_all_reports_recursive(user)
+        is_manager = session['role'] in ['Manager', 'Admin Manager', 'Hr & Finance Controller', 'Lead', 'Finance Manager']
+        is_assigned_rm = (user == assigned_rm)
+        is_assigned_manager = (user == assigned_manager)
+        
+        can_view_doc = (
+            user == leave_username or      # Employee can view their own
+            leave_username in team or      # Team lead can view
+            is_manager or                  # Managers can view all
+            is_assigned_rm or             # Assigned RM can view
+            is_assigned_manager           # Assigned manager can view
+        )
+        
+        if not can_view_doc:
+            flash(" Access denied - you can only view documents for your team members.")
+            return redirect(url_for('dashboard'))
+        
+        # Construct file path
+        doc_path = os.path.join(UPLOAD_DIR, doc_filename)
+        
+        if not os.path.exists(doc_path):
+            flash(f"Document file not found: {doc_filename}")
+            return redirect(url_for('dashboard'))
+        
+        # Determine MIME type
+        file_ext = doc_filename.lower().split('.')[-1] if '.' in doc_filename else ''
+        mime_types = {
+            'pdf': 'application/pdf',
+            'jpg': 'image/jpeg',
+            'jpeg': 'image/jpeg', 
+            'png': 'image/png',
+            'gif': 'image/gif',
+            'doc': 'application/msword',
+            'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        }
+        
+        mime_type = mime_types.get(file_ext, 'application/octet-stream')
+        
+        # Display inline for PDFs and images, download for others
+        if file_ext in ['pdf', 'jpg', 'jpeg', 'png', 'gif']:
+            return send_file(doc_path, as_attachment=False, mimetype=mime_type)
+        else:
+            return send_file(doc_path, as_attachment=True, download_name=doc_filename)
+        
+    except Exception as e:
+        print(f" ERROR in view_team_leave_document: {str(e)}")
+        flash(f"Error accessing document: {str(e)}")
+        return redirect(url_for('dashboard'))
+    # Add these missing Admin Manager routes:
 
 @app.route('/admin_submit_personal_timesheet', methods=['POST'])
 def admin_submit_personal_timesheet():
@@ -6393,8 +7886,38 @@ def admin_approve_team_timesheet():
         flash("Access denied. Admin Manager privileges required.")
         return redirect(url_for('dashboard'))
     
-    # This is just an alias to the regular approve_timesheet_action
-    return approve_timesheet_action()
+    timesheet_id = request.form.get('timesheet_id')
+    
+    if not timesheet_id:
+        flash(" Timesheet ID is required.")
+        return redirect(url_for('dashboard'))
+    
+    try:
+        user = session['username']
+        # Get direct reports for this admin
+        team = get_direct_reports(user)
+        
+        if not team:
+            flash(" No team members found for approval.")
+            return redirect(url_for('dashboard'))
+        
+        placeholders = ",".join(["?"] * len(team))
+        
+        ok = run_exec(f"""
+            UPDATE timesheets 
+            SET rm_status = 'Approved', rm_approver = ?
+            WHERE id = ? AND username IN ({placeholders}) AND rm_status = 'Pending'
+        """, (user, int(timesheet_id)) + tuple(team))
+        
+        if ok:
+            flash(" Timesheet approved successfully.")
+        else:
+            flash(" Failed to approve timesheet or timesheet not found.")
+    
+    except Exception as e:
+        flash(f" Error approving timesheet: {str(e)}")
+    
+    return redirect(url_for('dashboard'))
 
 @app.route('/admin_reject_team_timesheet', methods=['POST'])
 def admin_reject_team_timesheet():
@@ -6407,8 +7930,42 @@ def admin_reject_team_timesheet():
         flash("Access denied. Admin Manager privileges required.")
         return redirect(url_for('dashboard'))
     
-    # This is just an alias to the regular reject_timesheet_action
-    return reject_timesheet_action()
+    timesheet_id = request.form.get('timesheet_id')
+    rejection_reason = request.form.get('rejection_reason', '').strip()
+    
+    if not timesheet_id:
+        flash(" Timesheet ID is required.")
+        return redirect(url_for('dashboard'))
+    
+    if not rejection_reason:
+        flash(" Please provide a reason for rejection.")
+        return redirect(url_for('dashboard'))
+    
+    try:
+        user = session['username']
+        team = get_direct_reports(user)
+        
+        if not team:
+            flash(" No team members found.")
+            return redirect(url_for('dashboard'))
+        
+        placeholders = ",".join(["?"] * len(team))
+        
+        ok = run_exec(f"""
+            UPDATE timesheets 
+            SET rm_status = 'Rejected', rm_approver = ?, rm_rejection_reason = ?
+            WHERE id = ? AND username IN ({placeholders}) AND rm_status = 'Pending'
+        """, (user, rejection_reason, int(timesheet_id)) + tuple(team))
+        
+        if ok:
+            flash(f" Timesheet rejected. Reason: {rejection_reason}")
+        else:
+            flash(" Failed to reject timesheet or timesheet not found.")
+    
+    except Exception as e:
+        flash(f" Error rejecting timesheet: {str(e)}")
+    
+    return redirect(url_for('dashboard'))
 
 @app.route('/admin_approve_team_leave', methods=['POST'])
 def admin_approve_team_leave():
@@ -6421,8 +7978,57 @@ def admin_approve_team_leave():
         flash("Access denied. Admin Manager privileges required.")
         return redirect(url_for('dashboard'))
     
-    # This is just an alias to the regular approve_leave_action
-    return approve_leave_action()
+    leave_id = request.form.get('leave_id')
+    
+    if not leave_id:
+        flash(" Leave ID is required.")
+        return redirect(url_for('dashboard'))
+    
+    try:
+        user = session['username']
+        team = get_direct_reports(user)
+        
+        if not team:
+            flash(" No team members found for approval.")
+            return redirect(url_for('dashboard'))
+        
+        placeholders = ",".join(["?"] * len(team))
+        
+        # Get leave details for balance update
+        leave_details = run_query(f"""
+            SELECT username, leave_type, start_date, end_date 
+            FROM leaves 
+            WHERE id = ? AND username IN ({placeholders}) AND rm_status = 'Pending'
+        """, (int(leave_id),) + tuple(team))
+        
+        if not leave_details.empty:
+            leave_username = leave_details.iloc[0]['username']
+            leave_type = str(leave_details.iloc[0]['leave_type'])
+            start_date = parse(str(leave_details.iloc[0]['start_date']))
+            end_date = parse(str(leave_details.iloc[0]['end_date']))
+            leave_days = (end_date - start_date).days + 1
+            
+            # Apply leave balance deduction
+            _apply_leave_balance(leave_username, leave_type, leave_days, +1)
+            
+            # Approve leave
+            ok = run_exec(f"""
+                UPDATE leaves 
+                SET rm_status = 'Approved', rm_approver = ?
+                WHERE id = ? AND username IN ({placeholders}) AND rm_status = 'Pending'
+            """, (user, int(leave_id)) + tuple(team))
+            
+            if ok:
+                flash(f" Leave approved for {leave_username} ({leave_days} days).")
+            else:
+                flash(" Failed to approve leave.")
+        else:
+            flash(" Leave not found in team or already processed.")
+    
+    except Exception as e:
+        flash(f" Error approving leave: {str(e)}")
+    
+    return redirect(url_for('dashboard'))
 
 @app.route('/admin_reject_team_leave', methods=['POST'])
 def admin_reject_team_leave():
@@ -6435,8 +8041,43 @@ def admin_reject_team_leave():
         flash("Access denied. Admin Manager privileges required.")
         return redirect(url_for('dashboard'))
     
-    # This is just an alias to the regular reject_leave_action
-    return reject_leave_action()
+    leave_id = request.form.get('leave_id')
+    rejection_reason = request.form.get('rejection_reason', '').strip()
+    
+    if not leave_id:
+        flash(" Leave ID is required.")
+        return redirect(url_for('dashboard'))
+    
+    if not rejection_reason:
+        flash(" Please provide a reason for rejection.")
+        return redirect(url_for('dashboard'))
+    
+    try:
+        user = session['username']
+        team = get_direct_reports(user)
+        
+        if not team:
+            flash(" No team members found.")
+            return redirect(url_for('dashboard'))
+        
+        placeholders = ",".join(["?"] * len(team))
+        
+        ok = run_exec(f"""
+            UPDATE leaves 
+            SET rm_status = 'Rejected', rm_approver = ?, rm_rejection_reason = ?
+            WHERE id = ? AND username IN ({placeholders}) AND rm_status = 'Pending'
+        """, (user, rejection_reason, int(leave_id)) + tuple(team))
+        
+        if ok:
+            flash(f" Leave rejected. Reason: {rejection_reason}")
+        else:
+            flash(" Failed to reject leave or leave not found.")
+    
+    except Exception as e:
+        flash(f" Error rejecting leave: {str(e)}")
+    
+    return redirect(url_for('dashboard'))
+
 
 @app.route('/admin_bulk_employee_action', methods=['POST'])
 def admin_bulk_employee_action():
@@ -6868,10 +8509,9 @@ def admin_bulk_leave_action():
     return redirect(url_for('dashboard'))
 
 # Add these FINAL missing Admin Manager salary and employee management routes:
-
 @app.route('/update_salary_admin', methods=['POST'])
 def update_salary_admin():
-    """Update employee salary (Admin Manager specific)"""
+    """Update employee salary (Admin Manager specific) - ALL FIELDS OPTIONAL"""
     if 'username' not in session:
         return redirect(url_for('login_sso'))
     
@@ -6880,58 +8520,125 @@ def update_salary_admin():
         flash(" Access denied. Admin Manager privileges required.")
         return redirect(url_for('dashboard'))
     
-    employee_username = request.form.get('employee_username')
-    monthly_salary = request.form.get('monthly_salary')
-    yearly_salary = request.form.get('yearly_salary')
-    effective_date = request.form.get('effective_date')
-    salary_reason = request.form.get('salary_reason', 'Salary update by Admin')
+    employee_username = request.form.get('employee_username', '').strip()
+    monthly_salary = request.form.get('monthly_salary', '').strip()
+    yearly_salary = request.form.get('yearly_salary', '').strip()
     
-    if not employee_username or not monthly_salary:
-        flash(" Employee username and monthly salary are required.")
+    # If no username provided, show error
+    if not employee_username:
+        flash("Employee username is required.")
         return redirect(url_for('dashboard'))
     
     try:
-        monthly = float(monthly_salary)
-        yearly = float(yearly_salary) if yearly_salary else monthly * 12
-        
-        # Get current salary for comparison
-        current_salary_df = run_query("""
-            SELECT monthly_salary, yearly_salary FROM users WHERE username = ?
+        # Get current employee details (check if employee exists)
+        current_details = run_query("""
+            SELECT username, name, monthly_salary, yearly_salary 
+            FROM users 
+            WHERE username = ? AND status IN ('Active', 'Inactive', 'Suspended')
         """, (employee_username,))
         
-        if not current_salary_df.empty:
-            current_monthly = float(current_salary_df.iloc[0]['monthly_salary'] or 0)
-            increase = monthly - current_monthly
+        if current_details.empty:
+            # Employee not found - show available employees for reference
+            available_employees = run_query("""
+                SELECT TOP 10 username, name, role 
+                FROM users 
+                WHERE status IN ('Active', 'Inactive') 
+                ORDER BY username
+            """)
             
-            # Update salary
-            ok = run_exec("""
-                UPDATE users 
-                SET monthly_salary = ?, yearly_salary = ?
-                WHERE username = ?
-            """, (monthly, yearly, employee_username))
-            
-            if ok:
-                if increase > 0:
-                    flash(f" Salary increased for {employee_username}: ₹{increase:,.2f}/month increase. New: ₹{monthly:,.2f}/month")
-                elif increase < 0:
-                    flash(f" Salary decreased for {employee_username}: ₹{abs(increase):,.2f}/month decrease. New: ₹{monthly:,.2f}/month")
-                else:
-                    flash(f" Salary updated for {employee_username}: ₹{monthly:,.2f}/month")
+            if not available_employees.empty:
+                employee_list = ", ".join(available_employees['username'].astype(str).tolist())
+                flash(f" Employee '{employee_username}' not found. Available employees: {employee_list}")
             else:
-                flash(" Failed to update salary.")
+                flash(f" Employee '{employee_username}' not found in the system.")
+            
+            return redirect(url_for('dashboard'))
+        
+        # Employee found - get current values
+        current = current_details.iloc[0]
+        current_monthly = float(current['monthly_salary'] or 0)
+        current_yearly = float(current['yearly_salary'] or 0)
+        
+        # Determine new salary values (use current if not provided)
+        if monthly_salary:
+            new_monthly = float(monthly_salary)
         else:
-            flash(" Employee not found.")
+            new_monthly = current_monthly
+            
+        if yearly_salary:
+            new_yearly = float(yearly_salary)
+        else:
+            # If yearly is not provided but monthly is, calculate yearly
+            if monthly_salary:
+                new_yearly = new_monthly * 12
+            else:
+                new_yearly = current_yearly
+        
+        # Check if any change is being made
+        if new_monthly == current_monthly and new_yearly == current_yearly:
+            flash(f"ℹ️ No salary changes made for {employee_username}. Current: ₹{current_monthly:,.2f}/month, ₹{current_yearly:,.2f}/year")
+            return redirect(url_for('dashboard'))
+        
+        # Update salary in database
+        ok = run_exec("""
+            UPDATE users 
+            SET monthly_salary = ?, yearly_salary = ?
+            WHERE username = ?
+        """, (new_monthly, new_yearly, employee_username))
+        
+        if ok:
+            # Calculate and show the change
+            monthly_change = new_monthly - current_monthly
+            yearly_change = new_yearly - current_yearly
+            
+            if monthly_change > 0:
+                flash(f" Salary INCREASED for {employee_username}:")
+                flash(f"   Monthly: ₹{current_monthly:,.2f} → ₹{new_monthly:,.2f} (+₹{monthly_change:,.2f})")
+                flash(f"   Yearly: ₹{current_yearly:,.2f} → ₹{new_yearly:,.2f} (+₹{yearly_change:,.2f})")
+            elif monthly_change < 0:
+                flash(f" Salary DECREASED for {employee_username}:")
+                flash(f"   Monthly: ₹{current_monthly:,.2f} → ₹{new_monthly:,.2f} (₹{monthly_change:,.2f})")
+                flash(f"   Yearly: ₹{current_yearly:,.2f} → ₹{new_yearly:,.2f} (₹{yearly_change:,.2f})")
+            else:
+                flash(f" Salary updated for {employee_username}: ₹{new_monthly:,.2f}/month, ₹{new_yearly:,.2f}/year")
+        else:
+            flash(" Failed to update salary in database. Please try again.")
     
-    except ValueError:
-        flash(" Invalid salary amounts.")
+    except ValueError as e:
+        flash(f" Invalid salary amount entered. Please enter valid numbers only. Error: {str(e)}")
     except Exception as e:
         flash(f" Error updating salary: {str(e)}")
+        print(f"Salary update error for {employee_username}: {e}")
     
     return redirect(url_for('dashboard'))
 
+@app.route('/get_all_employees_for_salary_update')
+def get_all_employees_for_salary_update():
+    """Get all employees for salary update dropdown"""
+    if 'username' not in session or session['role'] not in ('Admin Manager', 'Lead Staffing Specialist'):
+        return jsonify({'error': 'Access denied'}), 403
+    
+    try:
+        employees = run_query("""
+            SELECT username, name, role, monthly_salary, yearly_salary, status
+            FROM users 
+            WHERE status IN ('Active', 'Inactive')
+            ORDER BY name, username
+        """)
+        
+        return jsonify({
+            'success': True,
+            'employees': employees.to_dict('records') if not employees.empty else []
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+
+
 @app.route('/delete_employee_admin', methods=['POST'])
 def delete_employee_admin():
-    """Delete/Remove employee (Admin Manager specific)"""
+    """Delete/Remove employee (Admin Manager specific) - SIMPLIFIED"""
     if 'username' not in session:
         return redirect(url_for('login_sso'))
     
@@ -6940,53 +8647,64 @@ def delete_employee_admin():
         flash(" Access denied. Admin Manager privileges required.")
         return redirect(url_for('dashboard'))
     
-    employee_username = request.form.get('employee_username')
-    deletion_reason = request.form.get('deletion_reason', 'Removed by Admin')
+    # Try multiple possible parameter names from the form
+    employee_username = (
+        request.form.get('employee_username') or 
+        request.form.get('username') or 
+        request.form.get('delete_username') or
+        request.form.get('user_to_delete')
+    )
+    
+    deletion_reason = request.form.get('deletion_reason', 'Removed by Admin Manager')
     
     if not employee_username:
-        flash(" Employee username is required.")
+        flash(" No employee selected for deletion.")
         return redirect(url_for('dashboard'))
     
     try:
-        # Move to resigned/deleted employees table first
+        # Get employee details before deletion
         employee_details = run_query("""
-            SELECT u.username, u.name, u.role, u.monthly_salary, u.yearly_salary,
+            SELECT u.username, u.name, u.role, u.monthly_salary, u.yearly_salary, u.status,
                    ed.joining_date, ed.employment_type, ed.mobile_number, ed.emergency_contact
             FROM users u
             LEFT JOIN employee_details ed ON u.username = ed.username
             WHERE u.username = ?
         """, (employee_username,))
         
-        if not employee_details.empty:
-            emp = employee_details.iloc[0]
-            
-            # Archive employee data
-            ok1 = run_exec("""
-                INSERT INTO [timesheet_db].[dbo].[resigned_employees] 
-                (username, name, role, joining_date, resigned_date, monthly_salary, yearly_salary,
-                 employment_type, mobile_number, emergency_contact, resigned_by, resignation_reason)
-                VALUES (?, ?, ?, ?, GETDATE(), ?, ?, ?, ?, ?, ?, ?)
-            """, (emp['username'], emp['name'], emp['role'], emp['joining_date'],
-                  emp['monthly_salary'], emp['yearly_salary'], emp['employment_type'],
-                  emp['mobile_number'], emp['emergency_contact'], session['username'], deletion_reason))
-            
-            # Delete from main tables
-            ok2 = run_exec("DELETE FROM users WHERE username = ?", (employee_username,))
-            ok3 = run_exec("DELETE FROM employee_details WHERE username = ?", (employee_username,))
-            ok4 = run_exec("DELETE FROM leave_balances WHERE username = ?", (employee_username,))
-            ok5 = run_exec("DELETE FROM report WHERE username = ?", (employee_username,))
-            
-            if ok1 and ok2:
-                flash(f" Employee {employee_username} removed successfully and archived.")
-            else:
-                flash(" Failed to remove employee.")
+        if employee_details.empty:
+            flash(f" Employee '{employee_username}' not found.")
+            return redirect(url_for('dashboard'))
+        
+        emp = employee_details.iloc[0]
+        
+        # Move to resigned_employees table (archive)
+        archive_ok = run_exec("""
+            INSERT INTO [timesheet_db].[dbo].[resigned_employees] 
+            (username, name, role, joining_date, resigned_date, monthly_salary, yearly_salary,
+             employment_type, mobile_number, emergency_contact, resigned_by, resignation_reason)
+            VALUES (?, ?, ?, ?, GETDATE(), ?, ?, ?, ?, ?, ?, ?)
+        """, (emp['username'], emp['name'], emp['role'], emp['joining_date'],
+              emp['monthly_salary'], emp['yearly_salary'], emp['employment_type'],
+              emp['mobile_number'], emp['emergency_contact'], session['username'], deletion_reason))
+        
+        # Delete from main tables
+        delete_users = run_exec("DELETE FROM users WHERE username = ?", (employee_username,))
+        delete_details = run_exec("DELETE FROM employee_details WHERE username = ?", (employee_username,))
+        delete_leaves = run_exec("DELETE FROM leave_balances WHERE username = ?", (employee_username,))
+        delete_reports = run_exec("DELETE FROM report WHERE username = ?", (employee_username,))
+        
+        if archive_ok and delete_users:
+            flash(f" Employee '{emp['name']}' ({employee_username}) has been successfully removed and archived.")
+            flash(f" Employee data has been moved to resigned employees table for record keeping.")
         else:
-            flash(" Employee not found.")
+            flash(" Failed to remove employee. Please try again.")
     
     except Exception as e:
+        print(f" Error in delete_employee_admin: {str(e)}")
         flash(f" Error removing employee: {str(e)}")
     
     return redirect(url_for('dashboard'))
+
 
 @app.route('/activate_employee_admin', methods=['POST'])
 def activate_employee_admin():
@@ -7166,7 +8884,7 @@ def transfer_employee_admin():
 
 @app.route('/edit_employee_admin', methods=['POST'])
 def edit_employee_admin():
-    """Edit employee details (Admin Manager specific)"""
+    """Edit employee details - COMPREHENSIVE VERSION"""
     if 'username' not in session:
         return redirect(url_for('login_sso'))
     
@@ -7175,46 +8893,160 @@ def edit_employee_admin():
         flash(" Access denied. Admin Manager privileges required.")
         return redirect(url_for('dashboard'))
     
-    # Get form data
     employee_username = request.form.get('employee_username')
-    name = request.form.get('name')
-    email = request.form.get('email')
-    role = request.form.get('role')
-    mobile_number = request.form.get('mobile_number')
-    emergency_contact = request.form.get('emergency_contact')
-    employment_type = request.form.get('employment_type')
-    blood_group = request.form.get('blood_group')
-    
     if not employee_username:
         flash(" Employee username is required.")
         return redirect(url_for('dashboard'))
     
     try:
+        # Get current employee details for fallback values
+        current_details = run_query("""
+            SELECT u.name, u.email, u.role, u.password, u.monthly_salary, u.yearly_salary,
+                   ed.joining_date, ed.employment_type, ed.blood_group, ed.mobile_number,
+                   ed.emergency_contact, ed.id_card, ed.id_card_provided, ed.photo_url,
+                   ed.linkedin_url, ed.laptop_provided, ed.email_provided, ed.asset_details,
+                   ed.adhaar_number, ed.pan_number, ed.duration
+            FROM users u
+            LEFT JOIN employee_details ed ON u.username = ed.username
+            WHERE u.username = ?
+        """, (employee_username,))
+        
+        if current_details.empty:
+            flash(" Employee not found.")
+            return redirect(url_for('dashboard'))
+        
+        current = current_details.iloc[0]
+        
+        # Get form data with fallbacks to current values
+        name = request.form.get('name', '').strip() or current.get('name')
+        email = request.form.get('email', '').strip() or current.get('email')
+        role = request.form.get('role', '').strip() or current.get('role')
+        password = request.form.get('password', '').strip() or current.get('password')
+        
+        # Employment details
+        joining_date = request.form.get('joining_date', '').strip() or current.get('joining_date')
+        employment_type = request.form.get('employment_type', '').strip() or current.get('employment_type', 'Full-Time')
+        blood_group = request.form.get('blood_group', '').strip() or current.get('blood_group')
+        duration = request.form.get('duration', '').strip() or current.get('duration')
+        
+        # Contact information
+        mobile_number = request.form.get('mobile_number', '').strip() or current.get('mobile_number')
+        emergency_contact = request.form.get('emergency_contact', '').strip() or current.get('emergency_contact')
+        
+        # Asset information
+        laptop_provided = bool(request.form.get('laptop_provided')) if request.form.get('laptop_provided') is not None else bool(current.get('laptop_provided'))
+        id_card_provided = bool(request.form.get('id_card_provided')) if request.form.get('id_card_provided') is not None else bool(current.get('id_card_provided'))
+        email_provided = bool(request.form.get('email_provided')) if request.form.get('email_provided') is not None else bool(current.get('email_provided'))
+        id_card = request.form.get('id_card', '').strip() or current.get('id_card')
+        asset_details = request.form.get('asset_details', '').strip() or current.get('asset_details')
+        
+        # Documents
+        adhaar_number = request.form.get('adhaar_number', '').strip() or current.get('adhaar_number')
+        pan_number = request.form.get('pan_number', '').strip() or current.get('pan_number')
+        linkedin_url = request.form.get('linkedin_url', '').strip() or current.get('linkedin_url')
+        photo_url = request.form.get('photo_url', '').strip() or current.get('photo_url')
+        
+        # Salary information
+        monthly_salary = None
+        yearly_salary = None
+        if request.form.get('monthly_salary'):
+            monthly_salary = float(request.form.get('monthly_salary'))
+            yearly_salary = float(request.form.get('yearly_salary')) if request.form.get('yearly_salary') else monthly_salary * 12
+        else:
+            monthly_salary = current.get('monthly_salary')
+            yearly_salary = current.get('yearly_salary')
+        
+        # Handle file upload for photo
+        if 'photo' in request.files and request.files['photo'].filename:
+            file = request.files['photo']
+            filename = secure_filename(file.filename)
+            timestamp = int(datetime.now().timestamp())
+            photo_filename = f"{employee_username}_{timestamp}_{filename}"
+            file.save(os.path.join(app.config['UPLOAD_FOLDER'], photo_filename))
+            photo_url = f"/uploads/{photo_filename}"
+        
         # Update users table
         ok1 = run_exec("""
             UPDATE users 
-            SET name = ?, email = ?, role = ?
+            SET name = ?, email = ?, role = ?, password = ?, monthly_salary = ?, yearly_salary = ?
             WHERE username = ?
-        """, (name or employee_username, email or '', role, employee_username))
+        """, (name, email, role, password, monthly_salary, yearly_salary, employee_username))
         
         # Update employee_details table
         ok2 = run_exec("""
             UPDATE employee_details 
-            SET name = ?, role = ?, mobile_number = ?, emergency_contact = ?, 
-                employment_type = ?, blood_group = ?
+            SET name = ?, role = ?, joining_date = ?, employment_type = ?, blood_group = ?,
+                mobile_number = ?, emergency_contact = ?, id_card = ?, id_card_provided = ?,
+                photo_url = ?, linkedin_url = ?, laptop_provided = ?, email_provided = ?,
+                asset_details = ?, adhaar_number = ?, pan_number = ?, duration = ?
             WHERE username = ?
-        """, (name or employee_username, role, mobile_number or '', emergency_contact or '',
-              employment_type or 'Full-Time', blood_group or '', employee_username))
+        """, (name, role, joining_date, employment_type, blood_group, mobile_number,
+              emergency_contact, id_card, id_card_provided, photo_url, linkedin_url,
+              laptop_provided, email_provided, asset_details, adhaar_number, pan_number,
+              duration, employee_username))
         
-        if ok1 and ok2:
-            flash(f" Employee details updated for {employee_username}.")
+        # Update reporting manager if provided
+        reporting_manager = request.form.get('reporting_manager', '').strip()
+        if reporting_manager:
+            # Check if report entry exists
+            existing_report = run_query("SELECT username FROM report WHERE username = ?", (employee_username,))
+            if existing_report.empty:
+                run_exec("INSERT INTO [timesheet_db].[dbo].[report] (username, rm, manager) VALUES (?, ?, ?)", 
+                        (employee_username, reporting_manager, reporting_manager))
+            else:
+                run_exec("UPDATE report SET rm = ?, manager = ? WHERE username = ?", 
+                        (reporting_manager, reporting_manager, employee_username))
+        
+        # Update leave balances if provided
+        leave_fields = ['total_leaves', 'sick_total', 'paid_total', 'casual_total']
+        leave_updates = {}
+        for field in leave_fields:
+            value = request.form.get(field, '').strip()
+            if value:
+                leave_updates[field] = int(value)
+        
+        if leave_updates:
+            # Check if leave balance record exists
+            existing_balance = run_query("SELECT username FROM leave_balances WHERE username = ?", (employee_username,))
+            if existing_balance.empty:
+                # Create new record with provided values
+                run_exec("""
+                    INSERT INTO [timesheet_db].[dbo].[leave_balances] (username, total_leaves, sick_total, paid_total, casual_total, sick_used, paid_used, casual_used)
+                    VALUES (?, ?, ?, ?, ?, 0, 0, 0)
+                """, (employee_username, 
+                      leave_updates.get('total_leaves', 36),
+                      leave_updates.get('sick_total', 12),
+                      leave_updates.get('paid_total', 18),
+                      leave_updates.get('casual_total', 6)))
+            else:
+                # Update existing record with non-empty values only
+                update_parts = []
+                update_values = []
+                for field, value in leave_updates.items():
+                    update_parts.append(f"{field} = ?")
+                    update_values.append(value)
+                
+                if update_parts:
+                    update_values.append(employee_username)
+                    run_exec(f"UPDATE leave_balances SET {', '.join(update_parts)} WHERE username = ?", 
+                            tuple(update_values))
+        
+        if ok1:  # At minimum, users table should be updated
+            flash(f" Employee details updated successfully for {employee_username}.")
+            if not ok2:
+                flash("Some employee details may not have been updated completely.")
         else:
             flash(" Failed to update employee details.")
     
+    except ValueError as e:
+        flash(f" Invalid input: {str(e)}")
     except Exception as e:
         flash(f" Error updating employee: {str(e)}")
+        print(f"Edit employee error: {e}")
     
     return redirect(url_for('dashboard'))
+
+
 
 @app.route('/view_employee_admin/<username>')
 def view_employee_admin(username):
@@ -7563,7 +9395,7 @@ def validate_employee_data_json():
         # Check email format and availability
         if email:
             import re
-            if not re.match(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$', email):
+            if not re.match(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}₹', email):
                 errors.append("Invalid email format")
             else:
                 existing_email = run_query("SELECT email FROM users WHERE email = ?", (email,))
@@ -7622,8 +9454,7 @@ def search_employees_json():
             'success': False,
             'error': str(e)
         }), 500
-# Add these ABSOLUTE FINAL missing work approval routes for Admin Manager:
-
+    
 @app.route('/approve_work_admin', methods=['POST'])
 def approve_work_admin():
     """Approve work/timesheet (Admin Manager specific)"""
@@ -7988,7 +9819,6 @@ def export_resigned_employees_data():
     
     flash(f" Resigned employees data export to {export_format.upper()} format initiated.")
     return redirect(url_for('dashboard'))
-# Add these ABSOLUTELY ULTIMATE FINAL missing Lead dashboard routes:
 
 @app.route('/create_project_lead', methods=['POST'])
 def create_project_lead():
@@ -8471,6 +10301,26 @@ def edit_project_company():
     
     return redirect(url_for('dashboard'))
 
+@app.route('/update_assignment_status', methods=['POST'])
+def update_assignment_status():
+    assignment_id = request.form.get('assignment_id')
+    status = request.form.get('status')
+    
+    try:
+        cursor = conn.cursor() # type: ignore
+        cursor.execute("""
+            UPDATE work_assignments 
+            SET rm_status = ? 
+            WHERE id = ?
+        """, (status, assignment_id))
+        conn.commit() # type: ignore
+        cursor.close()
+        
+        flash(f'Assignment status updated to {status}', 'success')
+    except Exception as e:
+        flash(f'Error updating assignment status: {str(e)}', 'error')
+    
+    return redirect(request.referrer or url_for('dashboard'))
 
 # --------------------
 # MAIN APPLICATION ENTRY POINT
@@ -8495,7 +10345,7 @@ def ensure_cancellation_columns():
         print(f" Database column creation error: {e}")
 
 # Call this function when the app starts:
-# Add this line near the end of the file, before the if __name__ == '__main__': block
+# Add this line near the end of the file, before the if _name_ == '_main_': block
 ensure_cancellation_columns()
 
 def ensure_database_columns():
@@ -8562,7 +10412,24 @@ def make_serializable(obj):
     elif isinstance(obj, list):
         return [make_serializable(item) for item in obj]
     return obj
-
+# ADD THE DEBUG FUNCTION HERE:
+def debug_reporting_structure(username):
+    """Debug function to check reporting relationships"""
+    print(f"\n=== DEBUG REPORTING STRUCTURE for {username} ===")
+    
+    # Check direct reports
+    direct_reports = run_query("SELECT username, rm, manager FROM report WHERE rm = ?", (username,))
+    print(f"Direct reports: {direct_reports.to_dict('records') if not direct_reports.empty else 'None'}")
+    
+    # Check all report table entries
+    all_reports = run_query("SELECT username, rm, manager FROM report ORDER BY rm")
+    print(f"All reporting relationships: {all_reports.to_dict('records') if not all_reports.empty else 'None'}")
+    
+    # Check users table
+    users = run_query("SELECT username, role FROM users WHERE status = 'Active' ORDER BY username")
+    print(f"Active users: {users.to_dict('records') if not users.empty else 'None'}")
+    
+    print("=== END DEBUG ===\n")
 if __name__ == '__main__':
     flask_port = int(os.getenv('FLASK_PORT', '8084'))
     flask_host = os.getenv('FLASK_HOST', '0.0.0.0')
