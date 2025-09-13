@@ -13,7 +13,9 @@
                     <p class="text-sm opacity-90">Today</p>
                     <p class="text-lg font-semibold">{{ today }}</p>
                 </div>
-             
+                <button onclick="window.history.back()" class="bg-white bg-opacity-20 hover:bg-opacity-30 px-4 py-2 rounded-lg transition-colors">
+                    <i class="fas fa-arrow-left mr-2"></i>Back to Dashboard
+                </button>
                 <a href="{{ url_for('logout') }}" class="bg-white bg-opacity-20 hover:bg-opacity-30 px-4 py-2 rounded-lg transition-colors">
                     <i class="fas fa-sign-out-alt mr-2"></i>Logout
                 </a>
@@ -26,7 +28,7 @@
         {% if messages %}
             <div class="space-y-2">
                 {% for message in messages %}
-                    <div class="bg-blue-100 border border-blue-400 text-blue-700 px-4 py-3 rounded relative" role="alert">
+                    <div class="bg-blue-100 border border-blue-400 text-blue-700 px-4 py-3 rounded relative flash-message" role="alert">
                         <span class="block sm:inline">{{ message }}</span>
                         <span class="absolute top-0 bottom-0 right-0 px-4 py-3 cursor-pointer" onclick="this.parentElement.style.display='none'">×</span>
                     </div>
@@ -37,7 +39,7 @@
 
     <!-- Stats Cards -->
     <div class="grid grid-cols-4 gap-4 mb-6">
-        <div class="bg-blue-500 rounded-xl p-4 text-white">
+        <div class="bg-blue-500 rounded-xl p-4 text-white hover-scale shadow-hover">
             <div class="flex items-center justify-between">
                 <div>
                     <h3 class="text-3xl font-bold">{{ all_employees|length }}</h3>
@@ -49,7 +51,7 @@
             </div>
         </div>
 
-        <div class="bg-green-500 rounded-xl p-4 text-white">
+        <div class="bg-green-500 rounded-xl p-4 text-white hover-scale shadow-hover">
             <div class="flex items-center justify-between">
                 <div>
                     <h3 class="text-3xl font-bold">{{ active_employees_count or 0 }}</h3>
@@ -61,11 +63,11 @@
             </div>
         </div>
 
-        <div class="bg-green-500 rounded-xl p-4 text-white">
+        <div class="bg-blue-500 rounded-xl p-4 text-white hover-scale shadow-hover">
             <div class="flex items-center justify-between">
                 <div>
                     <h3 class="text-3xl font-bold">{{ (pending_asset_requests|length or 0) + (approved_asset_requests|length or 0) + (rejected_asset_requests|length or 0) }}</h3>
-                    <p class="text-green-100 text-sm">total requests</p>
+                    <p class="text-blue-100 text-sm">asset requests</p>
                 </div>
                 <div class="bg-white bg-opacity-20 rounded-lg p-2">
                     <i class="fas fa-clipboard-list text-2xl"></i>
@@ -73,9 +75,9 @@
             </div>
         </div>
 
-        <!-- Only show payroll stats for Lead Staffing Specialist -->
+        <!-- Conditional fourth card based on role -->
         {% if role == 'Lead Staffing Specialist' %}
-        <div class="bg-purple-500 rounded-xl p-4 text-white">
+        <div class="bg-purple-500 rounded-xl p-4 text-white hover-scale shadow-hover">
             <div class="flex items-center justify-between">
                 <div>
                     <h3 class="text-3xl font-bold">₹{{ "%.0f"|format(total_monthly_payroll or 0) }}</h3>
@@ -87,7 +89,7 @@
             </div>
         </div>
         {% else %}
-        <div class="bg-blue-500 rounded-xl p-4 text-white">
+        <div class="bg-blue-500 rounded-xl p-4 text-white hover-scale shadow-hover">
             <div class="flex items-center justify-between">
                 <div>
                     <h3 class="text-3xl font-bold">{{ team_work_history|length or 0 }}</h3>
@@ -137,224 +139,11 @@
             </nav>
         </div>
 
-        <!-- Work Assignments Tab -->
-        <div id="work-assignments" class="tab-content hidden">
-            <div class="space-y-6">
-                <!-- Assign Work to Direct Reports -->
-                <div class="bg-white rounded-lg shadow-sm border border-gray-200">
-                    <div class="px-6 py-4 border-b border-gray-200">
-                        <h2 class="text-lg font-semibold text-gray-800">
-                            <i class="fas fa-user-plus text-blue-600 mr-2"></i>Assign Work to My Direct Reports
-                        </h2>
-                        <p class="text-sm text-gray-600 mt-1">Assign tasks only to employees directly reporting to you ({{ direct_reports_only|length }} employees)</p>
-                    </div>
-                    <div class="p-6">
-                        {% if direct_reports %}
-                        <form method="post" action="{{ url_for('admin_assign_work_to_team') }}" class="space-y-4">
-                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700 mb-2">Select Team Members *</label>
-                                    <select name="assignee_username" multiple required class="form-select w-full rounded-lg border-gray-300" size="6">
-                                        {% for employee in direct_reports %}
-                                        <option value="{{ employee.username }}">{{ employee.name or employee.username }} ({{ employee.role }})</option>
-                                        {% endfor %}
-                                    </select>
-                                    <p class="text-xs text-gray-500 mt-1">Hold Ctrl/Cmd to select multiple employees</p>
-                                </div>
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700 mb-2">Project (Optional)</label>
-                                    <select name="project_name" class="form-select w-full rounded-lg border-gray-300">
-                                        <option value="">(No specific project)</option>
-                                        {% for project in proj_list %}
-                                        <option value="{{ project }}">{{ project }}</option>
-                                        {% endfor %}
-                                    </select>
-                                </div>
-                            </div>
-                            
-                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700 mb-2">Start Date</label>
-                                    <input type="date" name="start_date" class="form-input w-full rounded-lg border-gray-300" value="{{ today }}">
-                                </div>
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700 mb-2">Due Date *</label>
-                                    <input type="date" name="due_date" required class="form-input w-full rounded-lg border-gray-300" min="{{ today }}">
-                                </div>
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700 mb-2">Priority</label>
-                                    <select name="priority" class="form-select w-full rounded-lg border-gray-300">
-                                        <option value="Low">Low</option>
-                                        <option value="Medium" selected>Medium</option>
-                                        <option value="High">High</option>
-                                        <option value="Urgent">Urgent</option>
-                                    </select>
-                                </div>
-                            </div>
-                            
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">Task Description *</label>
-                                <textarea name="task_desc" rows="4" required class="form-textarea w-full rounded-lg border-gray-300" placeholder="Describe the task, requirements, and expectations..."></textarea>
-                            </div>
-                            
-                            <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-4 rounded-lg transition-colors">
-                                <i class="fas fa-paper-plane mr-2"></i>Assign Work to Selected Team Members
-                            </button>
-                        </form>
-                        {% else %}
-                        <div class="text-center py-8">
-                            <i class="fas fa-users text-4xl text-gray-300 mb-4"></i>
-                            <p class="text-gray-500">No direct reports found for work assignment</p>
-                        </div>
-                        {% endif %}
-                    </div>
-                </div>
-
-                <!-- Work Assigned BY Admin Manager -->
-                <div class="bg-white rounded-lg shadow-sm border border-gray-200">
-                    <div class="px-6 py-4 border-b border-gray-200">
-                        <h2 class="text-lg font-semibold text-gray-800">
-                            <i class="fas fa-clipboard-list text-green-600 mr-2"></i>Work Assigned by Me ({{ my_work_assignments|length }})
-                        </h2>
-                    </div>
-                    <div class="p-6">
-                        {% if my_work_assignments %}
-                        <div class="overflow-x-auto">
-                            <table class="min-w-full divide-y divide-gray-200">
-                                <thead class="bg-gray-50">
-                                    <tr>
-                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Assigned To</th>
-                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Task</th>
-                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Project</th>
-                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Due Date</th>
-                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Urgency</th>
-                                    </tr>
-                                </thead>
-                                <tbody class="bg-white divide-y divide-gray-200">
-                                    {% for assignment in my_assigned_work %}
-                                    <tr class="hover:bg-gray-50">
-                                        <td class="px-4 py-4 whitespace-nowrap text-sm font-medium">
-                                            {{ assignment.assigned_to_name or assignment.assigned_to }}
-                                        </td>
-                                        <td class="px-4 py-4 text-sm max-w-xs">
-                                            <div class="truncate" title="{{ assignment.task_desc }}">{{ assignment.task_desc }}</div>
-                                        </td>
-                                        <td class="px-4 py-4 whitespace-nowrap text-sm">{{ assignment.project_name or '(No project)' }}</td>
-                                        <td class="px-4 py-4 whitespace-nowrap text-sm">{{ assignment.due_date or 'N/A' }}</td>
-                                        <td class="px-4 py-4 whitespace-nowrap">
-                                            <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full
-                                                {% if assignment.rm_status == 'Completed' %}bg-green-100 text-green-800
-                                                {% elif assignment.rm_status == 'In Progress' %}bg-yellow-100 text-yellow-800
-                                                {% elif assignment.rm_status == 'Rejected' %}bg-red-100 text-red-800
-                                                {% else %}bg-blue-100 text-blue-800{% endif %}">
-                                                {{ assignment.rm_status }}
-                                            </span>
-                                        </td>
-                                        <td class="px-4 py-4 whitespace-nowrap">
-                                            {% if assignment.urgency_status == 'Overdue' %}
-                                                <span class="inline-flex px-2 py-1 text-xs font-semibold bg-red-100 text-red-800 rounded-full">
-                                                    <i class="fas fa-exclamation-triangle mr-1"></i>Overdue
-                                                </span>
-                                            {% elif assignment.urgency_status == 'Due Soon' %}
-                                                <span class="inline-flex px-2 py-1 text-xs font-semibold bg-orange-100 text-orange-800 rounded-full">
-                                                    <i class="fas fa-clock mr-1"></i>Due Soon
-                                                </span>
-                                            {% else %}
-                                                
-                                            {% endif %}
-                                        </td>
-                                    </tr>
-                                    {% endfor %}
-                                </tbody>
-                            </table>
-                        </div>
-                        {% else %}
-                        <div class="text-center py-8">
-                            <i class="fas fa-clipboard text-4xl text-gray-300 mb-4"></i>
-                            <p class="text-gray-500">No work assignments created yet</p>
-                        </div>
-                        {% endif %}
-                    </div>
-                </div>
-
-                <!-- Work Assigned TO Admin Manager -->
-                <div class="bg-white rounded-lg shadow-sm border border-gray-200">
-                    <div class="px-6 py-4 border-b border-gray-200">
-                        <h2 class="text-lg font-semibold text-gray-800">
-                            <i class="fas fa-inbox text-purple-600 mr-2"></i>Work Assigned to Me ({{ work_assigned_to_admin|length }})
-                        </h2>
-                    </div>
-                    <div class="p-6">
-                        {% if work_assigned_to_admin %}
-                        <div class="overflow-x-auto">
-                            <table class="min-w-full divide-y divide-gray-200">
-                                <thead class="bg-gray-50">
-                                    <tr>
-                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Assigned By</th>
-                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Task</th>
-                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Project</th>
-                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Due Date</th>
-                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Urgency</th>
-                                    </tr>
-                                </thead>
-                                <tbody class="bg-white divide-y divide-gray-200">
-                                    {% for assignment in work_assigned_to_me %}
-                                    <tr class="hover:bg-gray-50">
-                                        <td class="px-4 py-4 whitespace-nowrap text-sm font-medium">
-                                            {{ assignment.assigned_by_name or assignment.assigned_by }}
-                                        </td>
-                                        <td class="px-4 py-4 text-sm max-w-xs">
-                                            <div class="truncate" title="{{ assignment.task_desc }}">{{ assignment.task_desc }}</div>
-                                        </td>
-                                        <td class="px-4 py-4 whitespace-nowrap text-sm">{{ assignment.project_name or '(No project)' }}</td>
-                                        <td class="px-4 py-4 whitespace-nowrap text-sm">{{ assignment.due_date or 'N/A' }}</td>
-                                        <td class="px-4 py-4 whitespace-nowrap">
-                                            <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full
-                                                {% if assignment.rm_status == 'Completed' %}bg-green-100 text-green-800
-                                                {% elif assignment.rm_status == 'In Progress' %}bg-yellow-100 text-yellow-800
-                                                {% elif assignment.rm_status == 'Rejected' %}bg-red-100 text-red-800
-                                                {% else %}bg-blue-100 text-blue-800{% endif %}">
-                                                {{ assignment.rm_status }}
-                                            </span>
-                                        </td>
-                                        <td class="px-4 py-4 whitespace-nowrap">
-                                            {% if assignment.urgency_status == 'Overdue' %}
-                                                <span class="inline-flex px-2 py-1 text-xs font-semibold bg-red-100 text-red-800 rounded-full">
-                                                    <i class="fas fa-exclamation-triangle mr-1"></i>Overdue
-                                                </span>
-                                            {% elif assignment.urgency_status == 'Due Soon' %}
-                                                <span class="inline-flex px-2 py-1 text-xs font-semibold bg-orange-100 text-orange-800 rounded-full">
-                                                    <i class="fas fa-clock mr-1"></i>Due Soon
-                                                </span>
-                                            {% else %}
-                                                <span class="inline-flex px-2 py-1 text-xs font-semibold bg-green-100 text-green-800 rounded-full">
-                                                    <i class="fas fa-check mr-1"></i>Active
-                                                </span>
-                                            {% endif %}
-                                        </td>
-                                    </tr>
-                                    {% endfor %}
-                                </tbody>
-                            </table>
-                        </div>
-                        {% else %}
-                        <div class="text-center py-8">
-                            <i class="fas fa-inbox text-4xl text-gray-300 mb-4"></i>
-                            <p class="text-gray-500">No work has been assigned to you</p>
-                        </div>
-                        {% endif %}
-                    </div>
-                </div>
-            </div>
-        </div>
-
         <div class="p-6">
             <!-- Employee Management Tab -->
             <div id="employee-management" class="tab-content">
                 <div class="space-y-6">
-                    <!-- Add New Employee Form (NO SALARY FIELDS) -->
+                    <!-- Add New Employee Form -->
                     <div class="bg-white rounded-lg shadow-sm border border-gray-200">
                         <div class="px-6 py-4 border-b border-gray-200">
                             <h2 class="text-lg font-semibold text-gray-800">
@@ -429,14 +218,23 @@
                                             <input type="date" name="joining_date" required class="form-input w-full rounded-lg border-gray-300">
                                         </div>
                                         <div>
-                                            <label class="block text-sm font-medium text-gray-700 mb-2">Employment Type *</label>
-                                            <select name="employment_type" required class="form-select w-full rounded-lg border-gray-300" onchange="toggleDurationField()">
-                                                <option value="">Select Type</option>
-                                                <option value="Fulltime">Fulltime</option>
-                                                <option value="Contractual">Contractual</option>
-                                                <option value="Freelancer">Freelancer</option>
-                                                <option value="Intern">Intern</option>
-                                            </select>
+                                            <label class="block text-sm font-medium text-gray-700 mb-2">Employment Type</label>
+                                            <input type="text" 
+                                                   name="employment_type" 
+                                                   class="form-input w-full rounded-lg border-gray-300" 
+                                                   placeholder="Enter employment type"
+                                                   list="employment-types"
+                                                   oninput="toggleDurationFieldForInput(this)">
+                                            <datalist id="employment-types">
+                                                <option value="Fulltime">
+                                                <option value="Contractual">
+                                                <option value="Freelancer">
+                                                <option value="Intern">
+                                                <option value="Remote">
+                                                <option value="Hybrid">
+                                                <option value="Part-time">
+                                                <option value="Consultant">
+                                            </datalist>
                                         </div>
                                         <div id="duration-field" class="hidden">
                                             <label class="block text-sm font-medium text-gray-700 mb-2">Duration (months)</label>
@@ -495,13 +293,15 @@
                                             <label for="email_provided" class="ml-2 text-sm text-gray-700">Email Access Provided</label>
                                         </div>
                                     </div>
-                                    <div class="mt-4">
-                                        <label class="block text-sm font-medium text-gray-700 mb-2">ID Card Details</label>
-                                        <input type="text" name="id_card" class="form-input w-full rounded-lg border-gray-300" placeholder="ID Card number or details">
-                                    </div>
-                                    <div class="mt-4">
-                                        <label class="block text-sm font-medium text-gray-700 mb-2">Asset Details</label>
-                                        <textarea name="asset_details" rows="3" class="form-textarea w-full rounded-lg border-gray-300" placeholder="Additional asset details (laptop model, serial numbers, etc.)"></textarea>
+                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                                        <div>
+                                            <label class="block text-sm font-medium text-gray-700 mb-2">ID Card Details</label>
+                                            <input type="text" name="id_card" class="form-input w-full rounded-lg border-gray-300" placeholder="ID Card number or details">
+                                        </div>
+                                        <div>
+                                            <label class="block text-sm font-medium text-gray-700 mb-2">Asset Details</label>
+                                            <textarea name="asset_details" rows="3" class="form-textarea w-full rounded-lg border-gray-300" placeholder="Additional asset details (laptop model, serial numbers, etc.)"></textarea>
+                                        </div>
                                     </div>
                                 </div>
 
@@ -575,7 +375,7 @@
                         </div>
                     </div>
 
-                    <!-- All Employees List (NO SALARY COLUMN) -->
+                    <!-- All Employees List -->
                     <div class="bg-white rounded-lg shadow-sm border border-gray-200">
                         <div class="px-6 py-4 border-b border-gray-200">
                             <h2 class="text-lg font-semibold text-gray-800">
@@ -585,7 +385,7 @@
                         <div class="p-6">
                             {% if all_employees %}
                                 <div class="overflow-x-auto">
-                                    <table class="min-w-full divide-y divide-gray-200">
+                                    <table class="min-w-full divide-y divide-gray-200 table-hover">
                                         <thead class="bg-gray-50">
                                             <tr>
                                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Employee</th>
@@ -598,7 +398,7 @@
                                         </thead>
                                         <tbody class="bg-white divide-y divide-gray-200">
                                             {% for employee in all_employees %}
-                                            <tr class="hover:bg-gray-50">
+                                            <tr class="hover:bg-gray-50 transition-colors">
                                                 <td class="px-4 py-4 whitespace-nowrap">
                                                     <div class="flex items-center">
                                                         <div class="flex-shrink-0 h-10 w-10">
@@ -649,14 +449,14 @@
                                                     </div>
                                                 </td>
                                                 <td class="px-4 py-4 whitespace-nowrap text-sm font-medium space-x-1">
-                                                    <button class="text-blue-600 hover:text-blue-800 text-xs px-2 py-1 border border-blue-200 rounded hover:bg-blue-50" 
+                                                    <button class="text-blue-600 hover:text-blue-800 text-xs px-2 py-1 border border-blue-200 rounded hover:bg-blue-50 transition-colors" 
                                                             onclick="editEmployee('{{ employee.username }}', '{{ employee.name or '' }}', '{{ employee.email or '' }}', '{{ employee.role or '' }}', '{{ employee.mobile_number or '' }}')">
                                                         <i class="fas fa-edit mr-1"></i>Edit
                                                     </button>
-                                                    <button class="text-green-600 hover:text-green-800 text-xs px-2 py-1 border border-green-200 rounded hover:bg-green-50" onclick="viewEmployeeDetails('{{ employee.username }}')">
+                                                    <button class="text-green-600 hover:text-green-800 text-xs px-2 py-1 border border-green-200 rounded hover:bg-green-50 transition-colors" onclick="viewEmployeeDetails('{{ employee.username }}')">
                                                         <i class="fas fa-eye mr-1"></i>View
                                                     </button>
-                                                    <button class="text-red-600 hover:text-red-800 text-xs px-2 py-1 border border-red-200 rounded hover:bg-red-50" onclick="deleteEmployee('{{ employee.username }}')">
+                                                    <button class="text-red-600 hover:text-red-800 text-xs px-2 py-1 border border-red-200 rounded hover:bg-red-50 transition-colors" onclick="deleteEmployee('{{ employee.username }}')">
                                                         <i class="fas fa-user-times mr-1"></i>Delete
                                                     </button>
                                                 </td>
@@ -723,16 +523,14 @@
                                     <label class="block text-sm font-medium text-gray-700 mb-2">Work Description *</label>
                                     <textarea name="desc" rows="3" required class="form-textarea w-full rounded-lg border-gray-300" placeholder="Describe your work activities..."></textarea>
                                 </div>
-                                
+
                                 <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-4 rounded-lg transition-colors">
                                     <i class="fas fa-paper-plane mr-2"></i>Submit Timesheet for Approval
                                 </button>
                             </form>
                         </div>
                     </div>
-                    Let me continue from where I stopped. Here's the continuation of the admin manager template:
-
-```html
+ 
                     <!-- Personal Leave Request -->
                     <div class="bg-white rounded-lg shadow-sm border border-gray-200">
                         <div class="px-6 py-4 border-b border-gray-200">
@@ -813,7 +611,7 @@
                                         </thead>
                                         <tbody class="bg-white divide-y divide-gray-200">
                                             {% for work in personal_work_history %}
-                                            <tr>
+                                            <tr class="hover:bg-gray-50 transition-colors">
                                                 <td class="px-4 py-4 whitespace-nowrap text-sm">{{ work.work_date }}</td>
                                                 <td class="px-4 py-4 whitespace-nowrap text-sm">{{ work.project_name or '(non-project)' }}</td>
                                                 <td class="px-4 py-4 whitespace-nowrap text-sm">{{ work.hours }}h</td>
@@ -852,7 +650,7 @@
                                         </thead>
                                         <tbody class="bg-white divide-y divide-gray-200">
                                             {% for leave in personal_leaves %}
-                                            <tr>
+                                            <tr class="hover:bg-gray-50 transition-colors">
                                                 <td class="px-4 py-4 whitespace-nowrap">
                                                     <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full
                                                         {% if leave.leave_type == 'Sick' %}bg-red-100 text-red-800
@@ -909,15 +707,16 @@
                 </div>
             </div>
 
-            <!-- Payroll Management Tab - ONLY FOR LEAD STAFFING SPECIALIST -->
+            <!-- Payroll Management Tab - UPDATED FOR LEAD STAFFING SPECIALIST -->
             {% if role == 'Lead Staffing Specialist' %}
             <div id="payroll-management" class="tab-content hidden">
                 <!-- Payroll Summary -->
                 <div class="bg-white rounded-lg shadow-sm border border-gray-200">
                     <div class="px-6 py-4 border-b border-gray-200">
                         <h2 class="text-lg font-semibold text-gray-800">
-                            <i class="fas fa-chart-line text-purple-600 mr-2"></i>Payroll Summary
+                            <i class="fas fa-chart-line text-purple-600 mr-2"></i>Payroll Summary - View Only
                         </h2>
+                        <p class="text-sm text-gray-600 mt-1">View-only access to payroll information</p>
                     </div>
                     <div class="p-6">
                         <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
@@ -937,13 +736,13 @@
                     </div>
                 </div>
 
-                <!-- Employee Salary Management -->
+                <!-- Employee Salary Information - READ ONLY -->
                 <div class="bg-white rounded-lg shadow-sm border border-gray-200 mt-6">
                     <div class="px-6 py-4 border-b border-gray-200">
                         <h2 class="text-lg font-semibold text-gray-800">
-                            <i class="fas fa-money-bill-wave text-green-600 mr-2"></i>Employee Salary Management
+                            <i class="fas fa-eye text-green-600 mr-2"></i>Employee Salary Information - View Only
                         </h2>
-                        <p class="text-sm text-gray-600 mt-1">Update employee salaries - click Update Salary button for each employee</p>
+                        <p class="text-sm text-gray-600 mt-1">Read-only view of employee salary information</p>
                     </div>
                     <div class="p-6">
                         {% if all_employees %}
@@ -953,16 +752,14 @@
                                         <tr>
                                             <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Employee</th>
                                             <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
-                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Current Monthly (₹)</th>
-                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Current Yearly (₹)</th>
-                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">New Monthly (₹)</th>
-                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">New Yearly (₹)</th>
-                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Monthly Salary (₹)</th>
+                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Yearly Salary (₹)</th>
+                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Employment Type</th>
                                         </tr>
                                     </thead>
                                     <tbody class="bg-white divide-y divide-gray-200">
                                         {% for employee in all_employees %}
-                                        <tr class="hover:bg-gray-50">
+                                        <tr class="hover:bg-gray-50 transition-colors">
                                             <td class="px-4 py-4 whitespace-nowrap">
                                                 <div class="flex items-center">
                                                     <div class="flex-shrink-0 h-8 w-8">
@@ -992,47 +789,45 @@
                                                 </span>
                                             </td>
                                             <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900 font-semibold">
-                                                ₹{{ "%.2f"|format(employee.monthly_salary or 0) }}
+                                                <span class="{% if employee.monthly_salary and employee.monthly_salary > 0 %}text-green-600{% else %}text-gray-400{% endif %}">
+                                                    ₹{{ "%.2f"|format(employee.monthly_salary or 0) }}
+                                                </span>
                                             </td>
                                             <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900 font-semibold">
-                                                ₹{{ "%.2f"|format(employee.yearly_salary or 0) }}
+                                                <span class="{% if employee.yearly_salary and employee.yearly_salary > 0 %}text-green-600{% else %}text-gray-400{% endif %}">
+                                                    ₹{{ "%.2f"|format(employee.yearly_salary or 0) }}
+                                                </span>
                                             </td>
-                                            
-                                            <!-- FORM STARTS HERE FOR EACH ROW -->
-                                            <form method="post" action="{{ url_for('update_salary_action') }}" class="contents">
-                                                <input type="hidden" name="username" value="{{ employee.username }}">
-                                                
-                                                <td class="px-4 py-4 whitespace-nowrap">
-                                                    <input type="number" 
-                                                           step="0.01" 
-                                                           name="monthly_salary" 
-                                                           placeholder="New monthly salary"
-                                                           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
-                                                           onchange="autoCalculateYearly(this)">
-                                                </td>
-                                                <td class="px-4 py-4 whitespace-nowrap">
-                                                    <input type="number" 
-                                                           step="0.01" 
-                                                           name="yearly_salary" 
-                                                           placeholder="Auto-calculated"
-                                                           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
-                                                </td>
-                                                <td class="px-4 py-4 whitespace-nowrap text-sm font-medium">
-                                                    <button type="submit" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md text-xs font-medium transition-colors flex items-center">
-                                                        <i class="fas fa-save mr-1"></i>Update Salary
-                                                    </button>
-                                                </td>
-                                            </form>
-                                            <!-- FORM ENDS HERE -->
+                                            <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                {{ employee.employment_type or 'N/A' }}
+                                            </td>
                                         </tr>
                                         {% endfor %}
                                     </tbody>
                                 </table>
                             </div>
+                            
+                            <!-- Summary Footer -->
+                            <div class="mt-6 p-4 bg-gray-50 rounded-lg">
+                                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
+                                    <div>
+                                        <p class="text-sm text-gray-600">Total Employees</p>
+                                        <p class="text-lg font-semibold text-gray-800">{{ all_employees|length }}</p>
+                                    </div>
+                                    <div>
+                                        <p class="text-sm text-gray-600">Monthly Payroll</p>
+                                        <p class="text-lg font-semibold text-green-600">₹{{ "%.2f"|format(total_monthly_payroll or 0) }}</p>
+                                    </div>
+                                    <div>
+                                        <p class="text-sm text-gray-600">Yearly Payroll</p>
+                                        <p class="text-lg font-semibold text-blue-600">₹{{ "%.2f"|format(total_yearly_payroll or 0) }}</p>
+                                    </div>
+                                </div>
+                            </div>
                         {% else %}
                             <div class="text-center py-8">
                                 <i class="fas fa-money-bill-wave text-4xl text-gray-300 mb-4"></i>
-                                <p class="text-gray-500">No employees found for payroll management</p>
+                                <p class="text-gray-500">No employee salary information found</p>
                             </div>
                         {% endif %}
                     </div>
@@ -1040,7 +835,7 @@
             </div>
             {% endif %}
 
-            <!-- Asset Management Tab -->
+            <!-- Asset Management Tab - UPDATED WITH DOCUMENT UPLOAD -->
             <div id="asset-management" class="tab-content hidden">
                 <div class="space-y-6">
                     <!-- Asset Summary Card -->
@@ -1076,15 +871,16 @@
                         </div>
                     </div>
 
-                    <!-- Asset Request Form with Amount Field -->
+                    <!-- Asset Request Form with Document Upload -->
                     <div class="bg-white rounded-lg shadow-sm border border-gray-200">
                         <div class="px-6 py-4 border-b border-gray-200">
                             <h2 class="text-lg font-semibold text-gray-800">
-                                <i class="fas fa-plus text-blue-600 mr-2"></i>Request Assets (Sent to Divya & Sabitha)
+                                <i class="fas fa-plus text-blue-600 mr-2"></i>Request Assets with Document Upload
                             </h2>
+                            <p class="text-sm text-gray-600 mt-1">Submit asset requests with supporting documents (Sent to Divya & Sabitha)</p>
                         </div>
                         <div class="p-6">
-                            <form method="post" action="{{ url_for('request_asset_action') }}" class="space-y-4">
+                            <form method="post" action="{{ url_for('request_asset_with_document') }}" enctype="multipart/form-data" class="space-y-4">
                                 <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
                                     <div>
                                         <label class="block text-sm font-medium text-gray-700 mb-2">Asset Type *</label>
@@ -1099,6 +895,8 @@
                                             <option value="Mouse">Mouse</option>
                                             <option value="Chair">Chair</option>
                                             <option value="Desk">Desk</option>
+                                            <option value="Headphones">Headphones</option>
+                                            <option value="Webcam">Webcam</option>
                                             <option value="Other">Other</option>
                                         </select>
                                     </div>
@@ -1106,7 +904,6 @@
                                         <label class="block text-sm font-medium text-gray-700 mb-2">Quantity *</label>
                                         <input type="number" name="quantity" value="1" min="1" required class="form-input w-full rounded-lg border-gray-300">
                                     </div>
-                                    <!-- AMOUNT FIELD -->
                                     <div>
                                         <label class="block text-sm font-medium text-gray-700 mb-2">Amount (₹) *</label>
                                         <input type="number" step="0.01" name="amount" min="0" required class="form-input w-full rounded-lg border-gray-300" placeholder="Enter cost">
@@ -1122,25 +919,32 @@
                                     </div>
                                 </div>
                                 
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700 mb-2">Request Description *</label>
-                                    <textarea name="description" rows="3" required class="form-textarea w-full rounded-lg border-gray-300" placeholder="Describe the asset request and reason..."></textarea>
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-2">Request Description *</label>
+                                        <textarea name="description" rows="3" required class="form-textarea w-full rounded-lg border-gray-300" placeholder="Describe the asset request and reason..."></textarea>
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-2">Upload Supporting Document</label>
+                                        <input type="file" name="asset_document" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" class="form-input w-full rounded-lg border-gray-300">
+                                        <p class="text-xs text-gray-500 mt-1">Upload quotation, specifications, or other supporting documents (PDF, JPG, PNG, DOC, DOCX - max 10MB)</p>
+                                    </div>
                                 </div>
                                 
-                                <button type="submit" class="w-full bg-gradient-to-r from-blue-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white font-bold py-3 px-4 rounded-lg transition-all duration-300 transform hover:scale-105 shadow-lg">
-                                    <i class="fas fa-paper-plane mr-2"></i>Send Asset Request to Divya & Sabitha
+                                <button type="submit" class="w-full bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white font-bold py-3 px-4 rounded-lg transition-all duration-300 transform hover:scale-105 shadow-lg">
+                                    <i class="fas fa-paper-plane mr-2"></i>Send Asset Request with Document to Divya & Sabitha
                                 </button>
                             </form>
                         </div>
                     </div>
 
-                    <!-- ALL Asset Requests Table -->
+                    <!-- ALL Asset Requests Table with Document Access -->
                     <div class="bg-white rounded-lg shadow-sm border border-gray-200">
                         <div class="px-6 py-4 border-b border-gray-200">
                             <h2 class="text-lg font-semibold text-gray-800">
                                 <i class="fas fa-list text-purple-600 mr-2"></i>All Asset Requests ({{ all_asset_requests|length or 0 }})
                             </h2>
-                            <p class="text-sm text-gray-600 mt-1">Complete history of asset requests with current status</p>
+                            <p class="text-sm text-gray-600 mt-1">Complete history of asset requests with current status and document access</p>
                         </div>
                         <div class="p-6">
                             {% if all_asset_requests %}
@@ -1155,13 +959,13 @@
                                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Requested By</th>
                                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Request Date</th>
                                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Action Date</th>
+                                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Document</th>
                                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Action By</th>
                                             </tr>
                                         </thead>
                                         <tbody class="bg-white divide-y divide-gray-200">
                                             {% for request in all_asset_requests %}
-                                            <tr class="hover:bg-gray-50">
+                                            <tr class="hover:bg-gray-50 transition-colors">
                                                 <td class="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                                                     <i class="fas fa-laptop mr-2 text-gray-600"></i>{{ request.asset_type }}
                                                 </td>
@@ -1189,8 +993,22 @@
                                                         </span>
                                                     {% endif %}
                                                 </td>
-                                                <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                                                    {{ request.approved_date or 'N/A' }}
+                                                <td class="px-4 py-4 whitespace-nowrap text-sm">
+                                                    {% if request.document_path %}
+                                                        <div class="flex space-x-1">
+                                                            <a href="{{ url_for('view_asset_document', asset_id=request.id) }}" 
+                                                               target="_blank" 
+                                                               class="text-blue-600 hover:text-blue-800 text-xs px-2 py-1 bg-blue-50 rounded border border-blue-200 hover:bg-blue-100 transition-colors">
+                                                                <i class="fas fa-eye mr-1"></i>View
+                                                            </a>
+                                                            <a href="{{ url_for('download_asset_document', asset_id=request.id) }}" 
+                                                               class="text-green-600 hover:text-green-800 text-xs px-2 py-1 bg-green-50 rounded border border-green-200 hover:bg-green-100 transition-colors">
+                                                                <i class="fas fa-download mr-1"></i>Download
+                                                            </a>
+                                                        </div>
+                                                    {% else %}
+                                                        <span class="text-gray-400 text-xs">No document</span>
+                                                    {% endif %}
                                                 </td>
                                                 <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
                                                     {{ request.approved_by or 'N/A' }}
@@ -1215,6 +1033,221 @@
                                     <i class="fas fa-clipboard-list text-4xl text-gray-300 mb-4"></i>
                                     <p class="text-gray-500">No asset requests found</p>
                                 </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Work Assignments Tab -->
+            <div id="work-assignments" class="tab-content hidden">
+                <div class="space-y-6">
+                    <!-- Assign Work to Direct Reports -->
+                    <div class="bg-white rounded-lg shadow-sm border border-gray-200">
+                        <div class="px-6 py-4 border-b border-gray-200">
+                            <h2 class="text-lg font-semibold text-gray-800">
+                                <i class="fas fa-user-plus text-blue-600 mr-2"></i>Assign Work to My Direct Reports
+                            </h2>
+                            <p class="text-sm text-gray-600 mt-1">Assign tasks only to employees directly reporting to you</p>
+                        </div>
+                        <div class="p-6">
+                            {% if direct_reports %}
+                            <form method="post" action="{{ url_for('rm_assign_work_action') }}" class="space-y-4">
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-2">Select Team Members *</label>
+                                        <select name="employee_username" multiple required class="form-select w-full rounded-lg border-gray-300" size="6">
+                                            {% for employee in direct_reports %}
+                                            <option value="{{ employee.username }}">{{ employee.name or employee.username }} ({{ employee.role }})</option>
+                                            {% endfor %}
+                                        </select>
+                                        <p class="text-xs text-gray-500 mt-1">Hold Ctrl/Cmd to select multiple employees</p>
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-2">Project (Optional)</label>
+                                        <select name="project_name" class="form-select w-full rounded-lg border-gray-300">
+                                            <option value="">(No specific project)</option>
+                                            {% for project in proj_list %}
+                                            <option value="{{ project }}">{{ project }}</option>
+                                            {% endfor %}
+                                        </select>
+                                    </div>
+                                </div>
+                                
+                                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-2">Start Date</label>
+                                        <input type="date" name="start_date" class="form-input w-full rounded-lg border-gray-300" value="{{ today }}">
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-2">Due Date *</label>
+                                        <input type="date" name="due_date" required class="form-input w-full rounded-lg border-gray-300" min="{{ today }}">
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-2">Priority</label>
+                                        <select name="priority" class="form-select w-full rounded-lg border-gray-300">
+                                            <option value="Low">Low</option>
+                                            <option value="Medium" selected>Medium</option>
+                                            <option value="High">High</option>
+                                            <option value="Urgent">Urgent</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Task Description *</label>
+                                    <textarea name="task_desc" rows="4" required class="form-textarea w-full rounded-lg border-gray-300" placeholder="Describe the task, requirements, and expectations..."></textarea>
+                                </div>
+                                
+                                <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-4 rounded-lg transition-colors">
+                                    <i class="fas fa-paper-plane mr-2"></i>Assign Work to Selected Team Members
+                                </button>
+                            </form>
+                            {% else %}
+                            <div class="text-center py-8">
+                                <i class="fas fa-users text-4xl text-gray-300 mb-4"></i>
+                                <p class="text-gray-500">No direct reports found for work assignment</p>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <!-- Work Assigned BY Admin Manager -->
+                    <div class="bg-white rounded-lg shadow-sm border border-gray-200">
+                        <div class="px-6 py-4 border-b border-gray-200">
+                            <h2 class="text-lg font-semibold text-gray-800">
+                                <i class="fas fa-clipboard-list text-green-600 mr-2"></i>Work Assigned by Me ({{ my_assigned_work|length }})
+                            </h2>
+                        </div>
+                        <div class="p-6">
+                            {% if my_assigned_work %}
+                            <div class="overflow-x-auto">
+                                <table class="min-w-full divide-y divide-gray-200">
+                                    <thead class="bg-gray-50">
+                                        <tr>
+                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Assigned To</th>
+                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Task</th>
+                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Project</th>
+                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Due Date</th>
+                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Urgency</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="bg-white divide-y divide-gray-200">
+                                        {% for assignment in my_assigned_work %}
+                                        <tr class="hover:bg-gray-50 transition-colors">
+                                            <td class="px-4 py-4 whitespace-nowrap text-sm font-medium">
+                                                {{ assignment.assigned_to_name or assignment.assigned_to }}
+                                            </td>
+                                            <td class="px-4 py-4 text-sm max-w-xs">
+                                                <div class="truncate" title="{{ assignment.task_desc }}">{{ assignment.task_desc }}</div>
+                                            </td>
+                                            <td class="px-4 py-4 whitespace-nowrap text-sm">{{ assignment.project_name or '(No project)' }}</td>
+                                            <td class="px-4 py-4 whitespace-nowrap text-sm">{{ assignment.due_date or 'N/A' }}</td>
+                                            <td class="px-4 py-4 whitespace-nowrap">
+                                                <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full
+                                                    {% if assignment.rm_status == 'Completed' %}bg-green-100 text-green-800
+                                                    {% elif assignment.rm_status == 'In Progress' %}bg-yellow-100 text-yellow-800
+                                                    {% elif assignment.rm_status == 'Rejected' %}bg-red-100 text-red-800
+                                                    {% else %}bg-blue-100 text-blue-800{% endif %}">
+                                                    {{ assignment.rm_status }}
+                                                </span>
+                                            </td>
+                                            <td class="px-4 py-4 whitespace-nowrap">
+                                                {% if assignment.urgency_status == 'Overdue' %}
+                                                    <span class="inline-flex px-2 py-1 text-xs font-semibold bg-red-100 text-red-800 rounded-full">
+                                                        <i class="fas fa-exclamation-triangle mr-1"></i>Overdue
+                                                    </span>
+                                                {% elif assignment.urgency_status == 'Due Soon' %}
+                                                    <span class="inline-flex px-2 py-1 text-xs font-semibold bg-orange-100 text-orange-800 rounded-full">
+                                                        <i class="fas fa-clock mr-1"></i>Due Soon
+                                                    </span>
+                                                {% else %}
+                                                    <span class="inline-flex px-2 py-1 text-xs font-semibold bg-green-100 text-green-800 rounded-full">
+                                                        <i class="fas fa-check mr-1"></i>Active
+                                                    </span>
+                                                {% endif %}
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                            {% else %}
+                            <div class="text-center py-8">
+                                <i class="fas fa-clipboard text-4xl text-gray-300 mb-4"></i>
+                                <p class="text-gray-500">No work assignments created yet</p>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <!-- Work Assigned TO Admin Manager -->
+                    <div class="bg-white rounded-lg shadow-sm border border-gray-200">
+                        <div class="px-6 py-4 border-b border-gray-200">
+                            <h2 class="text-lg font-semibold text-gray-800">
+                                <i class="fas fa-inbox text-purple-600 mr-2"></i>Work Assigned to Me ({{ work_assigned_to_admin|length }})
+                            </h2>
+                        </div>
+                        <div class="p-6">
+                            {% if work_assigned_to_admin %}
+                            <div class="overflow-x-auto">
+                                <table class="min-w-full divide-y divide-gray-200">
+                                    <thead class="bg-gray-50">
+                                        <tr>
+                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Assigned By</th>
+                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Task</th>
+                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Project</th>
+                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Due Date</th>
+                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Urgency</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="bg-white divide-y divide-gray-200">
+                                        {% for assignment in work_assigned_to_admin %}
+                                        <tr class="hover:bg-gray-50 transition-colors">
+                                            <td class="px-4 py-4 whitespace-nowrap text-sm font-medium">
+                                                {{ assignment.assigned_by_name or assignment.assigned_by }}
+                                            </td>
+                                            <td class="px-4 py-4 text-sm max-w-xs">
+                                                <div class="truncate" title="{{ assignment.task_desc }}">{{ assignment.task_desc }}</div>
+                                            </td>
+                                            <td class="px-4 py-4 whitespace-nowrap text-sm">{{ assignment.project_name or '(No project)' }}</td>
+                                            <td class="px-4 py-4 whitespace-nowrap text-sm">{{ assignment.due_date or 'N/A' }}</td>
+                                            <td class="px-4 py-4 whitespace-nowrap">
+                                                <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full
+                                                    {% if assignment.rm_status == 'Completed' %}bg-green-100 text-green-800
+                                                    {% elif assignment.rm_status == 'In Progress' %}bg-yellow-100 text-yellow-800
+                                                    {% elif assignment.rm_status == 'Rejected' %}bg-red-100 text-red-800
+                                                    {% else %}bg-blue-100 text-blue-800{% endif %}">
+                                                    {{ assignment.rm_status }}
+                                                </span>
+                                            </td>
+                                            <td class="px-4 py-4 whitespace-nowrap">
+                                                {% if assignment.urgency_status == 'Overdue' %}
+                                                    <span class="inline-flex px-2 py-1 text-xs font-semibold bg-red-100 text-red-800 rounded-full">
+                                                        <i class="fas fa-exclamation-triangle mr-1"></i>Overdue
+                                                    </span>
+                                                {% elif assignment.urgency_status == 'Due Soon' %}
+                                                    <span class="inline-flex px-2 py-1 text-xs font-semibold bg-orange-100 text-orange-800 rounded-full">
+                                                        <i class="fas fa-clock mr-1"></i>Due Soon
+                                                    </span>
+                                                {% else %}
+                                                    <span class="inline-flex px-2 py-1 text-xs font-semibold bg-green-100 text-green-800 rounded-full">
+                                                        <i class="fas fa-check mr-1"></i>Active
+                                                    </span>
+                                                {% endif %}
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                            {% else %}
+                            <div class="text-center py-8">
+                                <i class="fas fa-inbox text-4xl text-gray-300 mb-4"></i>
+                                <p class="text-gray-500">No work has been assigned to you</p>
+                            </div>
                             {% endif %}
                         </div>
                     </div>
@@ -1247,8 +1280,8 @@
                                     </thead>
                                     <tbody class="bg-white divide-y divide-gray-200">
                                         {% for work in pending_work_approvals %}
-                                        <tr class="hover:bg-gray-50">
-                                            <td class="px-4 py-4 whitespace-nowrap text-sm font-medium">{{ work.username }}</td>
+                                        <tr class="hover:bg-gray-50 transition-colors">
+                                            <td class="px-4 py-4 whitespace-nowrap text-sm font-medium">{{ work.employee_name or work.username }}</td>
                                             <td class="px-4 py-4 whitespace-nowrap text-sm">{{ work.work_date }}</td>
                                             <td class="px-4 py-4 whitespace-nowrap text-sm">{{ work.project_name }}</td>
                                             <td class="px-4 py-4 text-sm max-w-xs truncate">{{ work.work_desc }}</td>
@@ -1256,11 +1289,11 @@
                                             <td class="px-4 py-4 whitespace-nowrap text-sm font-medium space-x-2">
                                                 <form method="POST" action="{{ url_for('approve_timesheet_action') }}" style="display: inline;">
                                                     <input type="hidden" name="id" value="{{ work.id }}">
-                                                    <button type="submit" class="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-xs">
+                                                    <button type="submit" class="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-xs transition-colors">
                                                         <i class="fas fa-check mr-1"></i>Approve
                                                     </button>
                                                 </form>
-                                                <button type="button" class="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded text-xs" onclick="rejectWork({{ work.id }})">
+                                                <button type="button" class="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded text-xs transition-colors" onclick="rejectWork({{ work.id }})">
                                                     <i class="fas fa-times mr-1"></i>Reject
                                                 </button>
                                             </td>
@@ -1298,8 +1331,8 @@
                                     </thead>
                                     <tbody class="bg-white divide-y divide-gray-200">
                                         {% for leave in pending_leave_approvals %}
-                                        <tr class="hover:bg-gray-50">
-                                            <td class="px-4 py-4 whitespace-nowrap text-sm font-medium">{{ leave.username }}</td>
+                                        <tr class="hover:bg-gray-50 transition-colors">
+                                            <td class="px-4 py-4 whitespace-nowrap text-sm font-medium">{{ leave.employee_name or leave.username }}</td>
                                             <td class="px-4 py-4 whitespace-nowrap text-sm">
                                                 <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full
                                                     {% if leave.leave_type == 'Sick' %}bg-red-100 text-red-800
@@ -1332,11 +1365,11 @@
                                             <td class="px-4 py-4 whitespace-nowrap text-sm font-medium space-x-2">
                                                 <form method="POST" action="{{ url_for('approve_leave_action') }}" style="display: inline;">
                                                     <input type="hidden" name="id" value="{{ leave.id }}">
-                                                    <button type="submit" class="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-xs">
+                                                    <button type="submit" class="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-xs transition-colors">
                                                         <i class="fas fa-check mr-1"></i>Approve
                                                     </button>
                                                 </form>
-                                                <button type="button" class="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded text-xs" onclick="rejectLeave({{ leave.id }})">
+                                                <button type="button" class="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded text-xs transition-colors" onclick="rejectLeave({{ leave.id }})">
                                                     <i class="fas fa-times mr-1"></i>Reject
                                                 </button>
                                             </td>
@@ -1414,8 +1447,8 @@
                                             </thead>
                                             <tbody class="bg-white divide-y divide-gray-200">
                                                 {% for work in team_work_history %}
-                                                <tr class="hover:bg-gray-50">
-                                                    <td class="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{{ work.username }}</td>
+                                                <tr class="hover:bg-gray-50 transition-colors">
+                                                    <td class="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{{ work.employee_name or work.username }}</td>
                                                     <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">{{ work.work_date }}</td>
                                                     <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">{{ work.project_name or '(non-project)' }}</td>
                                                     <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">{{ work.hours }}h</td>
@@ -1470,8 +1503,8 @@
                                             </thead>
                                             <tbody class="bg-white divide-y divide-gray-200">
                                                 {% for leave in team_leave_history %}
-                                                <tr class="hover:bg-gray-50">
-                                                    <td class="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{{ leave.username }}</td>
+                                                <tr class="hover:bg-gray-50 transition-colors">
+                                                    <td class="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{{ leave.employee_name or leave.username }}</td>
                                                     <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
                                                         <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full
                                                             {% if leave.leave_type == 'Sick' %}bg-red-100 text-red-800
@@ -1554,7 +1587,7 @@
                                     </thead>
                                     <tbody class="bg-white divide-y divide-gray-200">
                                         {% for employee in resigned_employees %}
-                                        <tr class="hover:bg-gray-50">
+                                        <tr class="hover:bg-gray-50 transition-colors">
                                             <td class="px-4 py-4 whitespace-nowrap">
                                                 <div class="flex items-center">
                                                     <div class="flex-shrink-0 h-8 w-8">
@@ -1572,7 +1605,7 @@
                                             <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-500">{{ employee.joining_date or 'N/A' }}</td>
                                             <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-500">{{ employee.resigned_date or 'N/A' }}</td>
                                             <td class="px-4 py-4 whitespace-nowrap text-sm font-medium">
-                                                <button class="text-blue-600 hover:text-blue-800 text-xs px-2 py-1 border border-blue-200 rounded hover:bg-blue-50" onclick="viewResignedEmployeeDetails('{{ employee.username }}')">
+                                                <button class="text-blue-600 hover:text-blue-800 text-xs px-2 py-1 border border-blue-200 rounded hover:bg-blue-50 transition-colors" onclick="viewResignedEmployeeDetails('{{ employee.username }}')">
                                                     <i class="fas fa-eye mr-1"></i>View Details
                                                 </button>
                                             </td>
@@ -1615,7 +1648,7 @@
                 </div>
             </div>
             <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
-                <button type="button" class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm" onclick="closeModal()">
+                <button type="button" class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm transition-colors" onclick="closeModal()">
                     Close
                 </button>
             </div>
@@ -1623,228 +1656,251 @@
     </div>
 </div>
 
-<!-- Edit Employee Modal -->
-<div id="editEmployeeModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden z-50">
-    <div class="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-        <div class="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-5xl sm:w-full max-h-screen overflow-y-auto">
-            <form method="post" action="{{ url_for('edit_employee_admin') }}" enctype="multipart/form-data">
-                <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
-                    <div class="sm:flex sm:items-start">
-                        <div class="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-green-100 sm:mx-0 sm:h-10 sm:w-10">
-                            <i class="fas fa-edit text-green-600"></i>
+<!-- Edit Employee Modal - COMPLETE VERSION -->
+<div id="editEmployeeModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden z-50" onclick="closeEditModalOnBackdrop(event)">
+    <div class="flex items-center justify-center min-h-screen p-4">
+        <div class="bg-white rounded-lg shadow-xl transform transition-all w-full max-w-6xl max-h-[90vh] flex flex-col" onclick="event.stopPropagation()">
+            <form method="post" action="{{ url_for('edit_employee_admin') }}" enctype="multipart/form-data" class="flex flex-col h-full" id="editEmployeeForm">
+                <!-- Modal Header - Fixed -->
+                <div class="px-6 py-4 border-b border-gray-200 flex-shrink-0 bg-white">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center">
+                            <div class="flex-shrink-0 flex items-center justify-center h-10 w-10 rounded-full bg-green-100">
+                                <i class="fas fa-edit text-green-600"></i>
+                            </div>
+                            <h3 class="ml-3 text-lg font-medium text-gray-900">Edit Employee - Complete Details</h3>
                         </div>
-                        <div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left w-full">
-                            <h3 class="text-lg leading-6 font-medium text-gray-900">Edit Employee - All Fields Available</h3>
-                            <div class="mt-4 space-y-6">
-                                <input type="hidden" name="employee_username" id="edit_employee_username">
-                                
-                                <!-- Basic Information -->
-                                <div class="bg-gray-50 p-4 rounded-lg">
-                                    <h4 class="text-md font-semibold text-gray-800 mb-4">
-                                        <i class="fas fa-user text-blue-600 mr-2"></i>Basic Information
-                                    </h4>
-                                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                        <div>
-                                            <label class="block text-sm font-medium text-gray-700 mb-2">Full Name</label>
-                                            <input type="text" name="name" id="edit_name" class="form-input w-full rounded-lg border-gray-300" placeholder="Leave empty to keep current">
-                                        </div>
-                                        <div>
-                                            <label class="block text-sm font-medium text-gray-700 mb-2">Email</label>
-                                            <input type="email" name="email" id="edit_email" class="form-input w-full rounded-lg border-gray-300" placeholder="Leave empty to keep current">
-                                        </div>
-                                        <div>
-                                            <label class="block text-sm font-medium text-gray-700 mb-2">Role</label>
-                                            <select name="role" id="edit_role" class="form-select w-full rounded-lg border-gray-300">
-                                                <option value="">Keep Current Role</option>
-                                                <option value="Admin Manager">Admin Manager</option>
-                                                <option value="Manager">Manager</option>
-                                                <option value="Rm">RM</option>
-                                                <option value="Employee">Employee</option>
-                                                <option value="Intern">Intern</option>
-                                                <option value="Lead">Lead</option>
-                                                <option value="Product Owner">Product Owner</option>
-                                                <option value="BDE Manager">BDE Manager</option>
-                                                <option value="Lead Staffing Specialist">Lead Staffing Specialist</option>
-                                                <option value="SAP Consultant">SAP Consultant</option>
-                                                <option value="Contractor">Contractor</option>
-                                                <option value="Hr & Finance Controller">HR & Finance Controller</option>
-                                                <option value="Finance Manager">Finance Manager</option>
-                                            </select>
-                                        </div>
-                                    </div>
-                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                                        <div>
-                                            <label class="block text-sm font-medium text-gray-700 mb-2">New Password</label>
-                                            <input type="password" name="password" id="edit_password" class="form-input w-full rounded-lg border-gray-300" placeholder="Leave empty to keep current password">
-                                        </div>
-                                        <div>
-                                            <label class="block text-sm font-medium text-gray-700 mb-2">Reporting Manager</label>
-                                            <select name="reporting_manager" id="edit_reporting_manager" class="form-select w-full rounded-lg border-gray-300">
-                                                <option value="">Keep Current Manager</option>
-                                                {% for manager in all_managers %}
-                                                <option value="{{ manager.username }}">{{ manager.name }} ({{ manager.username }})</option>
-                                                {% endfor %}
-                                            </select>
-                                        </div>
-                                    </div>
+                        <button type="button" onclick="closeEditModal()" class="text-gray-400 hover:text-gray-600 text-xl" tabindex="-1">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Modal Body - SCROLLABLE with proper constraints -->
+                <div class="flex-1 overflow-y-auto px-6 py-4 modal-scroll" style="max-height: calc(90vh - 140px);">
+                    <div class="space-y-6">
+                        <input type="hidden" name="employee_username" id="edit_employee_username">
+                        
+                        <!-- Basic Information -->
+                        <div class="bg-gray-50 p-4 rounded-lg">
+                            <h4 class="text-md font-semibold text-gray-800 mb-4 flex items-center">
+                                <i class="fas fa-user text-blue-600 mr-2"></i>Basic Information
+                            </h4>
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Full Name</label>
+                                    <input type="text" name="name" id="edit_name" class="form-input w-full rounded-lg border-gray-300" placeholder="Leave empty to keep current">
                                 </div>
-
-                                <!-- Employment Details -->
-                                <div class="bg-gray-50 p-4 rounded-lg">
-                                    <h4 class="text-md font-semibold text-gray-800 mb-4">
-                                        <i class="fas fa-briefcase text-green-600 mr-2"></i>Employment Details
-                                    </h4>
-                                    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-                                        <div>
-                                            <label class="block text-sm font-medium text-gray-700 mb-2">Joining Date</label>
-                                            <input type="date" name="joining_date" id="edit_joining_date" class="form-input w-full rounded-lg border-gray-300">
-                                        </div>
-                                        <div>
-                                            <label class="block text-sm font-medium text-gray-700 mb-2">Employment Type</label>
-                                            <select name="employment_type" id="edit_employment_type" class="form-select w-full rounded-lg border-gray-300">
-                                                <option value="">Keep Current Type</option>
-                                                <option value="Fulltime">Fulltime</option>
-                                                <option value="Contractual">Contractual</option>
-                                                <option value="Freelancer">Freelancer</option>
-                                                <option value="Intern">Intern</option>
-                                            </select>
-                                        </div>
-                                        <div>
-                                            <label class="block text-sm font-medium text-gray-700 mb-2">Duration (months)</label>
-                                            <input type="number" name="duration" id="edit_duration" class="form-input w-full rounded-lg border-gray-300" placeholder="Contract duration">
-                                        </div>
-                                        <div>
-                                            <label class="block text-sm font-medium text-gray-700 mb-2">Blood Group</label>
-                                            <select name="blood_group" id="edit_blood_group" class="form-select w-full rounded-lg border-gray-300">
-                                                <option value="">Keep Current</option>
-                                                <option value="A+">A+</option>
-                                                <option value="A-">A-</option>
-                                                <option value="B+">B+</option>
-                                                <option value="B-">B-</option>
-                                                <option value="AB+">AB+</option>
-                                                <option value="AB-">AB-</option>
-                                                <option value="O+">O+</option>
-                                                <option value="O-">O-</option>
-                                            </select>
-                                        </div>
-                                    </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Email</label>
+                                    <input type="email" name="email" id="edit_email" class="form-input w-full rounded-lg border-gray-300" placeholder="Leave empty to keep current">
                                 </div>
-
-                                <!-- Contact Information -->
-                                <div class="bg-gray-50 p-4 rounded-lg">
-                                    <h4 class="text-md font-semibold text-gray-800 mb-4">
-                                        <i class="fas fa-phone text-purple-600 mr-2"></i>Contact Information
-                                    </h4>
-                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        <div>
-                                            <label class="block text-sm font-medium text-gray-700 mb-2">Mobile Number</label>
-                                            <input type="tel" name="mobile_number" id="edit_mobile_number" class="form-input w-full rounded-lg border-gray-300" placeholder="Enter mobile number">
-                                        </div>
-                                        <div>
-                                            <label class="block text-sm font-medium text-gray-700 mb-2">Emergency Contact</label>
-                                            <input type="tel" name="emergency_contact" id="edit_emergency_contact" class="form-input w-full rounded-lg border-gray-300" placeholder="Emergency contact number">
-                                        </div>
-                                    </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Role</label>
+                                    <select name="role" id="edit_role" class="form-select w-full rounded-lg border-gray-300">
+                                        <option value="">Keep Current Role</option>
+                                        <option value="Admin Manager">Admin Manager</option>
+                                        <option value="Manager">Manager</option>
+                                        <option value="Rm">RM</option>
+                                        <option value="Employee">Employee</option>
+                                        <option value="Intern">Intern</option>
+                                        <option value="Lead">Lead</option>
+                                        <option value="Product Owner">Product Owner</option>
+                                        <option value="BDE Manager">BDE Manager</option>
+                                        <option value="Lead Staffing Specialist">Lead Staffing Specialist</option>
+                                        <option value="SAP Consultant">SAP Consultant</option>
+                                        <option value="Contractor">Contractor</option>
+                                        <option value="Hr & Finance Controller">HR & Finance Controller</option>
+                                        <option value="Finance Manager">Finance Manager</option>
+                                    </select>
                                 </div>
-
-                                <!-- Asset Information -->
-                                <div class="bg-gray-50 p-4 rounded-lg">
-                                    <h4 class="text-md font-semibold text-gray-800 mb-4">
-                                        <i class="fas fa-laptop text-indigo-600 mr-2"></i>Asset Information
-                                    </h4>
-                                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                        <div class="flex items-center">
-                                            <input type="checkbox" id="edit_laptop_provided" name="laptop_provided" class="rounded border-gray-300 text-blue-600">
-                                            <label for="edit_laptop_provided" class="ml-2 text-sm text-gray-700">Laptop Provided</label>
-                                        </div>
-                                        <div class="flex items-center">
-                                            <input type="checkbox" id="edit_id_card_provided" name="id_card_provided" class="rounded border-gray-300 text-blue-600">
-                                            <label for="edit_id_card_provided" class="ml-2 text-sm text-gray-700">ID Card Provided</label>
-                                        </div>
-                                        <div class="flex items-center">
-                                            <input type="checkbox" id="edit_email_provided" name="email_provided" class="rounded border-gray-300 text-blue-600">
-                                            <label for="edit_email_provided" class="ml-2 text-sm text-gray-700">Email Access Provided</label>
-                                        </div>
-                                    </div>
-                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                                        <div>
-                                            <label class="block text-sm font-medium text-gray-700 mb-2">ID Card Details</label>
-                                            <input type="text" name="id_card" id="edit_id_card" class="form-input w-full rounded-lg border-gray-300" placeholder="ID Card number or details">
-                                        </div>
-                                        <div>
-                                            <label class="block text-sm font-medium text-gray-700 mb-2">Asset Details</label>
-                                            <textarea name="asset_details" id="edit_asset_details" rows="2" class="form-textarea w-full rounded-lg border-gray-300" placeholder="Additional asset details"></textarea>
-                                        </div>
-                                    </div>
+                            </div>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">New Password</label>
+                                    <input type="password" name="password" id="edit_password" class="form-input w-full rounded-lg border-gray-300" placeholder="Leave empty to keep current password">
                                 </div>
-
-                                <!-- Documents & Identification -->
-                                <div class="bg-gray-50 p-4 rounded-lg">
-                                    <h4 class="text-md font-semibold text-gray-800 mb-4">
-                                        <i class="fas fa-id-card text-red-600 mr-2"></i>Documents & Identification
-                                    </h4>
-                                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                        <div>
-                                            <label class="block text-sm font-medium text-gray-700 mb-2">Aadhaar Number</label>
-                                            <input type="text" name="adhaar_number" id="edit_adhaar_number" class="form-input w-full rounded-lg border-gray-300" placeholder="Enter Aadhaar number" maxlength="12">
-                                        </div>
-                                        <div>
-                                            <label class="block text-sm font-medium text-gray-700 mb-2">PAN Number</label>
-                                            <input type="text" name="pan_number" id="edit_pan_number" class="form-input w-full rounded-lg border-gray-300" placeholder="Enter PAN number" maxlength="10">
-                                        </div>
-                                        <div>
-                                            <label class="block text-sm font-medium text-gray-700 mb-2">LinkedIn URL</label>
-                                            <input type="url" name="linkedin_url" id="edit_linkedin_url" class="form-input w-full rounded-lg border-gray-300" placeholder="https://linkedin.com/in/username">
-                                        </div>
-                                    </div>
-                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                                        <div>
-                                            <label class="block text-sm font-medium text-gray-700 mb-2">Upload New Photo</label>
-                                            <input type="file" name="photo" id="edit_photo" accept="image/*" class="form-input w-full rounded-lg border-gray-300">
-                                            <p class="text-xs text-gray-500 mt-1">Upload new employee photo (JPG, PNG, max 5MB)</p>
-                                        </div>
-                                        <div>
-                                            <label class="block text-sm font-medium text-gray-700 mb-2">Photo URL (Alternative)</label>
-                                            <input type="url" name="photo_url" id="edit_photo_url" class="form-input w-full rounded-lg border-gray-300" placeholder="https://example.com/photo.jpg">
-                                            <p class="text-xs text-gray-500 mt-1">Or provide photo URL</p>
-                                        </div>
-                                    </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Reporting Manager</label>
+                                    <select name="reporting_manager" id="edit_reporting_manager" class="form-select w-full rounded-lg border-gray-300">
+                                        <option value="">Keep Current Manager</option>
+                                        {% for manager in all_managers %}
+                                        <option value="{{ manager.username }}">{{ manager.name }} ({{ manager.username }})</option>
+                                        {% endfor %}
+                                    </select>
                                 </div>
+                            </div>
+                        </div>
 
-                                <!-- Leave Balance Configuration -->
-                                <div class="bg-gray-50 p-4 rounded-lg">
-                                    <h4 class="text-md font-semibold text-gray-800 mb-4">
-                                        <i class="fas fa-calendar-alt text-orange-600 mr-2"></i>Leave Balance Configuration
-                                    </h4>
-                                    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-                                        <div>
-                                            <label class="block text-sm font-medium text-gray-700 mb-2">Total Leaves</label>
-                                            <input type="number" name="total_leaves" id="edit_total_leaves" class="form-input w-full rounded-lg border-gray-300" placeholder="Default: 36">
-                                        </div>
-                                        <div>
-                                            <label class="block text-sm font-medium text-gray-700 mb-2">Sick Leaves</label>
-                                            <input type="number" name="sick_total" id="edit_sick_total" class="form-input w-full rounded-lg border-gray-300" placeholder="Default: 12">
-                                        </div>
-                                        <div>
-                                            <label class="block text-sm font-medium text-gray-700 mb-2">Paid Leaves</label>
-                                            <input type="number" name="paid_total" id="edit_paid_total" class="form-input w-full rounded-lg border-gray-300" placeholder="Default: 18">
-                                        </div>
-                                        <div>
-                                            <label class="block text-sm font-medium text-gray-700 mb-2">Casual Leaves</label>
-                                            <input type="number" name="casual_total" id="edit_casual_total" class="form-input w-full rounded-lg border-gray-300" placeholder="Default: 6">
-                                        </div>
-                                    </div>
+                        <!-- Employment Details -->
+                        <div class="bg-gray-50 p-4 rounded-lg">
+                            <h4 class="text-md font-semibold text-gray-800 mb-4 flex items-center">
+                                <i class="fas fa-briefcase text-green-600 mr-2"></i>Employment Details
+                            </h4>
+                            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Joining Date</label>
+                                    <input type="date" name="joining_date" id="edit_joining_date" class="form-input w-full rounded-lg border-gray-300">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Employment Type</label>
+                                    <input type="text" 
+                                           name="employment_type" 
+                                           id="edit_employment_type" 
+                                           class="form-input w-full rounded-lg border-gray-300" 
+                                           placeholder="Enter employment type"
+                                           list="employment-types-edit"
+                                           onchange="toggleDurationFieldForEdit(this)">
+                                    <datalist id="employment-types-edit">
+                                        <option value="Fulltime">
+                                        <option value="Contractual">
+                                        <option value="Freelancer">
+                                        <option value="Intern">
+                                        <option value="Remote">
+                                        <option value="Hybrid">
+                                        <option value="Part-time">
+                                        <option value="Consultant">
+                                    </datalist>
+                                </div>
+                                <div id="edit_duration_field">
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Duration (months)</label>
+                                    <input type="number" name="duration" id="edit_duration" class="form-input w-full rounded-lg border-gray-300" placeholder="Contract duration">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Blood Group</label>
+                                    <select name="blood_group" id="edit_blood_group" class="form-select w-full rounded-lg border-gray-300">
+                                        <option value="">Keep Current</option>
+                                        <option value="A+">A+</option>
+                                        <option value="A-">A-</option>
+                                        <option value="B+">B+</option>
+                                        <option value="B-">B-</option>
+                                        <option value="AB+">AB+</option>
+                                        <option value="AB-">AB-</option>
+                                        <option value="O+">O+</option>
+                                        <option value="O-">O-</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Contact Information -->
+                        <div class="bg-gray-50 p-4 rounded-lg">
+                            <h4 class="text-md font-semibold text-gray-800 mb-4 flex items-center">
+                                <i class="fas fa-phone text-purple-600 mr-2"></i>Contact Information
+                            </h4>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Mobile Number</label>
+                                    <input type="tel" name="mobile_number" id="edit_mobile_number" class="form-input w-full rounded-lg border-gray-300" placeholder="Enter mobile number">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Emergency Contact</label>
+                                    <input type="tel" name="emergency_contact" id="edit_emergency_contact" class="form-input w-full rounded-lg border-gray-300" placeholder="Emergency contact number">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Asset Information -->
+                        <div class="bg-gray-50 p-4 rounded-lg">
+                            <h4 class="text-md font-semibold text-gray-800 mb-4 flex items-center">
+                                <i class="fas fa-laptop text-indigo-600 mr-2"></i>Asset Information
+                            </h4>
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div class="flex items-center">
+                                    <input type="checkbox" id="edit_laptop_provided" name="laptop_provided" class="rounded border-gray-300 text-blue-600">
+                                    <label for="edit_laptop_provided" class="ml-2 text-sm text-gray-700">Laptop Provided</label>
+                                </div>
+                                <div class="flex items-center">
+                                    <input type="checkbox" id="edit_id_card_provided" name="id_card_provided" class="rounded border-gray-300 text-blue-600">
+                                    <label for="edit_id_card_provided" class="ml-2 text-sm text-gray-700">ID Card Provided</label>
+                                </div>
+                                <div class="flex items-center">
+                                    <input type="checkbox" id="edit_email_provided" name="email_provided" class="rounded border-gray-300 text-blue-600">
+                                    <label for="edit_email_provided" class="ml-2 text-sm text-gray-700">Email Access Provided</label>
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">ID Card Details</label>
+                                    <input type="text" name="id_card" id="edit_id_card" class="form-input w-full rounded-lg border-gray-300" placeholder="ID Card number or details">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Asset Details</label>
+                                    <textarea name="asset_details" id="edit_asset_details" rows="2" class="form-textarea w-full rounded-lg border-gray-300" placeholder="Additional asset details"></textarea>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Documents & Identification -->
+                        <div class="bg-gray-50 p-4 rounded-lg">
+                            <h4 class="text-md font-semibold text-gray-800 mb-4 flex items-center">
+                                <i class="fas fa-id-card text-red-600 mr-2"></i>Documents & Identification
+                            </h4>
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Aadhaar Number</label>
+                                    <input type="text" name="adhaar_number" id="edit_adhaar_number" class="form-input w-full rounded-lg border-gray-300" placeholder="Enter Aadhaar number" maxlength="12">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">PAN Number</label>
+                                    <input type="text" name="pan_number" id="edit_pan_number" class="form-input w-full rounded-lg border-gray-300" placeholder="Enter PAN number" maxlength="10">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">LinkedIn URL</label>
+                                    <input type="url" name="linkedin_url" id="edit_linkedin_url" class="form-input w-full rounded-lg border-gray-300" placeholder="https://linkedin.com/in/username">
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Upload New Photo</label>
+                                    <input type="file" name="photo" id="edit_photo" accept="image/*" class="form-input w-full rounded-lg border-gray-300">
+                                    <p class="text-xs text-gray-500 mt-1">Upload new employee photo (JPG, PNG, max 5MB)</p>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Photo URL (Alternative)</label>
+                                    <input type="url" name="photo_url" id="edit_photo_url" class="form-input w-full rounded-lg border-gray-300" placeholder="https://example.com/photo.jpg">
+                                    <p class="text-xs text-gray-500 mt-1">Or provide photo URL</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Leave Balance Configuration -->
+                        <div class="bg-gray-50 p-4 rounded-lg">
+                            <h4 class="text-md font-semibold text-gray-800 mb-4 flex items-center">
+                                <i class="fas fa-calendar-alt text-orange-600 mr-2"></i>Leave Balance Configuration
+                            </h4>
+                            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Total Leaves</label>
+                                    <input type="number" name="total_leaves" id="edit_total_leaves" class="form-input w-full rounded-lg border-gray-300" placeholder="Default: 36">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Sick Leaves</label>
+                                    <input type="number" name="sick_total" id="edit_sick_total" class="form-input w-full rounded-lg border-gray-300" placeholder="Default: 12">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Paid Leaves</label>
+                                    <input type="number" name="paid_total" id="edit_paid_total" class="form-input w-full rounded-lg border-gray-300" placeholder="Default: 18">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Casual Leaves</label>
+                                    <input type="number" name="casual_total" id="edit_casual_total" class="form-input w-full rounded-lg border-gray-300" placeholder="Default: 6">
                                 </div>
                             </div>
                         </div>
                     </div>
                 </div>
-                <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
-                    <button type="submit" class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-green-600 text-base font-medium text-white hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 sm:ml-3 sm:w-auto sm:text-sm">
-                        <i class="fas fa-save mr-2"></i>Update Employee
+                
+                <!-- Modal Footer - FIXED POSITION -->
+                <div class="px-6 py-4 border-t border-gray-200 bg-white flex justify-end space-x-3 flex-shrink-0">
+                    <button type="button" 
+                            onclick="closeEditModal()" 
+                            class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-colors">
+                        <i class="fas fa-times mr-2"></i>Cancel
                     </button>
-                    <button type="button" class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm" onclick="closeEditModal()">
-                        Cancel
+                    <button type="submit" 
+                            class="px-6 py-2 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors">
+                        <i class="fas fa-save mr-2"></i>Update Employee
                     </button>
                 </div>
             </form>
@@ -1872,7 +1928,7 @@
                 </div>
             </div>
             <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
-                <button type="button" class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm" onclick="closeResignedModal()">
+                <button type="button" class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm transition-colors" onclick="closeResignedModal()">
                     Close
                 </button>
             </div>
@@ -1933,23 +1989,44 @@ document.addEventListener('DOMContentLoaded', function() {
             document.getElementById(tabId).classList.remove('hidden');
         });
     });
+
+    // Auto-hide flash messages after 5 seconds
+    const flashMessages = document.querySelectorAll('.flash-message');
+    flashMessages.forEach(message => {
+        setTimeout(() => {
+            message.style.transition = 'opacity 0.5s ease-out';
+            message.style.opacity = '0';
+            setTimeout(() => {
+                message.remove();
+            }, 500);
+        }, 5000);
+    });
 });
 
-function toggleDurationField() {
-    const employmentType = document.querySelector('[name="employment_type"]').value;
-    const durationField = document.getElementById('duration-field');
+function toggleDurationFieldForInput(inputElement) {
+    const employmentType = inputElement.value.toLowerCase();
+    const durationField = document.getElementById('duration-field') || document.getElementById('edit_duration_field');
     
-    if (employmentType === 'Contractual' || employmentType === 'Freelancer' || employmentType === 'Intern') {
-        durationField.classList.remove('hidden');
+    if (employmentType.includes('contractual') || 
+        employmentType.includes('freelancer') || 
+        employmentType.includes('intern')) {
+        if (durationField) durationField.classList.remove('hidden');
     } else {
-        durationField.classList.add('hidden');
+        if (durationField) durationField.classList.add('hidden');
     }
 }
 
-function autoCalculateYearly(monthlyInput) {
-    const monthly = parseFloat(monthlyInput.value) || 0;
-    const yearlyInput = monthlyInput.closest('tr').querySelector('[name="yearly_salary"]');
-    yearlyInput.value = monthly * 12;
+function toggleDurationFieldForEdit(inputElement) {
+    const employmentType = inputElement.value.toLowerCase();
+    const durationField = document.getElementById('edit_duration_field');
+    
+    if (employmentType.includes('contractual') || 
+        employmentType.includes('freelancer') || 
+        employmentType.includes('intern')) {
+        if (durationField) durationField.classList.remove('hidden');
+    } else {
+        if (durationField) durationField.classList.add('hidden');
+    }
 }
 
 // Enhanced Edit Employee Function
@@ -2011,7 +2088,13 @@ function closeEditModal() {
     document.getElementById('editEmployeeModal').classList.add('hidden');
 }
 
-// View Employee Details Function
+function closeEditModalOnBackdrop(event) {
+    if (event.target === event.currentTarget) {
+        closeEditModal();
+    }
+}
+
+// View Employee Details Function - WITH RM INFO
 function viewEmployeeDetails(username) {
     fetch(`{{ url_for('get_employee_details_json') }}?username=₹{username}`)
         .then(response => response.json())
@@ -2022,7 +2105,9 @@ function viewEmployeeDetails(username) {
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <!-- Personal Information -->
                         <div class="bg-gray-50 p-4 rounded-lg">
-                            <h4 class="font-semibold text-gray-800 mb-3">Personal Information</h4>
+                            <h4 class="font-semibold text-gray-800 mb-3">
+                                <i class="fas fa-user text-blue-600 mr-2"></i>Personal Information
+                            </h4>
                             <div class="space-y-2 text-sm">
                                 <div><strong>Username:</strong> ₹{employee.username}</div>
                                 <div><strong>Full Name:</strong> ₹{employee.name || 'N/A'}</div>
@@ -2036,41 +2121,82 @@ function viewEmployeeDetails(username) {
                         
                         <!-- Employment Information -->
                         <div class="bg-gray-50 p-4 rounded-lg">
-                            <h4 class="font-semibold text-gray-800 mb-3">Employment Information</h4>
+                            <h4 class="font-semibold text-gray-800 mb-3">
+                                <i class="fas fa-briefcase text-green-600 mr-2"></i>Employment Information
+                            </h4>
                             <div class="space-y-2 text-sm">
                                 <div><strong>Employment Type:</strong> ₹{employee.employment_type || 'N/A'}</div>
                                 <div><strong>Joining Date:</strong> ₹{employee.joining_date || 'N/A'}</div>
+                                <div><strong>Status:</strong> ₹{employee.status || 'N/A'}</div>
+                                <div><strong>Duration:</strong> ₹{employee.duration || 'N/A'}</div>
                             </div>
                         </div>
                         
-                        <!-- Assets & Documents -->
-                        <div class="bg-gray-50 p-4 rounded-lg">
-                            <h4 class="font-semibold text-gray-800 mb-3">Assets & Documents</h4>
+                        <!-- Reporting Manager (RM) Details ONLY -->
+                        <div class="bg-blue-50 p-4 rounded-lg">
+                            <h4 class="font-semibold text-gray-800 mb-3">
+                                <i class="fas fa-user-tie text-blue-600 mr-2"></i>Reporting Manager (RM) Details
+                            </h4>
                             <div class="space-y-2 text-sm">
-                                <div><strong>Laptop:</strong> ₹{employee.laptop_provided ? '✅ Provided' : '❌ Not Provided'}</div>
-                                <div><strong>ID Card:</strong> ₹{employee.id_card_provided ? '✅ Provided' : '❌ Not Provided'}</div>
-                                <div><strong>Email Access:</strong> ₹{employee.email_provided ? '✅ Provided' : '❌ Not Provided'}</div>
-                                <div><strong>Aadhaar:</strong> ₹{employee.adhaar_number || 'N/A'}</div>
-                                <div><strong>PAN:</strong> ₹{employee.pan_number || 'N/A'}</div>
+                                ₹{employee.rm_username ? `
+                                    <div><strong>RM Username:</strong> ₹{employee.rm_username}</div>
+                                    <div><strong>RM Name:</strong> ₹{employee.rm_name || 'N/A'}</div>
+                                    <div><strong>RM Role:</strong> ₹{employee.rm_role || 'N/A'}</div>
+                                    <div><strong>RM Email:</strong> ₹{employee.rm_email || 'N/A'}</div>
+                                ` : '<div class="text-gray-500 italic">No reporting manager (RM) assigned</div>'}
                             </div>
                         </div>
                         
-                        <!-- Additional Information -->
+                        <!-- Documents & Assets -->
                         <div class="bg-gray-50 p-4 rounded-lg">
-                            <h4 class="font-semibold text-gray-800 mb-3">Additional Information</h4>
+                            <h4 class="font-semibold text-gray-800 mb-3">
+                                <i class="fas fa-file-alt text-purple-600 mr-2"></i>Documents & Assets
+                            </h4>
                             <div class="space-y-2 text-sm">
-                                <div><strong>LinkedIn:</strong> ₹{employee.linkedin_url ? '<a href="' + employee.linkedin_url + '" target="_blank" class="text-blue-600">View Profile</a>' : 'N/A'}</div>
-                                <div><strong>Asset Details:</strong> ₹{employee.asset_details || 'N/A'}</div>
+                                <div><strong>Aadhaar Number:</strong> ₹{employee.adhaar_number || 'N/A'}</div>
+                                <div><strong>PAN Number:</strong> ₹{employee.pan_number || 'N/A'}</div>
+                                <div><strong>LinkedIn:</strong> ₹{employee.linkedin_url ? `<a href="₹{employee.linkedin_url}" target="_blank" class="text-blue-600 hover:underline">₹{employee.linkedin_url}</a>` : 'N/A'}</div>
+                                <div><strong>ID Card:</strong> ₹{employee.id_card || 'N/A'}</div>
+                                <div><strong>Laptop Provided:</strong> ₹{employee.laptop_provided ? 'Yes' : 'No'}</div>
+                                <div><strong>ID Card Provided:</strong> ₹{employee.id_card_provided ? 'Yes' : 'No'}</div>
+                                <div><strong>Email Access:</strong> ₹{employee.email_provided ? 'Yes' : 'No'}</div>
                             </div>
                         </div>
+                        
+                        <!-- Leave Balance -->
+                        <div class="bg-gray-50 p-4 rounded-lg">
+                            <h4 class="font-semibold text-gray-800 mb-3">
+                                <i class="fas fa-calendar-alt text-orange-600 mr-2"></i>Leave Balance
+                            </h4>
+                            <div class="space-y-2 text-sm">
+                                <div><strong>Total Leaves:</strong> ₹{employee.total_leaves || 'N/A'}</div>
+                                <div><strong>Sick Leaves:</strong> ₹{employee.sick_total || 'N/A'}</div>
+                                <div><strong>Paid Leaves:</strong> ₹{employee.paid_total || 'N/A'}</div>
+                                <div><strong>Casual Leaves:</strong> ₹{employee.casual_total || 'N/A'}</div>
+                            </div>
+                        </div>
+                        
+                        ₹{employee.asset_details ? `
+                        <div class="bg-gray-50 p-4 rounded-lg md:col-span-2">
+                            <h4 class="font-semibold text-gray-800 mb-3">
+                                <i class="fas fa-laptop text-indigo-600 mr-2"></i>Asset Details
+                            </h4>
+                            <div class="text-sm">₹{employee.asset_details}</div>
+                        </div>
+                        ` : ''}
                     </div>
+                    
+                    ₹{employee.photo_url ? `
+                    <div class="mt-4 text-center">
+                        <img src="₹{employee.photo_url}" alt="₹{employee.name || employee.username}" class="mx-auto h-32 w-32 rounded-full object-cover border-4 border-gray-200">
+                    </div>
+                    ` : ''}
                 `;
                 
                 document.getElementById('employee-details-content').innerHTML = detailsHtml;
-                document.getElementById('modal-title').textContent = `₹{employee.name || employee.username} - Complete Details`;
                 document.getElementById('employeeModal').classList.remove('hidden');
             } else {
-                alert('Failed to load employee details');
+                alert('Failed to load employee details: ' + data.message);
             }
         })
         .catch(error => {
@@ -2083,120 +2209,55 @@ function closeModal() {
     document.getElementById('employeeModal').classList.add('hidden');
 }
 
-// Delete Employee Function
-function deleteEmployee(username) {
-    if (confirm(`Are you sure you want to delete employee: ₹{username}? This will move them to resigned employees table.`)) {
-        const form = document.createElement('form');
-        form.method = 'POST';
-        form.action = '{{ url_for("delete_employee_admin") }}';
-        
-        const input = document.createElement('input');
-        input.type = 'hidden';
-        input.name = 'username';
-        input.value = username;
-        
-        form.appendChild(input);
-        document.body.appendChild(form);
-        form.submit();
-    }
-}
-
-function rejectWork(workId) {
-    const reason = prompt('Enter rejection reason:');
-    if (reason !== null && reason !== '') {
-        const form = document.createElement('form');
-        form.method = 'POST';
-        form.action = '{{ url_for("reject_timesheet_action") }}';
-        
-        const workInput = document.createElement('input');
-        workInput.type = 'hidden';
-        workInput.name = 'id';
-        workInput.value = workId;
-        
-        const reasonInput = document.createElement('input');
-        reasonInput.type = 'hidden';
-        reasonInput.name = 'rejection_reason';
-        reasonInput.value = reason;
-        
-        form.appendChild(workInput);
-        form.appendChild(reasonInput);
-        document.body.appendChild(form);
-        form.submit();
-    }
-}
-
-function rejectLeave(leaveId) {
-    const reason = prompt('Enter rejection reason:');
-    if (reason !== null && reason !== '') {
-        const form = document.createElement('form');
-        form.method = 'POST';
-        form.action = '{{ url_for("reject_leave_action") }}';
-        
-        const leaveInput = document.createElement('input');
-        leaveInput.type = 'hidden';
-        leaveInput.name = 'id';
-        leaveInput.value = leaveId;
-        
-        const reasonInput = document.createElement('input');
-        reasonInput.type = 'hidden';
-        reasonInput.name = 'reason';
-        reasonInput.value = reason;
-        
-        form.appendChild(leaveInput);
-        form.appendChild(reasonInput);
-        document.body.appendChild(form);
-        form.submit();
-    }
-}
-
 // View Resigned Employee Details Function
 function viewResignedEmployeeDetails(username) {
-    fetch(`{{ url_for('view_resigned_employee_details') }}?username=₹{username}`)
+    fetch(`{{ url_for('get_employee_details_json') }}?username=₹{username}`)
         .then(response => response.json())
         .then(data => {
             if (data.success) {
                 const employee = data.employee;
                 const detailsHtml = `
+                    <div class="bg-red-50 p-4 rounded-lg mb-4">
+                        <div class="flex items-center">
+                            <i class="fas fa-exclamation-triangle text-red-600 mr-2"></i>
+                            <span class="text-red-800 font-semibold">This employee has resigned</span>
+                        </div>
+                    </div>
+                    
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <!-- Personal Information -->
                         <div class="bg-gray-50 p-4 rounded-lg">
-                            <h4 class="font-semibold text-gray-800 mb-3">Personal Information</h4>
+                            <h4 class="font-semibold text-gray-800 mb-3">
+                                <i class="fas fa-user text-blue-600 mr-2"></i>Personal Information
+                            </h4>
                             <div class="space-y-2 text-sm">
                                 <div><strong>Username:</strong> ₹{employee.username}</div>
                                 <div><strong>Full Name:</strong> ₹{employee.name || 'N/A'}</div>
-                                <div><strong>Email:</strong> ₹{employee.email || 'N/A'}</div>
                                 <div><strong>Role:</strong> ₹{employee.role || 'N/A'}</div>
+                                <div><strong>Email:</strong> ₹{employee.email || 'N/A'}</div>
                                 <div><strong>Mobile:</strong> ₹{employee.mobile_number || 'N/A'}</div>
-                                <div><strong>Emergency Contact:</strong> ₹{employee.emergency_contact || 'N/A'}</div>
                             </div>
                         </div>
                         
-                        <!-- Employment Information -->
+                        <!-- Employment Dates -->
                         <div class="bg-gray-50 p-4 rounded-lg">
-                            <h4 class="font-semibold text-gray-800 mb-3">Employment Information</h4>
+                            <h4 class="font-semibold text-gray-800 mb-3">
+                                <i class="fas fa-calendar text-green-600 mr-2"></i>Employment Period
+                            </h4>
                             <div class="space-y-2 text-sm">
-                                <div><strong>Employment Type:</strong> ₹{employee.employment_type || 'N/A'}</div>
                                 <div><strong>Joining Date:</strong> ₹{employee.joining_date || 'N/A'}</div>
                                 <div><strong>Resignation Date:</strong> ₹{employee.resigned_date || 'N/A'}</div>
-                            </div>
-                        </div>
-                        
-                        <!-- Resignation Details -->
-                        <div class="bg-red-50 p-4 rounded-lg col-span-2">
-                            <h4 class="font-semibold text-red-800 mb-3">Resignation Details</h4>
-                            <div class="space-y-2 text-sm text-red-700">
-                                <div><strong>Resigned By:</strong> ₹{employee.resigned_by || 'N/A'}</div>
-                                <div><strong>Resignation Reason:</strong> ₹{employee.resignation_reason || 'Not specified'}</div>
+                                <div><strong>Employment Type:</strong> ₹{employee.employment_type || 'N/A'}</div>
+                                <div><strong>Status:</strong> <span class="text-red-600 font-semibold">₹{employee.status || 'Resigned'}</span></div>
                             </div>
                         </div>
                     </div>
                 `;
                 
                 document.getElementById('resigned-employee-details-content').innerHTML = detailsHtml;
-                document.getElementById('resigned-modal-title').textContent = `₹{employee.name || employee.username} - Resigned Employee Details`;
                 document.getElementById('resignedEmployeeModal').classList.remove('hidden');
             } else {
-                alert('Failed to load resigned employee details');
+                alert('Failed to load resigned employee details: ' + data.message);
             }
         })
         .catch(error => {
@@ -2205,37 +2266,164 @@ function viewResignedEmployeeDetails(username) {
         });
 }
 
-function updateAssignmentStatus(assignmentId) {
-    const newStatus = prompt('Enter new status (Pending, In Progress, Completed, Rejected):');
-    if (newStatus && ['Pending', 'In Progress', 'Completed', 'Rejected'].includes(newStatus)) {
-        const form = document.createElement('form');
-        form.method = 'POST';
-        form.action = '{{ url_for("update_admin_assignment_status") }}';
-        
-        const assignmentInput = document.createElement('input');
-        assignmentInput.type = 'hidden';
-        assignmentInput.name = 'assignment_id';
-        assignmentInput.value = assignmentId;
-        
-        const statusInput = document.createElement('input');
-        statusInput.type = 'hidden';
-        statusInput.name = 'new_status';
-        statusInput.value = newStatus;
-        
-        form.appendChild(assignmentInput);
-        form.appendChild(statusInput);
-        document.body.appendChild(form);
-        form.submit();
-    } else if (newStatus) {
-        alert('Invalid status. Please use: Pending, In Progress, Completed, or Rejected');
-    }
-}
-
 function closeResignedModal() {
     document.getElementById('resignedEmployeeModal').classList.add('hidden');
 }
+
+// Delete Employee Function
+function deleteEmployee(username) {
+    if (confirm(`Are you sure you want to delete employee: ₹{username}?\n\nThis action cannot be undone and will remove all employee data including work history, leave records, and personal information.`)) {
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = '{{ url_for("delete_employee_admin") }}';
+        
+        const usernameInput = document.createElement('input');
+        usernameInput.type = 'hidden';
+        usernameInput.name = 'username';
+        usernameInput.value = username;
+        
+        form.appendChild(usernameInput);
+        document.body.appendChild(form);
+        form.submit();
+    }
+}
+
+// Reject Work Function
+function rejectWork(workId) {
+    const reason = prompt('Please provide a reason for rejection:');
+    if (reason && reason.trim()) {
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = '{{ url_for("reject_timesheet_action") }}';
+        
+        const idInput = document.createElement('input');
+        idInput.type = 'hidden';
+        idInput.name = 'id';
+        idInput.value = workId;
+        
+        const reasonInput = document.createElement('input');
+        reasonInput.type = 'hidden';
+        reasonInput.name = 'rejection_reason';
+        reasonInput.value = reason.trim();
+        
+        form.appendChild(idInput);
+        form.appendChild(reasonInput);
+        document.body.appendChild(form);
+        form.submit();
+    }
+}
+
+// Reject Leave Function
+function rejectLeave(leaveId) {
+    const reason = prompt('Please provide a reason for rejection:');
+    if (reason && reason.trim()) {
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = '{{ url_for("reject_leave_action") }}';
+        
+        const idInput = document.createElement('input');
+        idInput.type = 'hidden';
+        idInput.name = 'id';
+        idInput.value = leaveId;
+        
+        const reasonInput = document.createElement('input');
+        reasonInput.type = 'hidden';
+        reasonInput.name = 'rejection_reason';
+        reasonInput.value = reason.trim();
+        
+        form.appendChild(idInput);
+        form.appendChild(reasonInput);
+        document.body.appendChild(form);
+        form.submit();
+    }
+}
+
+// Form validation for employee creation
+document.addEventListener('DOMContentLoaded', function() {
+    const createEmployeeForm = document.getElementById('createEmployeeForm');
+    if (createEmployeeForm) {
+        createEmployeeForm.addEventListener('submit', function(e) {
+            const username = document.querySelector('input[name="username"]').value.trim();
+            const password = document.querySelector('input[name="password"]').value;
+            
+            if (username.length < 3) {
+                e.preventDefault();
+                alert('Username must be at least 3 characters long');
+                return;
+            }
+            
+            if (password.length < 6) {
+                e.preventDefault();
+                alert('Password must be at least 6 characters long');
+                return;
+            }
+        });
+    }
+});
+
+// Keyboard shortcuts
+document.addEventListener('keydown', function(e) {
+    // Ctrl/Cmd + K to focus search
+    if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+        e.preventDefault();
+        const searchInput = document.getElementById('employee-search');
+        if (searchInput) {
+            searchInput.focus();
+        }
+    }
+    
+    // Escape to close modals
+    if (e.key === 'Escape') {
+        closeModal();
+        closeEditModal();
+        closeResignedModal();
+    }
+});
+
+// Notification system
+function showNotification(message, type = 'info', duration = 3000) {
+    const container = document.getElementById('notification-container');
+    if (!container) return;
+    
+    const notification = document.createElement('div');
+    
+    const bgColor = {
+        'success': 'bg-green-500',
+        'error': 'bg-red-500',
+        'warning': 'bg-yellow-500',
+        'info': 'bg-blue-500'
+    }[type] || 'bg-blue-500';
+    
+    notification.className = `₹{bgColor} text-white px-4 py-3 rounded-lg shadow-lg transform transition-all duration-300 translate-x-full opacity-0`;
+    notification.innerHTML = `
+        <div class="flex items-center justify-between">
+            <span>₹{message}</span>
+            <button onclick="this.parentElement.parentElement.remove()" class="ml-3 text-white hover:text-gray-200">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+    `;
+    
+    container.appendChild(notification);
+    
+    // Animate in
+    setTimeout(() => {
+        notification.classList.remove('translate-x-full', 'opacity-0');
+    }, 100);
+    
+    // Auto remove
+    setTimeout(() => {
+        notification.classList.add('translate-x-full', 'opacity-0');
+        setTimeout(() => {
+            if (notification.parentElement) {
+                notification.remove();
+            }
+        }, 300);
+    }, duration);
+}
 </script>
 
+<!-- Custom Styles for Enhanced UI -->
 <style>
 .form-input, .form-select, .form-textarea {
     display: block;
@@ -2255,22 +2443,59 @@ function closeResignedModal() {
 }
 
 .tab-button.active {
-    border-bottom-color: #2563eb;
-    color: #2563eb;
+    background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+    color: white;
+    border-color: #3b82f6;
 }
 
-.team-tab-button.active {
-    border-bottom-color: #2563eb;
-    color: #2563eb;
+.flash-message {
+    animation: slideInDown 0.5s ease-out;
 }
 
-.tab-button, .team-tab-button {
-    transition: all 0.2s;
+@keyframes slideInDown {
+    from {
+        transform: translateY(-100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
 }
 
-.tab-button:hover, .team-tab-button:hover {
-    color: #374151;
-    border-bottom-color: #d1d5db;
+.hover-scale:hover {
+    transform: scale(1.02);
+    transition: transform 0.2s ease-in-out;
+}
+
+.shadow-hover:hover {
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+    transition: box-shadow 0.3s ease-in-out;
+}
+
+/* Custom scrollbar for modal content */
+.modal-scroll::-webkit-scrollbar {
+    width: 6px;
+}
+
+.modal-scroll::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 3px;
+}
+
+.modal-scroll::-webkit-scrollbar-thumb {
+    background: #c1c1c1;
+    border-radius: 3px;
+}
+
+.modal-scroll::-webkit-scrollbar-thumb:hover {
+    background: #a8a8a8;
+}
+
+/* Enhanced table styling */
+.table-hover tbody tr:hover {
+    background-color: #f8fafc;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
 }
 
 .transition-colors {
@@ -2282,26 +2507,13 @@ function closeResignedModal() {
     scrollbar-color: #cbd5e1 #f1f5f9;
 }
 
-.overflow-x-auto::-webkit-scrollbar { 
-    height: 6px; 
-}
+.overflow-x-auto::-webkit-scrollbar { height: 6px; }
+.overflow-x-auto::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 3px; }
+.overflow-x-auto::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+.overflow-x-auto::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
 
-.overflow-x-auto::-webkit-scrollbar-track { 
-    background: #f1f5f9; 
-    border-radius: 3px; 
-}
-
-.overflow-x-auto::-webkit-scrollbar-thumb { 
-    background: #cbd5e1; 
-    border-radius: 3px; 
-}
-
-.overflow-x-auto::-webkit-scrollbar-thumb:hover { 
-    background: #94a3b8; 
-}
-
-tbody tr:hover {
-    background-color: #f9fafb;
+.max-w-xs {
+    max-width: 20rem;
 }
 
 .truncate {
@@ -2309,5 +2521,55 @@ tbody tr:hover {
     text-overflow: ellipsis;
     white-space: nowrap;
 }
+
+/* Responsive improvements */
+@media (max-width: 768px) {
+    .tab-navigation {
+        overflow-x: auto;
+        white-space: nowrap;
+    }
+    
+    .tab-button {
+        min-width: 120px;
+    }
+    
+    .grid-responsive {
+        grid-template-columns: 1fr;
+    }
+    
+    .grid-cols-4 {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    
+    .grid-cols-3 {
+        grid-template-columns: repeat(1, minmax(0, 1fr));
+    }
+}
+
+/* Print styles */
+@media print {
+    .no-print, .tab-navigation, button, .modal {
+        display: none !important;
+    }
+    
+    .tab-content {
+        display: block !important;
+    }
+    
+    body {
+        font-size: 12px;
+    }
+    
+    table {
+        page-break-inside: avoid;
+    }
+}
 </style>
+
+<!-- Notification System -->
+<div id="notification-container" class="fixed top-4 right-4 z-50 space-y-2">
+    <!-- Notifications will be dynamically added here -->
+</div>
+
 {% endblock %}
+
