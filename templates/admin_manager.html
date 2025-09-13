@@ -80,7 +80,7 @@
         <div class="bg-purple-500 rounded-xl p-4 text-white hover-scale shadow-hover">
             <div class="flex items-center justify-between">
                 <div>
-                    <h3 class="text-3xl font-bold">₹{{ "%.0f"|format(total_monthly_payroll or 0) }}</h3>
+                    <h3 class="text-3xl font-bold">${{ "%.0f"|format(total_monthly_payroll or 0) }}</h3>
                     <p class="text-purple-100 text-sm">monthly payroll</p>
                 </div>
                 <div class="bg-white bg-opacity-20 rounded-lg p-2">
@@ -722,11 +722,11 @@
                         <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
                             <div class="text-center p-4 bg-green-50 rounded-lg">
                                 <h4 class="text-lg font-semibold text-green-800">Total Monthly</h4>
-                                <p class="text-2xl font-bold text-green-600">₹{{ "%.0f"|format(total_monthly_payroll or 0) }}</p>
+                                <p class="text-2xl font-bold text-green-600">${{ "%.0f"|format(total_monthly_payroll or 0) }}</p>
                             </div>
                             <div class="text-center p-4 bg-blue-50 rounded-lg">
                                 <h4 class="text-lg font-semibold text-blue-800">Total Yearly</h4>
-                                <p class="text-2xl font-bold text-blue-600">₹{{ "%.0f"|format(total_yearly_payroll or 0) }}</p>
+                                <p class="text-2xl font-bold text-blue-600">${{ "%.0f"|format(total_yearly_payroll or 0) }}</p>
                             </div>
                             <div class="text-center p-4 bg-purple-50 rounded-lg">
                                 <h4 class="text-lg font-semibold text-purple-800">Paid Employees</h4>
@@ -752,8 +752,8 @@
                                         <tr>
                                             <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Employee</th>
                                             <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
-                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Monthly Salary (₹)</th>
-                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Yearly Salary (₹)</th>
+                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Monthly Salary ($)</th>
+                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Yearly Salary ($)</th>
                                             <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Employment Type</th>
                                         </tr>
                                     </thead>
@@ -790,12 +790,12 @@
                                             </td>
                                             <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900 font-semibold">
                                                 <span class="{% if employee.monthly_salary and employee.monthly_salary > 0 %}text-green-600{% else %}text-gray-400{% endif %}">
-                                                    ₹{{ "%.2f"|format(employee.monthly_salary or 0) }}
+                                                    ${{ "%.2f"|format(employee.monthly_salary or 0) }}
                                                 </span>
                                             </td>
                                             <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900 font-semibold">
                                                 <span class="{% if employee.yearly_salary and employee.yearly_salary > 0 %}text-green-600{% else %}text-gray-400{% endif %}">
-                                                    ₹{{ "%.2f"|format(employee.yearly_salary or 0) }}
+                                                    ${{ "%.2f"|format(employee.yearly_salary or 0) }}
                                                 </span>
                                             </td>
                                             <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
@@ -816,11 +816,11 @@
                                     </div>
                                     <div>
                                         <p class="text-sm text-gray-600">Monthly Payroll</p>
-                                        <p class="text-lg font-semibold text-green-600">₹{{ "%.2f"|format(total_monthly_payroll or 0) }}</p>
+                                        <p class="text-lg font-semibold text-green-600">${{ "%.2f"|format(total_monthly_payroll or 0) }}</p>
                                     </div>
                                     <div>
                                         <p class="text-sm text-gray-600">Yearly Payroll</p>
-                                        <p class="text-lg font-semibold text-blue-600">₹{{ "%.2f"|format(total_yearly_payroll or 0) }}</p>
+                                        <p class="text-lg font-semibold text-blue-600">${{ "%.2f"|format(total_yearly_payroll or 0) }}</p>
                                     </div>
                                 </div>
                             </div>
@@ -850,22 +850,22 @@
                                 <div class="text-center p-4 bg-orange-50 rounded-lg">
                                     <h4 class="text-lg font-semibold text-orange-800">Pending</h4>
                                     <p class="text-2xl font-bold text-orange-600">{{ pending_asset_requests|length or 0 }}</p>
-                                    <p class="text-sm text-gray-600">₹{{ "%.2f"|format(total_pending_asset_cost or 0) }}</p>
+                                    <p class="text-sm text-gray-600">${{ "%.2f"|format(total_pending_asset_cost or 0) }}</p>
                                 </div>
                                 <div class="text-center p-4 bg-green-50 rounded-lg">
                                     <h4 class="text-lg font-semibold text-green-800">Approved</h4>
                                     <p class="text-2xl font-bold text-green-600">{{ approved_asset_requests|length or 0 }}</p>
-                                    <p class="text-sm text-gray-600">₹{{ "%.2f"|format(total_approved_asset_cost or 0) }}</p>
+                                    <p class="text-sm text-gray-600">${{ "%.2f"|format(total_approved_asset_cost or 0) }}</p>
                                 </div>
                                 <div class="text-center p-4 bg-red-50 rounded-lg">
                                     <h4 class="text-lg font-semibold text-red-800">Rejected</h4>
                                     <p class="text-2xl font-bold text-red-600">{{ rejected_asset_requests|length or 0 }}</p>
-                                    <p class="text-sm text-gray-600">₹{{ "%.2f"|format(total_rejected_asset_cost or 0) }}</p>
+                                    <p class="text-sm text-gray-600">${{ "%.2f"|format(total_rejected_asset_cost or 0) }}</p>
                                 </div>
                                 <div class="text-center p-4 bg-blue-50 rounded-lg">
                                     <h4 class="text-lg font-semibold text-blue-800">Total Requests</h4>
                                     <p class="text-2xl font-bold text-blue-600">{{ all_asset_requests|length or 0 }}</p>
-                                    <p class="text-sm text-gray-600">₹{{ "%.2f"|format((total_pending_asset_cost or 0) + (total_approved_asset_cost or 0) + (total_rejected_asset_cost or 0)) }}</p>
+                                    <p class="text-sm text-gray-600">${{ "%.2f"|format((total_pending_asset_cost or 0) + (total_approved_asset_cost or 0) + (total_rejected_asset_cost or 0)) }}</p>
                                 </div>
                             </div>
                         </div>
@@ -905,7 +905,7 @@
                                         <input type="number" name="quantity" value="1" min="1" required class="form-input w-full rounded-lg border-gray-300">
                                     </div>
                                     <div>
-                                        <label class="block text-sm font-medium text-gray-700 mb-2">Amount (₹) *</label>
+                                        <label class="block text-sm font-medium text-gray-700 mb-2">Amount ($) *</label>
                                         <input type="number" step="0.01" name="amount" min="0" required class="form-input w-full rounded-lg border-gray-300" placeholder="Enter cost">
                                     </div>
                                     <div>
@@ -954,7 +954,7 @@
                                             <tr>
                                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Asset Type</th>
                                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quantity</th>
-                                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount (₹)</th>
+                                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount ($)</th>
                                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">For Employee</th>
                                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Requested By</th>
                                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Request Date</th>
@@ -972,7 +972,7 @@
                                                 <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">{{ request.quantity }}</td>
                                                 <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900 font-semibold">
                                                     <span class="{% if request.status == 'Approved' %}text-green-600{% elif request.status == 'Rejected' %}text-red-600{% else %}text-orange-600{% endif %}">
-                                                        ₹{{ "%.2f"|format(request.amount or 0) }}
+                                                        ${{ "%.2f"|format(request.amount or 0) }}
                                                     </span>
                                                 </td>
                                                 <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">{{ request.for_employee or 'General Use' }}</td>
@@ -2039,7 +2039,7 @@ function editEmployee(username, name, email, role, mobile) {
     document.getElementById('edit_mobile_number').value = mobile || '';
     
     // Fetch complete employee details to populate all fields
-    fetch(`{{ url_for('get_employee_details_json') }}?username=₹{username}`)
+    fetch(`{{ url_for('get_employee_details_json') }}?username=${username}`)
         .then(response => response.json())
         .then(data => {
             if (data.success) {
@@ -2096,7 +2096,7 @@ function closeEditModalOnBackdrop(event) {
 
 // View Employee Details Function - WITH RM INFO
 function viewEmployeeDetails(username) {
-    fetch(`{{ url_for('get_employee_details_json') }}?username=₹{username}`)
+    fetch(`{{ url_for('get_employee_details_json') }}?username=${username}`)
         .then(response => response.json())
         .then(data => {
             if (data.success) {
@@ -2109,13 +2109,13 @@ function viewEmployeeDetails(username) {
                                 <i class="fas fa-user text-blue-600 mr-2"></i>Personal Information
                             </h4>
                             <div class="space-y-2 text-sm">
-                                <div><strong>Username:</strong> ₹{employee.username}</div>
-                                <div><strong>Full Name:</strong> ₹{employee.name || 'N/A'}</div>
-                                <div><strong>Email:</strong> ₹{employee.email || 'N/A'}</div>
-                                <div><strong>Role:</strong> ₹{employee.role || 'N/A'}</div>
-                                <div><strong>Mobile:</strong> ₹{employee.mobile_number || 'N/A'}</div>
-                                <div><strong>Emergency Contact:</strong> ₹{employee.emergency_contact || 'N/A'}</div>
-                                <div><strong>Blood Group:</strong> ₹{employee.blood_group || 'N/A'}</div>
+                                <div><strong>Username:</strong> ${employee.username}</div>
+                                <div><strong>Full Name:</strong> ${employee.name || 'N/A'}</div>
+                                <div><strong>Email:</strong> ${employee.email || 'N/A'}</div>
+                                <div><strong>Role:</strong> ${employee.role || 'N/A'}</div>
+                                <div><strong>Mobile:</strong> ${employee.mobile_number || 'N/A'}</div>
+                                <div><strong>Emergency Contact:</strong> ${employee.emergency_contact || 'N/A'}</div>
+                                <div><strong>Blood Group:</strong> ${employee.blood_group || 'N/A'}</div>
                             </div>
                         </div>
                         
@@ -2125,10 +2125,10 @@ function viewEmployeeDetails(username) {
                                 <i class="fas fa-briefcase text-green-600 mr-2"></i>Employment Information
                             </h4>
                             <div class="space-y-2 text-sm">
-                                <div><strong>Employment Type:</strong> ₹{employee.employment_type || 'N/A'}</div>
-                                <div><strong>Joining Date:</strong> ₹{employee.joining_date || 'N/A'}</div>
-                                <div><strong>Status:</strong> ₹{employee.status || 'N/A'}</div>
-                                <div><strong>Duration:</strong> ₹{employee.duration || 'N/A'}</div>
+                                <div><strong>Employment Type:</strong> ${employee.employment_type || 'N/A'}</div>
+                                <div><strong>Joining Date:</strong> ${employee.joining_date || 'N/A'}</div>
+                                <div><strong>Status:</strong> ${employee.status || 'N/A'}</div>
+                                <div><strong>Duration:</strong> ${employee.duration || 'N/A'}</div>
                             </div>
                         </div>
                         
@@ -2138,11 +2138,11 @@ function viewEmployeeDetails(username) {
                                 <i class="fas fa-user-tie text-blue-600 mr-2"></i>Reporting Manager (RM) Details
                             </h4>
                             <div class="space-y-2 text-sm">
-                                ₹{employee.rm_username ? `
-                                    <div><strong>RM Username:</strong> ₹{employee.rm_username}</div>
-                                    <div><strong>RM Name:</strong> ₹{employee.rm_name || 'N/A'}</div>
-                                    <div><strong>RM Role:</strong> ₹{employee.rm_role || 'N/A'}</div>
-                                    <div><strong>RM Email:</strong> ₹{employee.rm_email || 'N/A'}</div>
+                                ${employee.rm_username ? `
+                                    <div><strong>RM Username:</strong> ${employee.rm_username}</div>
+                                    <div><strong>RM Name:</strong> ${employee.rm_name || 'N/A'}</div>
+                                    <div><strong>RM Role:</strong> ${employee.rm_role || 'N/A'}</div>
+                                    <div><strong>RM Email:</strong> ${employee.rm_email || 'N/A'}</div>
                                 ` : '<div class="text-gray-500 italic">No reporting manager (RM) assigned</div>'}
                             </div>
                         </div>
@@ -2153,13 +2153,13 @@ function viewEmployeeDetails(username) {
                                 <i class="fas fa-file-alt text-purple-600 mr-2"></i>Documents & Assets
                             </h4>
                             <div class="space-y-2 text-sm">
-                                <div><strong>Aadhaar Number:</strong> ₹{employee.adhaar_number || 'N/A'}</div>
-                                <div><strong>PAN Number:</strong> ₹{employee.pan_number || 'N/A'}</div>
-                                <div><strong>LinkedIn:</strong> ₹{employee.linkedin_url ? `<a href="₹{employee.linkedin_url}" target="_blank" class="text-blue-600 hover:underline">₹{employee.linkedin_url}</a>` : 'N/A'}</div>
-                                <div><strong>ID Card:</strong> ₹{employee.id_card || 'N/A'}</div>
-                                <div><strong>Laptop Provided:</strong> ₹{employee.laptop_provided ? 'Yes' : 'No'}</div>
-                                <div><strong>ID Card Provided:</strong> ₹{employee.id_card_provided ? 'Yes' : 'No'}</div>
-                                <div><strong>Email Access:</strong> ₹{employee.email_provided ? 'Yes' : 'No'}</div>
+                                <div><strong>Aadhaar Number:</strong> ${employee.adhaar_number || 'N/A'}</div>
+                                <div><strong>PAN Number:</strong> ${employee.pan_number || 'N/A'}</div>
+                                <div><strong>LinkedIn:</strong> ${employee.linkedin_url ? `<a href="${employee.linkedin_url}" target="_blank" class="text-blue-600 hover:underline">${employee.linkedin_url}</a>` : 'N/A'}</div>
+                                <div><strong>ID Card:</strong> ${employee.id_card || 'N/A'}</div>
+                                <div><strong>Laptop Provided:</strong> ${employee.laptop_provided ? 'Yes' : 'No'}</div>
+                                <div><strong>ID Card Provided:</strong> ${employee.id_card_provided ? 'Yes' : 'No'}</div>
+                                <div><strong>Email Access:</strong> ${employee.email_provided ? 'Yes' : 'No'}</div>
                             </div>
                         </div>
                         
@@ -2169,26 +2169,26 @@ function viewEmployeeDetails(username) {
                                 <i class="fas fa-calendar-alt text-orange-600 mr-2"></i>Leave Balance
                             </h4>
                             <div class="space-y-2 text-sm">
-                                <div><strong>Total Leaves:</strong> ₹{employee.total_leaves || 'N/A'}</div>
-                                <div><strong>Sick Leaves:</strong> ₹{employee.sick_total || 'N/A'}</div>
-                                <div><strong>Paid Leaves:</strong> ₹{employee.paid_total || 'N/A'}</div>
-                                <div><strong>Casual Leaves:</strong> ₹{employee.casual_total || 'N/A'}</div>
+                                <div><strong>Total Leaves:</strong> ${employee.total_leaves || 'N/A'}</div>
+                                <div><strong>Sick Leaves:</strong> ${employee.sick_total || 'N/A'}</div>
+                                <div><strong>Paid Leaves:</strong> ${employee.paid_total || 'N/A'}</div>
+                                <div><strong>Casual Leaves:</strong> ${employee.casual_total || 'N/A'}</div>
                             </div>
                         </div>
                         
-                        ₹{employee.asset_details ? `
+                        ${employee.asset_details ? `
                         <div class="bg-gray-50 p-4 rounded-lg md:col-span-2">
                             <h4 class="font-semibold text-gray-800 mb-3">
                                 <i class="fas fa-laptop text-indigo-600 mr-2"></i>Asset Details
                             </h4>
-                            <div class="text-sm">₹{employee.asset_details}</div>
+                            <div class="text-sm">${employee.asset_details}</div>
                         </div>
                         ` : ''}
                     </div>
                     
-                    ₹{employee.photo_url ? `
+                    ${employee.photo_url ? `
                     <div class="mt-4 text-center">
-                        <img src="₹{employee.photo_url}" alt="₹{employee.name || employee.username}" class="mx-auto h-32 w-32 rounded-full object-cover border-4 border-gray-200">
+                        <img src="${employee.photo_url}" alt="${employee.name || employee.username}" class="mx-auto h-32 w-32 rounded-full object-cover border-4 border-gray-200">
                     </div>
                     ` : ''}
                 `;
@@ -2211,7 +2211,7 @@ function closeModal() {
 
 // View Resigned Employee Details Function
 function viewResignedEmployeeDetails(username) {
-    fetch(`{{ url_for('get_employee_details_json') }}?username=₹{username}`)
+    fetch(`{{ url_for('get_employee_details_json') }}?username=${username}`)
         .then(response => response.json())
         .then(data => {
             if (data.success) {
@@ -2231,11 +2231,11 @@ function viewResignedEmployeeDetails(username) {
                                 <i class="fas fa-user text-blue-600 mr-2"></i>Personal Information
                             </h4>
                             <div class="space-y-2 text-sm">
-                                <div><strong>Username:</strong> ₹{employee.username}</div>
-                                <div><strong>Full Name:</strong> ₹{employee.name || 'N/A'}</div>
-                                <div><strong>Role:</strong> ₹{employee.role || 'N/A'}</div>
-                                <div><strong>Email:</strong> ₹{employee.email || 'N/A'}</div>
-                                <div><strong>Mobile:</strong> ₹{employee.mobile_number || 'N/A'}</div>
+                                <div><strong>Username:</strong> ${employee.username}</div>
+                                <div><strong>Full Name:</strong> ${employee.name || 'N/A'}</div>
+                                <div><strong>Role:</strong> ${employee.role || 'N/A'}</div>
+                                <div><strong>Email:</strong> ${employee.email || 'N/A'}</div>
+                                <div><strong>Mobile:</strong> ${employee.mobile_number || 'N/A'}</div>
                             </div>
                         </div>
                         
@@ -2245,10 +2245,10 @@ function viewResignedEmployeeDetails(username) {
                                 <i class="fas fa-calendar text-green-600 mr-2"></i>Employment Period
                             </h4>
                             <div class="space-y-2 text-sm">
-                                <div><strong>Joining Date:</strong> ₹{employee.joining_date || 'N/A'}</div>
-                                <div><strong>Resignation Date:</strong> ₹{employee.resigned_date || 'N/A'}</div>
-                                <div><strong>Employment Type:</strong> ₹{employee.employment_type || 'N/A'}</div>
-                                <div><strong>Status:</strong> <span class="text-red-600 font-semibold">₹{employee.status || 'Resigned'}</span></div>
+                                <div><strong>Joining Date:</strong> ${employee.joining_date || 'N/A'}</div>
+                                <div><strong>Resignation Date:</strong> ${employee.resigned_date || 'N/A'}</div>
+                                <div><strong>Employment Type:</strong> ${employee.employment_type || 'N/A'}</div>
+                                <div><strong>Status:</strong> <span class="text-red-600 font-semibold">${employee.status || 'Resigned'}</span></div>
                             </div>
                         </div>
                     </div>
@@ -2272,7 +2272,7 @@ function closeResignedModal() {
 
 // Delete Employee Function
 function deleteEmployee(username) {
-    if (confirm(`Are you sure you want to delete employee: ₹{username}?\n\nThis action cannot be undone and will remove all employee data including work history, leave records, and personal information.`)) {
+    if (confirm(`Are you sure you want to delete employee: ${username}?\n\nThis action cannot be undone and will remove all employee data including work history, leave records, and personal information.`)) {
         const form = document.createElement('form');
         form.method = 'POST';
         form.action = '{{ url_for("delete_employee_admin") }}';
@@ -2394,10 +2394,10 @@ function showNotification(message, type = 'info', duration = 3000) {
         'info': 'bg-blue-500'
     }[type] || 'bg-blue-500';
     
-    notification.className = `₹{bgColor} text-white px-4 py-3 rounded-lg shadow-lg transform transition-all duration-300 translate-x-full opacity-0`;
+    notification.className = `${bgColor} text-white px-4 py-3 rounded-lg shadow-lg transform transition-all duration-300 translate-x-full opacity-0`;
     notification.innerHTML = `
         <div class="flex items-center justify-between">
-            <span>₹{message}</span>
+            <span>${message}</span>
             <button onclick="this.parentElement.parentElement.remove()" class="ml-3 text-white hover:text-gray-200">
                 <i class="fas fa-times"></i>
             </button>
