@@ -873,7 +873,6 @@
         </div>
     </div>
 </div>
-
 <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
 <script>
 // Tab functionality
@@ -934,8 +933,9 @@ function showDocumentModal(leaveId) {
                     <i class="fas fa-file-alt mr-2"></i>Leave Document
                 </h3>
                 <div class="flex space-x-2">
-                    <a href="/download-leave-doc/₹{leaveId}" 
-                       class="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-sm">
+                    <a href="/download-leave-doc/${leaveId}" 
+                       class="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-sm"
+                       target="_blank">
                         <i class="fas fa-download mr-1"></i>Download
                     </a>
                     <button onclick="closeDocumentModal()" 
@@ -946,11 +946,12 @@ function showDocumentModal(leaveId) {
             </div>
             <div class="flex-1 p-4 overflow-auto">
                 <div class="w-full h-full flex items-center justify-center">
-                    <iframe src="/view-leave-doc/₹{leaveId}" 
+                    <iframe src="/view-leave-document/${leaveId}" 
                             class="w-full border border-gray-300 rounded" 
-                            style="height: 70vh;">
+                            style="height: 70vh;"
+                            onerror="handleIframeError()">
                         <p>Cannot display document. 
-                           <a href="/download-leave-doc/₹{leaveId}">Download the document</a>
+                           <a href="/download-leave-doc/${leaveId}" target="_blank">Download the document</a>
                         </p>
                     </iframe>
                 </div>
@@ -973,6 +974,10 @@ function closeDocumentModal() {
     if (modal) {
         document.body.removeChild(modal);
     }
+}
+
+function handleIframeError() {
+    alert('Could not load document. Please try downloading it instead.');
 }
 
 // Close modal with Escape key
@@ -1017,7 +1022,39 @@ function deleteLeave(id) {
         form.submit();
     }
 }
+
+// Notification function for better user feedback
+function showNotification(message, type = 'info') {
+    const notification = document.createElement('div');
+    notification.className = `fixed top-4 right-4 z-50 px-6 py-3 rounded-lg shadow-lg transition-all duration-300 ${
+        type === 'success' ? 'bg-green-500 text-white' :
+        type === 'error' ? 'bg-red-500 text-white' :
+        type === 'warning' ? 'bg-yellow-500 text-white' :
+        'bg-blue-500 text-white'
+    }`;
+    
+    notification.innerHTML = `
+        <div class="flex items-center">
+            <i class="fas fa-${type === 'success' ? 'check' : type === 'error' ? 'times' : type === 'warning' ? 'exclamation-triangle' : 'info-circle'} mr-2"></i>
+            <span>${message}</span>
+            <button onclick="this.parentElement.parentElement.remove()" class="ml-4 text-white hover:text-gray-200">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+    `;
+    
+    document.body.appendChild(notification);
+    
+    // Auto-remove after 5 seconds
+    setTimeout(() => {
+        if (notification.parentElement) {
+            notification.remove();
+        }
+    }, 5000);
+}
 </script>
+
+
 
 <style>
 .form-input, .form-select, .form-textarea {
