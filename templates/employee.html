@@ -35,12 +35,12 @@
 {% endwith %}
 
 <!-- Stats Cards -->
-<div class="grid grid-cols-3 gap-4 mb-6">
-    <div class="bg-green-500 rounded-xl p-4 text-white">
+<div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+    <div class="bg-green-500 rounded-xl p-4 text-white stats-card">
         <div class="flex items-center justify-between">
             <div>
                 <h3 class="text-sm font-medium opacity-90">Sick Leave</h3>
-                <h3 class="text-3xl font-bold">{{ remaining_leaves.sick if remaining_leaves else 11 }}</h3>
+                <h3 class="text-3xl font-bold">{{ remaining_leaves.sick if remaining_leaves else 12 }}</h3>
                 <p class="text-green-100 text-sm">days available</p>
             </div>
             <div class="bg-white bg-opacity-20 rounded-lg p-2">
@@ -49,7 +49,7 @@
         </div>
     </div>
 
-    <div class="bg-blue-500 rounded-xl p-4 text-white">
+    <div class="bg-blue-500 rounded-xl p-4 text-white stats-card">
         <div class="flex items-center justify-between">
             <div>
                 <h3 class="text-sm font-medium opacity-90">Vacation/Personal</h3>
@@ -62,7 +62,7 @@
         </div>
     </div>
 
-    <div class="bg-purple-500 rounded-xl p-4 text-white">
+    <div class="bg-purple-500 rounded-xl p-4 text-white stats-card">
         <div class="flex items-center justify-between">
             <div>
                 <h3 class="text-sm font-medium opacity-90">Casual/Other</h3>
@@ -661,7 +661,7 @@
                             </h3>
                             <p class="text-sm text-gray-600 mt-1">Track all work assignments you have made to your team members</p>
                         </div>
-
+                        
                         {% if my_assigned_work and my_assigned_work|length > 0 %}
                         <div class="p-6">
                             <div class="overflow-x-auto">
@@ -1229,229 +1229,344 @@
             </div>
         </div>
 
-        <!-- Team History Tab -->
-        <div id="team-history" class="tab-content hidden">
-            <h2 class="text-2xl font-bold text-gray-800 mb-6 flex items-center">
-                <i class="fas fa-users-cog text-purple-600 mr-3"></i>
-                Team History - Complete Historical Records
-            </h2>
+<!-- Team History Tab -->
+<div id="team-history" class="tab-content hidden">
+    <h2 class="text-2xl font-bold text-gray-800 mb-6 flex items-center">
+        <i class="fas fa-users-cog text-purple-600 mr-3"></i>
+        Team History - Complete Historical Records
+    </h2>
 
-            <!-- Nested Tab Navigation for Team History -->
-            <div class="flex space-x-4 border-b border-gray-200 mb-6">
-                <button class="team-history-tab-button active border-b-2 border-purple-600 font-semibold text-purple-600 pb-2 px-4 py-2 text-sm font-medium transition-colors" data-team-tab="work">
-                    <i class="fas fa-briefcase mr-2"></i>Team Work History
-                    <span class="ml-2 bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full">
-                        {{ employee_history_rows|length if employee_history_rows else 0 }}
-                    </span>
-                </button>
-                <button class="team-history-tab-button text-gray-500 hover:text-gray-700 pb-2 px-4 py-2 text-sm font-medium transition-colors" data-team-tab="leave">
-                    <i class="fas fa-calendar-times mr-2"></i>Team Leave History
-                    <span class="ml-2 bg-indigo-100 text-indigo-800 text-xs px-2 py-1 rounded-full">
-                        {{ team_leaves|length if team_leaves else 0 }}
-                    </span>
-                </button>
-            </div>
+    <!-- Nested Tab Navigation for Team History -->
+    <div class="flex space-x-4 border-b border-gray-200 mb-6">
+        <button class="team-history-tab-button active border-b-2 border-purple-600 font-semibold text-purple-600 pb-2 px-4 py-2 text-sm font-medium transition-colors" data-team-tab="work">
+            <i class="fas fa-briefcase mr-2"></i>Team Work History
+            <span class="ml-2 bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full">
+                {{ employee_history_rows|length if employee_history_rows else 0 }}
+            </span>
+        </button>
+        <button class="team-history-tab-button text-gray-500 hover:text-gray-700 pb-2 px-4 py-2 text-sm font-medium transition-colors" data-team-tab="leave">
+            <i class="fas fa-calendar-times mr-2"></i>Team Leave History
+            <span class="ml-2 bg-indigo-100 text-indigo-800 text-xs px-2 py-1 rounded-full">
+                {{ team_leaves|length if team_leaves else 0 }}
+            </span>
+        </button>
+    </div>
 
-            <div class="space-y-8">
-                <!-- Team Work History -->
-                <div id="team-work" class="team-history-tab-content">
-                    {% if employee_history_rows %}
-                    <div class="bg-white rounded-xl shadow-sm border border-gray-200">
-                        <div class="px-6 py-4 border-b border-gray-200">
-                            <h3 class="text-xl font-semibold text-gray-800 flex items-center">
-                                <i class="fas fa-clock text-green-600 mr-2"></i>
-                                Team Work History
-                                <span class="ml-2 bg-green-100 text-green-800 text-sm font-medium px-2 py-1 rounded-full">
-                                    {{ employee_history_rows|length }} records found
-                                </span>
-                            </h3>
-                            <p class="text-sm text-gray-600 mt-1">All timesheet submissions from your team members</p>
-                        </div>
-
-                        <div class="overflow-x-auto max-h-96 border rounded-lg">
-                            <table class="min-w-full divide-y divide-gray-200">
-                                <thead class="bg-gray-50 sticky top-0">
-                                    <tr>
-                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Employee</th>
-                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Project</th>
-                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Hours</th>
-                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Break</th>
-                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Overtime</th>
-                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
-                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                                    </tr>
-                                </thead>
-                                <tbody class="bg-white divide-y divide-gray-200">
-                                    {% for work in employee_history_rows %}
-                                    <tr class="hover:bg-gray-50 transition-colors">
-                                        <td class="px-4 py-4 whitespace-nowrap text-sm font-medium text-blue-600">
-                                            {{ work.username }}
-                                        </td>
-                                        <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">{{ work.work_date|dateformat }}</td>
-                                        <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">{{ work.project_name or 'N/A' }}</td>
-                                        <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                                            <span class="font-medium">{{ work.hours }}h</span>
-                                        </td>
-                                        <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
-                                            {{ work.break_hours or 0 }}h
-                                        </td>
-                                        <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                                            {% if work.overtime_hours and work.overtime_hours > 0 %}
-                                                <span class="font-medium text-orange-600">{{ work.overtime_hours }}h</span>
-                                            {% else %}
-                                                <span class="text-gray-400">0h</span>
-                                            {% endif %}
-                                        </td>
-                                        <td class="px-4 py-4 text-sm text-gray-900">
-                                            <div class="max-w-xs truncate" title="{{ work.work_desc }}">
-                                                {{ work.work_desc[:80] }}{% if work.work_desc|length > 80 %}...{% endif %}
-                                            </div>
-                                        </td>
-                                        <td class="px-4 py-4 whitespace-nowrap text-sm">
-                                            {% if work.rm_status == 'Approved' %}
-                                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                                                    <i class="fas fa-check-circle mr-1 text-green-600"></i>Approved
-                                                </span>
-                                            {% elif work.rm_status == 'Pending' %}
-                                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
-                                                    <i class="fas fa-clock mr-1 text-yellow-600"></i>Pending
-                                                </span>
-                                            {% elif work.rm_status == 'Rejected' %}
-                                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                                                    <i class="fas fa-times-circle mr-1 text-red-600"></i>Rejected
-                                                </span>
-                                            {% else %}
-                                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                                                    <i class="fas fa-question-circle mr-1 text-gray-600"></i>{{ work.rm_status or 'Unknown' }}
-                                                </span>
-                                            {% endif %}
-                                        </td>
-                                    </tr>
-                                    {% endfor %}
-                                </tbody>
-                            </table>
-                        </div>
-                        <div class="px-6 py-4 text-sm text-gray-500">
-                            <i class="fas fa-info-circle mr-1"></i>
-                            Showing {{ employee_history_rows|length }} work records from all team members
-                        </div>
-                    </div>
-                    {% else %}
-                    <div class="text-center py-16 bg-gray-50 rounded-xl">
-                        <i class="fas fa-search text-4xl text-gray-300 mb-4"></i>
-                        <p class="text-xl text-gray-500 mb-2">No work history found</p>
-                        <p class="text-gray-400">Your team members' timesheet submissions will appear here.</p>
-                    </div>
-                    {% endif %}
+    <div class="space-y-8">
+        <!-- Team Work History -->
+        <div id="team-work" class="team-history-tab-content">
+            <!-- Work History Filter -->
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200 mb-6">
+                <div class="px-6 py-4 border-b border-gray-200">
+                    <h3 class="text-lg font-semibold text-gray-800">
+                        <i class="fas fa-filter text-green-600 mr-2"></i>Filter Team Work Records
+                    </h3>
                 </div>
-
-                <!-- Team Leave History -->
-                <div id="team-leave" class="team-history-tab-content hidden">
-                    {% if team_leaves %}
-                    <div class="bg-white rounded-xl shadow-sm border border-gray-200">
-                        <div class="px-6 py-4 border-b border-gray-200">
-                            <h3 class="text-xl font-semibold text-gray-800 flex items-center">
-                                <i class="fas fa-calendar-alt text-indigo-600 mr-2"></i>
-                                Team Leave History
-                                <span class="ml-2 bg-indigo-100 text-indigo-800 text-sm font-medium px-2 py-1 rounded-full">
-                                    {{ team_leaves|length }} records found
-                                </span>
-                            </h3>
-                            <p class="text-sm text-gray-600 mt-1">All leave requests from your team members</p>
-                        </div>
-
-                        <div class="overflow-x-auto max-h-96 border rounded-lg">
-                            <table class="min-w-full divide-y divide-gray-200">
-                                <thead class="bg-gray-50 sticky top-0">
-                                    <tr>
-                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Employee</th>
-                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Start Date</th>
-                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">End Date</th>
-                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Duration</th>
-                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Leave Type</th>
-                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Reason</th>
-                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                                    </tr>
-                                </thead>
-                                <tbody class="bg-white divide-y divide-gray-200">
-                                    {% for leave in team_leaves %}
-                                    <tr class="hover:bg-gray-50 transition-colors">
-                                        <td class="px-4 py-4 whitespace-nowrap text-sm font-medium text-blue-600">
-                                            {{ leave.username }}
-                                        </td>
-                                        <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">{{ leave.start_date|dateformat }}</td>
-                                        <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">{{ leave.end_date|dateformat }}</td>
-                                        <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                                            {% if leave.duration_days %}
-                                                <span class="font-medium">{{ leave.duration_days }} day(s)</span>
-                                            {% else %}
-                                                <span class="text-gray-500">N/A</span>
-                                            {% endif %}
-                                        </td>
-                                        <td class="px-4 py-4 whitespace-nowrap text-sm">
-                                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
-                                                {% if leave.leave_type == 'Sick' %}bg-red-100 text-red-800
-                                                {% elif leave.leave_type in ['Vacation', 'Personal'] %}bg-blue-100 text-blue-800
-                                                {% else %}bg-purple-100 text-purple-800{% endif %}">
-                                                <i class="{% if leave.leave_type == 'Sick' %}fas fa-user-md
-                                                   {% elif leave.leave_type in ['Vacation', 'Personal'] %}fas fa-plane
-                                                   {% else %}fas fa-coffee{% endif %} mr-1"></i>
-                                                {{ leave.leave_type }}
-                                            </span>
-                                        </td>
-                                        <td class="px-4 py-4 text-sm text-gray-900">
-                                            <div class="max-w-xs truncate" title="{{ leave.description }}">
-                                                {{ leave.description[:50] }}{% if leave.description|length > 50 %}...{% endif %}
-                                            </div>
-                                        </td>
-                                        <td class="px-4 py-4 whitespace-nowrap text-sm">
-                                            {% if leave.rm_status == 'Approved' %}
-                                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                                                    <i class="fas fa-check-circle mr-1 text-green-600"></i>Approved
-                                                </span>
-                                            {% elif leave.rm_status == 'Pending' %}
-                                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
-                                                    <i class="fas fa-clock mr-1 text-yellow-600"></i>Pending
-                                                </span>
-                                            {% elif leave.rm_status == 'Rejected' %}
-                                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                                                    <i class="fas fa-times-circle mr-1 text-red-600"></i>Rejected
-                                                </span>
-                                            {% else %}
-                                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                                                    <i class="fas fa-question-circle mr-1 text-gray-600"></i>{{ leave.rm_status or 'Unknown' }}
-                                                </span>
-                                            {% endif %}
-                                        </td>
-                                    </tr>
+                <div class="p-6">
+                    <form method="GET" action="{{ url_for('dashboard') }}" class="mb-4">
+                        <input type="hidden" name="tab" value="team-history">
+                        <div class="grid grid-cols-1 md:grid-cols-6 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Start Date</label>
+                                <input type="date" name="team_work_start" value="{{ team_work_start or '' }}" 
+                                       class="form-input w-full rounded-lg border-gray-300">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">End Date</label>
+                                <input type="date" name="team_work_end" value="{{ team_work_end or '' }}" 
+                                       class="form-input w-full rounded-lg border-gray-300">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Employee</label>
+                                <select name="team_work_emp" class="form-select w-full rounded-lg border-gray-300">
+                                    <option value="">All Employees</option>
+                                    {% for emp in all_team %}
+                                        <option value="{{ emp }}" {% if team_work_emp == emp %}selected{% endif %}>{{ emp }}</option>
                                     {% endfor %}
-                                </tbody>
-                            </table>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Project</label>
+                                <select name="team_work_proj" class="form-select w-full rounded-lg border-gray-300">
+                                    <option value="">All Projects</option>
+                                    {% for project in proj_list %}
+                                        <option value="{{ project }}" {% if team_work_proj == project %}selected{% endif %}>{{ project }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Status</label>
+                                <select name="team_work_status" class="form-select w-full rounded-lg border-gray-300">
+                                    <option value="">All Status</option>
+                                    <option value="Pending" {% if team_work_status == 'Pending' %}selected{% endif %}>Pending</option>
+                                    <option value="Approved" {% if team_work_status == 'Approved' %}selected{% endif %}>Approved</option>
+                                    <option value="Rejected" {% if team_work_status == 'Rejected' %}selected{% endif %}>Rejected</option>
+                                </select>
+                            </div>
+                            <div class="flex items-end">
+                                <button type="submit" class="w-full bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded-lg">
+                                    <i class="fas fa-search mr-2"></i>Filter Work
+                                </button>
+                            </div>
                         </div>
-                        <div class="px-6 py-4 text-sm text-gray-500">
-                            <i class="fas fa-info-circle mr-1"></i>
-                            Showing {{ team_leaves|length }} leave records from all team members
-                        </div>
-                    </div>
-                    {% else %}
-                    <div class="text-center py-16 bg-gray-50 rounded-xl">
-                        <i class="fas fa-search text-4xl text-gray-300 mb-4"></i>
-                        <p class="text-xl text-gray-500 mb-2">No leave history found</p>
-                        <p class="text-gray-400">Your team members' leave requests will appear here.</p>
-                    </div>
-                    {% endif %}
+                    </form>
                 </div>
             </div>
+
+            {% if employee_history_rows %}
+            <div class="bg-white rounded-xl shadow-sm border border-gray-200">
+                <div class="px-6 py-4 border-b border-gray-200">
+                    <h3 class="text-xl font-semibold text-gray-800 flex items-center">
+                        <i class="fas fa-clock text-green-600 mr-2"></i>
+                        Team Work History
+                        <span class="ml-2 bg-green-100 text-green-800 text-sm font-medium px-2 py-1 rounded-full">
+                            {{ employee_history_rows|length }} records found
+                        </span>
+                    </h3>
+                    <p class="text-sm text-gray-600 mt-1">All timesheet submissions from your team members</p>
+                </div>
+                <div class="overflow-x-auto max-h-96 border rounded-lg">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50 sticky top-0">
+                            <tr>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Employee</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Project</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Hours</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Break</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Overtime</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200">
+                            {% for work in employee_history_rows %}
+                            <tr class="hover:bg-gray-50 transition-colors">
+                                <td class="px-4 py-4 whitespace-nowrap text-sm font-medium text-blue-600">
+                                    {{ work.username }}
+                                </td>
+                                <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">{{ work.work_date|dateformat }}</td>
+                                <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">{{ work.project_name or 'N/A' }}</td>
+                                <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+                                    <span class="font-medium">{{ work.hours }}h</span>
+                                </td>
+                                <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
+                                    {{ work.break_hours or 0 }}h
+                                </td>
+                                <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+                                    {% if work.overtime_hours and work.overtime_hours > 0 %}
+                                        <span class="font-medium text-orange-600">{{ work.overtime_hours }}h</span>
+                                    {% else %}
+                                        <span class="text-gray-400">0h</span>
+                                    {% endif %}
+                                </td>
+                                <td class="px-4 py-4 text-sm text-gray-900">
+                                    <div class="max-w-xs truncate" title="{{ work.work_desc }}">
+                                        {{ work.work_desc[:80] }}{% if work.work_desc|length > 80 %}...{% endif %}
+                                    </div>
+                                </td>
+                                <td class="px-4 py-4 whitespace-nowrap text-sm">
+                                    {% if work.rm_status == 'Approved' %}
+                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                            <i class="fas fa-check-circle mr-1 text-green-600"></i>Approved
+                                        </span>
+                                    {% elif work.rm_status == 'Pending' %}
+                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                                            <i class="fas fa-clock mr-1 text-yellow-600"></i>Pending
+                                        </span>
+                                    {% elif work.rm_status == 'Rejected' %}
+                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                                            <i class="fas fa-times-circle mr-1 text-red-600"></i>Rejected
+                                        </span>
+                                    {% else %}
+                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                                            <i class="fas fa-question-circle mr-1 text-gray-600"></i>{{ work.rm_status or 'Unknown' }}
+                                        </span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                <div class="px-6 py-4 text-sm text-gray-500">
+                    <i class="fas fa-info-circle mr-1"></i>
+                    Showing {{ employee_history_rows|length }} work records from all team members
+                </div>
+            </div>
+            {% else %}
+            <div class="text-center py-16 bg-gray-50 rounded-xl">
+                <i class="fas fa-search text-4xl text-gray-300 mb-4"></i>
+                <p class="text-xl text-gray-500 mb-2">No work history found</p>
+                <p class="text-gray-400">Your team members' timesheet submissions will appear here.</p>
+            </div>
+            {% endif %}
         </div>
-        {% endif %}
+
+        <!-- Team Leave History -->
+        <div id="team-leave" class="team-history-tab-content hidden">
+            <!-- Leave History Filter -->
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200 mb-6">
+                <div class="px-6 py-4 border-b border-gray-200">
+                    <h3 class="text-lg font-semibold text-gray-800">
+                        <i class="fas fa-filter text-indigo-600 mr-2"></i>Filter Team Leave Records
+                    </h3>
+                </div>
+                <div class="p-6">
+                    <form method="GET" action="{{ url_for('dashboard') }}" class="mb-4">
+                        <input type="hidden" name="tab" value="team-history">
+                        <input type="hidden" name="subtab" value="leave">
+                        <div class="grid grid-cols-1 md:grid-cols-6 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Leave Start Date</label>
+                                <input type="date" name="team_leave_start" value="{{ team_leave_start or '' }}" 
+                                       class="form-input w-full rounded-lg border-gray-300">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Leave End Date</label>
+                                <input type="date" name="team_leave_end" value="{{ team_leave_end or '' }}" 
+                                       class="form-input w-full rounded-lg border-gray-300">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Employee</label>
+                                <select name="team_leave_emp" class="form-select w-full rounded-lg border-gray-300">
+                                    <option value="">All Employees</option>
+                                    {% for emp in all_team %}
+                                        <option value="{{ emp }}" {% if team_leave_emp == emp %}selected{% endif %}>{{ emp }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Leave Type</label>
+                                <select name="team_leave_type" class="form-select w-full rounded-lg border-gray-300">
+                                    <option value="">All Types</option>
+                                    <option value="Sick" {% if team_leave_type == 'Sick' %}selected{% endif %}>Sick</option>
+                                    <option value="Vacation" {% if team_leave_type == 'Vacation' %}selected{% endif %}>Vacation</option>
+                                    <option value="Personal" {% if team_leave_type == 'Personal' %}selected{% endif %}>Personal</option>
+                                    <option value="Casual" {% if team_leave_type == 'Casual' %}selected{% endif %}>Casual</option>
+                                    <option value="Other" {% if team_leave_type == 'Other' %}selected{% endif %}>Other</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Status</label>
+                                <select name="team_leave_status" class="form-select w-full rounded-lg border-gray-300">
+                                    <option value="">All Status</option>
+                                    <option value="Pending" {% if team_leave_status == 'Pending' %}selected{% endif %}>Pending</option>
+                                    <option value="Approved" {% if team_leave_status == 'Approved' %}selected{% endif %}>Approved</option>
+                                    <option value="Rejected" {% if team_leave_status == 'Rejected' %}selected{% endif %}>Rejected</option>
+                                </select>
+                            </div>
+                            <div class="flex items-end">
+                                <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-4 rounded-lg">
+                                    <i class="fas fa-search mr-2"></i>Filter Leaves
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            {% if team_leaves %}
+            <div class="bg-white rounded-xl shadow-sm border border-gray-200">
+                <div class="px-6 py-4 border-b border-gray-200">
+                    <h3 class="text-xl font-semibold text-gray-800 flex items-center">
+                        <i class="fas fa-calendar-alt text-indigo-600 mr-2"></i>
+                        Team Leave History
+                        <span class="ml-2 bg-indigo-100 text-indigo-800 text-sm font-medium px-2 py-1 rounded-full">
+                            {{ team_leaves|length }} records found
+                        </span>
+                    </h3>
+                    <p class="text-sm text-gray-600 mt-1">All leave requests from your team members</p>
+                </div>
+                <div class="overflow-x-auto max-h-96 border rounded-lg">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50 sticky top-0">
+                            <tr>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Employee</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Start Date</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">End Date</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Duration</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Leave Type</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Reason</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200">
+                            {% for leave in team_leaves %}
+                            <tr class="hover:bg-gray-50 transition-colors">
+                                <td class="px-4 py-4 whitespace-nowrap text-sm font-medium text-blue-600">
+                                    {{ leave.username }}
+                                </td>
+                                <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">{{ leave.start_date|dateformat }}</td>
+                                <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">{{ leave.end_date|dateformat }}</td>
+                                <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+                                    {% if leave.duration_days %}
+                                        <span class="font-medium">{{ leave.duration_days }} day(s)</span>
+                                    {% else %}
+                                        <span class="text-gray-500">N/A</span>
+                                    {% endif %}
+                                </td>
+                                <td class="px-4 py-4 whitespace-nowrap text-sm">
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+                                        {% if leave.leave_type == 'Sick' %}bg-red-100 text-red-800
+                                        {% elif leave.leave_type in ['Vacation', 'Personal'] %}bg-blue-100 text-blue-800
+                                        {% else %}bg-purple-100 text-purple-800{% endif %}">
+                                        <i class="{% if leave.leave_type == 'Sick' %}fas fa-user-md
+                                           {% elif leave.leave_type in ['Vacation', 'Personal'] %}fas fa-plane
+                                           {% else %}fas fa-coffee{% endif %} mr-1"></i>
+                                        {{ leave.leave_type }}
+                                    </span>
+                                </td>
+                                <td class="px-4 py-4 text-sm text-gray-900">
+                                    <div class="max-w-xs truncate" title="{{ leave.description }}">
+                                        {{ leave.description[:50] }}{% if leave.description|length > 50 %}...{% endif %}
+                                    </div>
+                                </td>
+                                <td class="px-4 py-4 whitespace-nowrap text-sm">
+                                    {% if leave.rm_status == 'Approved' %}
+                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                            <i class="fas fa-check-circle mr-1 text-green-600"></i>Approved
+                                        </span>
+                                    {% elif leave.rm_status == 'Pending' %}
+                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                                            <i class="fas fa-clock mr-1 text-yellow-600"></i>Pending
+                                        </span>
+                                    {% elif leave.rm_status == 'Rejected' %}
+                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                                            <i class="fas fa-times-circle mr-1 text-red-600"></i>Rejected
+                                        </span>
+                                    {% else %}
+                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                                            <i class="fas fa-question-circle mr-1 text-gray-600"></i>{{ leave.rm_status or 'Unknown' }}
+                                        </span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                <div class="px-6 py-4 text-sm text-gray-500">
+                    <i class="fas fa-info-circle mr-1"></i>
+                    Showing {{ team_leaves|length }} leave records from all team members
+                </div>
+            </div>
+            {% else %}
+            <div class="text-center py-16 bg-gray-50 rounded-xl">
+                <i class="fas fa-search text-4xl text-gray-300 mb-4"></i>
+                <p class="text-xl text-gray-500 mb-2">No leave history found</p>
+                <p class="text-gray-400">Your team members' leave requests will appear here.</p>
+            </div>
+            {% endif %}
+        </div>
     </div>
 </div>
+{% endif %}
 
 <!-- Reject Modal -->
-<div id="rejectModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden z-50">
+<div id="rejectModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden z-50 modal-backdrop">
     <div class="flex items-center justify-center min-h-screen px-4">
-        <div class="bg-white rounded-lg shadow-xl max-w-md w-full">
+        <div class="bg-white rounded-lg shadow-xl max-w-md w-full modal-content">
             <div class="p-6">
                 <div class="flex items-center mb-4">
                     <div class="flex-shrink-0">
@@ -1613,16 +1728,16 @@ function closeRejectModal() {
 function viewEmployeeLeaveDocument(leaveId) {
     const modal = document.createElement('div');
     modal.id = 'employeeDocumentModal';
-    modal.className = 'fixed inset-0 bg-gray-600 bg-opacity-75 z-50 flex items-center justify-center';
+    modal.className = 'fixed inset-0 bg-gray-600 bg-opacity-75 z-50 flex items-center justify-center modal-backdrop';
     
     modal.innerHTML = `
-        <div class="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] flex flex-col">
+        <div class="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] flex flex-col modal-content">
             <div class="flex items-center justify-between p-4 border-b border-gray-200">
                 <h3 class="text-lg font-semibold text-gray-900">
                     <i class="fas fa-file-alt mr-2"></i>My Leave Document
                 </h3>
                 <div class="flex space-x-2">
-                    <button onclick="downloadEmployeeLeaveDocument(₹{leaveId})" 
+                    <button onclick="downloadEmployeeLeaveDocument(${leaveId})" 
                            class="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-sm">
                         <i class="fas fa-download mr-1"></i>Download
                     </button>
@@ -1634,11 +1749,12 @@ function viewEmployeeLeaveDocument(leaveId) {
             </div>
             <div class="flex-1 p-4 overflow-auto">
                 <div class="w-full h-full flex items-center justify-center">
-                    <iframe src="/view-leave-doc/₹{leaveId}" 
+                    <iframe src="/view-leave-document/${leaveId}" 
+ 
                             class="w-full border border-gray-300 rounded" 
                             style="height: 70vh;">
                         <p>Cannot display document. 
-                           <a href="/view-leave-doc/₹{leaveId}" target="_blank">Open in new tab</a>
+                           <a href="/view-leave-document/${leaveId}" target="_blank">Open in new tab</a>
                         </p>
                     </iframe>
                 </div>
@@ -1655,10 +1771,32 @@ function viewEmployeeLeaveDocument(leaveId) {
         }
     });
 }
+// Add this to your existing JavaScript section
+document.addEventListener('DOMContentLoaded', function() {
+    // Check URL parameters to auto-switch to leave tab if filtering leaves
+    const urlParams = new URLSearchParams(window.location.search);
+    const subtab = urlParams.get('subtab');
+    
+    if (subtab === 'leave') {
+        // Switch to team-history tab first
+        const teamHistoryTab = document.querySelector('[data-tab="team-history"]');
+        if (teamHistoryTab) {
+            teamHistoryTab.click();
+            
+            // Then switch to leave subtab
+            setTimeout(() => {
+                const leaveSubtab = document.querySelector('[data-team-tab="leave"]');
+                if (leaveSubtab) {
+                    leaveSubtab.click();
+                }
+            }, 100);
+        }
+    }
+});
 
 function downloadEmployeeLeaveDocument(leaveId) {
     const link = document.createElement('a');
-    link.href = `/view-leave-document/₹{leaveId}`;
+    link.href = `/view-leave-document/${leaveId}`;
     link.target = '_blank';
     link.click();
     showNotification('Opening document in new tab', 'info');
@@ -1678,7 +1816,7 @@ function viewTeamLeaveDocument(leaveId) {
 
 function downloadTeamLeaveDocument(leaveId) {
     const link = document.createElement('a');
-    link.href = `/view-team-leave-doc/₹{leaveId}`;
+    link.href = `/view-team-leave-doc/${leaveId}`;
     link.target = '_blank';
     link.click();
     showNotification('Opening document in new tab', 'info');
@@ -1687,16 +1825,16 @@ function downloadTeamLeaveDocument(leaveId) {
 function showTeamDocumentModal(leaveId) {
     const modal = document.createElement('div');
     modal.id = 'teamDocumentModal';
-    modal.className = 'fixed inset-0 bg-gray-600 bg-opacity-75 z-50 flex items-center justify-center';
+    modal.className = 'fixed inset-0 bg-gray-600 bg-opacity-75 z-50 flex items-center justify-center modal-backdrop';
     
     modal.innerHTML = `
-        <div class="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] flex flex-col">
+        <div class="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] flex flex-col modal-content">
             <div class="flex items-center justify-between p-4 border-b border-gray-200">
                 <h3 class="text-lg font-semibold text-gray-900">
                     <i class="fas fa-file-alt mr-2"></i>Team Member Leave Document
                 </h3>
                 <div class="flex space-x-2">
-                    <button onclick="downloadTeamLeaveDocument(₹{leaveId})" 
+                    <button onclick="downloadTeamLeaveDocument(${leaveId})" 
                            class="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-sm">
                         <i class="fas fa-download mr-1"></i>Download
                     </button>
@@ -1708,11 +1846,11 @@ function showTeamDocumentModal(leaveId) {
             </div>
             <div class="flex-1 p-4 overflow-auto">
                 <div class="w-full h-full flex items-center justify-center">
-                    <iframe src="/view-team-leave-doc/₹{leaveId}" 
+                    <iframe src="/view-team-leave-doc/${leaveId}" 
                             class="w-full border border-gray-300 rounded" 
                             style="height: 70vh;">
                         <p>Cannot display document. 
-                           <a href="/view-team-leave-doc/₹{leaveId}" target="_blank">Open in new tab</a>
+                           <a href="/view-team-leave-doc/${leaveId}" target="_blank">Open in new tab</a>
                         </p>
                     </iframe>
                 </div>
@@ -1772,10 +1910,11 @@ function deleteLeave(id) {
         form.submit();
     }
 }
+
 // Utility functions for better UX
 function showNotification(message, type = 'info') {
     const notification = document.createElement('div');
-    notification.className = `fixed top-4 right-4 z-50 px-6 py-3 rounded-lg shadow-lg transition-all duration-300 ₹{
+    notification.className = `fixed top-4 right-4 z-50 px-6 py-3 rounded-lg shadow-lg transition-all duration-300 notification ${
         type === 'success' ? 'bg-green-500 text-white' :
         type === 'error' ? 'bg-red-500 text-white' :
         type === 'warning' ? 'bg-yellow-500 text-white' :
@@ -1784,8 +1923,8 @@ function showNotification(message, type = 'info') {
     
     notification.innerHTML = `
         <div class="flex items-center">
-            <i class="fas fa-₹{type === 'success' ? 'check' : type === 'error' ? 'times' : type === 'warning' ? 'exclamation-triangle' : 'info-circle'} mr-2"></i>
-            <span>₹{message}</span>
+            <i class="fas fa-${type === 'success' ? 'check' : type === 'error' ? 'times' : type === 'warning' ? 'exclamation-triangle' : 'info-circle'} mr-2"></i>
+            <span>${message}</span>
             <button onclick="this.parentElement.parentElement.remove()" class="ml-4 text-white hover:text-gray-200">
                 <i class="fas fa-times"></i>
             </button>
@@ -1836,7 +1975,7 @@ if (startDateInput && endDateInput) {
             }
             
             const duration = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24)) + 1;
-            console.log(`Duration: ₹{duration} days`);
+            console.log(`Duration: ${duration} days`);
         }
     }
     
@@ -1852,8 +1991,8 @@ const breakInput = document.querySelector('input[name="brk"]');
 if (startTimeInput && endTimeInput) {
     function calculateHours() {
         if (startTimeInput.value && endTimeInput.value) {
-            const startTime = new Date(`2000-01-01 ₹{startTimeInput.value}`);
-            const endTime = new Date(`2000-01-01 ₹{endTimeInput.value}`);
+            const startTime = new Date(`2000-01-01 ${startTimeInput.value}`);
+            const endTime = new Date(`2000-01-01 ${endTimeInput.value}`);
             
             if (endTime <= startTime) {
                 endTimeInput.setCustomValidity('End time must be after start time');
@@ -1867,7 +2006,7 @@ if (startTimeInput && endTimeInput) {
             const breakHours = parseFloat(breakInput?.value || 0);
             const workHours = Math.max(0, totalHours - breakHours);
             
-            console.log(`Total work hours: ₹{workHours.toFixed(1)}h (₹{totalHours.toFixed(1)}h total - ₹{breakHours}h break)`);
+            console.log(`Total work hours: ${workHours.toFixed(1)}h (${totalHours.toFixed(1)}h total - ${breakHours}h break)`);
         }
     }
     
@@ -1913,7 +2052,7 @@ document.querySelectorAll('form').forEach(form => {
 document.querySelectorAll('button[type="submit"]').forEach(button => {
     if (button.textContent.includes('Delete') || button.textContent.includes('Cancel')) {
         button.addEventListener('click', function(e) {
-            if (!confirm(`Are you sure you want to ₹{button.textContent.toLowerCase()}?`)) {
+            if (!confirm(`Are you sure you want to ${button.textContent.toLowerCase()}?`)) {
                 e.preventDefault();
             }
         });
