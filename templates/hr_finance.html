@@ -1761,10 +1761,10 @@
             </button>
         </div>
         <form method="post" action="{{ url_for('reject_team_work') }}">
-            <input type="hidden" id="reject_work_id" name="work_id">
+            <input type="hidden" id="reject_work_id" name="timesheet_id">
             <div class="mb-4">
                 <label class="block text-sm font-medium text-gray-700 mb-2">Rejection Reason</label>
-                <textarea name="reason" rows="4" required
+                <textarea name="rejection_reason" rows="4" required
                           class="form-textarea w-full rounded-lg border-gray-300"
                           placeholder="Please provide reason for rejecting this work entry..."></textarea>
             </div>
@@ -1793,7 +1793,7 @@
             <input type="hidden" id="reject_leave_id" name="leave_id">
             <div class="mb-4">
                 <label class="block text-sm font-medium text-gray-700 mb-2">Rejection Reason</label>
-                <textarea name="reason" rows="4" required
+                <textarea name="rejection_reason" rows="4" required
                           class="form-textarea w-full rounded-lg border-gray-300"
                           placeholder="Please provide reason for rejecting this leave request..."></textarea>
             </div>
@@ -2427,7 +2427,7 @@ function filterEmployeeDetails() {
 // View employee profile function
 function viewEmployeeProfile(username) {
     // Create a modal or redirect to detailed view
-    alert(`View full profile for ₹{username} - This functionality can be expanded`);
+    alert(`View full profile for ${username} - This functionality can be expanded`);
 }
 
 // Edit employee salary function (reuse existing function)
@@ -2437,7 +2437,7 @@ function editEmployeeSalary(username, monthlyAmount, yearlyAmount) {
 
 // View employee reports function
 function viewEmployeeReports(username) {
-    alert(`View work reports for ₹{username} - This functionality can be expanded`);
+    alert(`View work reports for ${username} - This functionality can be expanded`);
 }
 
 // Export employee data function
