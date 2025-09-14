@@ -356,40 +356,52 @@ def can_view_employee_data(viewer: str, employee: str) -> bool:
         return False
     except:
         return False
-
 def get_pending_approvals_for_rm(rm_username: str):
-    """Get pending approvals for RM - ONLY direct RM assignments"""
+    """Get pending approvals for RM - ONLY direct RM assignments - FIXED"""
     
-    # Get employees where this user is the RM (not manager)
+    # Get employees where this user is the DIRECT RM (not manager)
     rm_employees = run_query("SELECT username FROM report WHERE rm = ?", (rm_username,))
     
     if rm_employees.empty:
+        print(f"DEBUG: No direct reports found for RM {rm_username}")
         return pd.DataFrame(), pd.DataFrame()
     
     employee_list = rm_employees['username'].tolist()
+    print(f"DEBUG: RM {rm_username} can approve for employees: {employee_list}")
+    
     placeholders = ",".join(["?"] * len(employee_list))
     
-    # Get pending timesheets
+    # Get pending timesheets - ONLY where this user is the assigned RM approver
     pending_timesheets = run_query(f"""
-        SELECT id, username, work_date, project_name, work_desc, hours, break_hours
-        FROM timesheets 
-        WHERE username IN ({placeholders}) AND rm_status = 'Pending'
-        ORDER BY work_date ASC
-    """, tuple(employee_list))
+        SELECT t.id, t.username, t.work_date, t.project_name, t.work_desc, t.hours, t.break_hours,
+               u.name as employee_name
+        FROM timesheets t
+        JOIN users u ON t.username = u.username
+        JOIN report r ON t.username = r.username  
+        WHERE t.username IN ({placeholders}) 
+        AND t.rm_status = 'Pending' 
+        AND r.rm = ?
+        ORDER BY t.work_date ASC
+    """, tuple(employee_list + [rm_username]))
     
-    # Get pending leaves
-  # Get pending leaves with document info
+    # Get pending leaves - ONLY where this user is the assigned RM approver
     pending_leaves = run_query(f"""
         SELECT l.id, l.username, l.start_date, l.end_date, l.leave_type, l.description,
                l.health_document,
                CASE WHEN l.health_document IS NOT NULL THEN 1 ELSE 0 END as has_document,
-               u.role as employee_role,
+               u.role as employee_role, u.name as employee_name,
                DATEDIFF(day, l.start_date, l.end_date) + 1 as duration_days
         FROM leaves l
-        LEFT JOIN users u ON l.username = u.username
-        WHERE l.username IN ({placeholders}) AND l.rm_status = 'Pending'
+        JOIN users u ON l.username = u.username
+        JOIN report r ON l.username = r.username
+        WHERE l.username IN ({placeholders}) 
+        AND l.rm_status = 'Pending' 
+        AND r.rm = ?
         ORDER BY l.start_date ASC
-    """, tuple(employee_list))
+    """, tuple(employee_list + [rm_username]))
+    
+    print(f"DEBUG: Found {len(pending_timesheets)} pending timesheets and {len(pending_leaves)} pending leaves for RM {rm_username}")
+    
     return pending_timesheets, pending_leaves
 
 def fix_approver_columns():
@@ -2072,9 +2084,96 @@ ORDER BY date DESC
     )
 # Employee View Function - COMPLETE WITH WORK ASSIGNMENTS
 # --------------------
-def view_employee(user):
-    """Employee dashboard view - FIXED without problematic columns"""
+# Add these missing document viewing routes with proper permission checks
+@app.route('/view-leave-document/<int:leave_id>')
+def view_leave_document(leave_id):
+    """View leave document with proper permission checks"""
+    if 'username' not in session:
+        return redirect(url_for('login_sso'))
+    
+    user = session['username']
+    
+    # Get leave details
+    leave_query = run_query("""
+        SELECT l.username, l.health_document, r.rm, r.manager 
+        FROM leaves l
+        LEFT JOIN report r ON l.username = r.username
+        WHERE l.id = ?
+    """, (leave_id,))
+    
+    if leave_query.empty:
+        flash("Document not found.")
+        return redirect(url_for('dashboard'))
+    
+    leave_record = leave_query.iloc[0]
+    document_owner = leave_record['username']
+    assigned_rm = leave_record['rm']
+    assigned_manager = leave_record['manager']
+    document_path = leave_record['health_document']
+    
+    # Check permissions: user must be document owner, assigned RM, or assigned manager
+    if user != document_owner and user != assigned_rm and user != assigned_manager:
+        flash("Access denied. You don't have permission to view this document.")
+        return redirect(url_for('dashboard'))
+    
+    if not document_path:
+        flash("No document attached to this leave request.")
+        return redirect(url_for('dashboard'))
+    
+    try:
+        return send_file(os.path.join(app.config['UPLOAD_FOLDER'], document_path))
+    except FileNotFoundError:
+        flash("Document file not found on server.")
+        return redirect(url_for('dashboard'))
 
+@app.route('/download-leave-document/<int:leave_id>')
+def download_leave_document(leave_id):
+    """Download leave document with proper permission checks"""
+    if 'username' not in session:
+        return redirect(url_for('login_sso'))
+    
+    user = session['username']
+    
+    # Get leave details
+    leave_query = run_query("""
+        SELECT l.username, l.health_document, r.rm, r.manager 
+        FROM leaves l
+        LEFT JOIN report r ON l.username = r.username
+        WHERE l.id = ?
+    """, (leave_id,))
+    
+    if leave_query.empty:
+        flash("Document not found.")
+        return redirect(url_for('dashboard'))
+    
+    leave_record = leave_query.iloc[0]
+    document_owner = leave_record['username']
+    assigned_rm = leave_record['rm']
+    assigned_manager = leave_record['manager']
+    document_path = leave_record['health_document']
+    
+    # Check permissions
+    if user != document_owner and user != assigned_rm and user != assigned_manager:
+        flash("Access denied. You don't have permission to download this document.")
+        return redirect(url_for('dashboard'))
+    
+    if not document_path:
+        flash("No document attached to this leave request.")
+        return redirect(url_for('dashboard'))
+    
+    try:
+        return send_file(
+            os.path.join(app.config['UPLOAD_FOLDER'], document_path),
+            as_attachment=True
+        )
+    except FileNotFoundError:
+        flash("Document file not found on server.")
+        return redirect(url_for('dashboard'))
+
+# Update the view_employee function to fix team history filters
+def view_employee(user):
+    """Employee dashboard view - FIXED with proper team history filters and document access"""
+    
     # Check if user is an RM
     direct_reports = get_direct_reports(user)
     all_team = get_all_reports_recursive(user)
@@ -2090,7 +2189,7 @@ def view_employee(user):
     """)
     proj_list = ["(non-project)"] + projects_df["project_name"].astype(str).tolist() if not projects_df.empty else ["(non-project)"]
     
-    # SECTION 1: Get work assigned TO this user (SIMPLIFIED QUERY)
+    # Get work assigned TO this user
     assigned_work_df = pd.DataFrame()
     try:
         assigned_work_df = run_query("""
@@ -2113,7 +2212,7 @@ def view_employee(user):
         print(f"Error fetching assigned work: {e}")
         assigned_work_df = pd.DataFrame()
 
-    # SECTION 2: Get work assigned BY this user (if RM) - SIMPLIFIED
+    # Get work assigned BY this user (if RM)
     my_assigned_work_df = pd.DataFrame()
     if is_rm:
         try:
@@ -2136,7 +2235,7 @@ def view_employee(user):
             print(f"Error fetching my assigned work: {e}")
             my_assigned_work_df = pd.DataFrame()
 
-    # SECTION 3: Get personal work history
+    # Get personal work history
     work_history_df = run_query("""
         SELECT id, work_date, project_name, work_desc, hours, break_hours, start_time, end_time,
                CASE WHEN hours > 8 THEN hours - 8 ELSE 0 END AS overtime_hours,
@@ -2146,7 +2245,7 @@ def view_employee(user):
         ORDER BY work_date DESC, id DESC
     """, (user,))
     
-    # SECTION 4: Get personal leave history
+    # Get personal leave history
     leaves_df = run_query("""
         SELECT id, start_date, end_date, leave_type, description, rm_status, rm_rejection_reason, 
                rm_approver, cancellation_requested, cancellation_status, health_document,
@@ -2157,10 +2256,10 @@ def view_employee(user):
         ORDER BY start_date DESC
     """, (user,))
     
-    # SECTION 5: Get remaining leave balances
+    # Get remaining leave balances
     remaining_leaves = _get_remaining_balances(user)
     
-    # SECTION 6: Get employees for work assignment (if user is RM)
+    # Get employees for work assignment (if user is RM)
     employees_df = pd.DataFrame()
     if is_rm and all_team:
         try:
@@ -2175,26 +2274,29 @@ def view_employee(user):
         except Exception as e:
             print(f"Error fetching team members: {e}")
     
-    # SECTION 7: Get pending approvals (if user is RM)
+    # Get pending approvals (if user is RM) - FIXED to only show direct reports
     pending_timesheets = pd.DataFrame()
     pending_leaves = pd.DataFrame()
     
-    if is_rm and all_team:
+    if is_rm and direct_reports:  # Only direct reports, not all team
         try:
-            placeholders = ",".join(["?"] * len(all_team))
+            placeholders = ",".join(["?"] * len(direct_reports))
             
-            # Get pending timesheet approvals
+            # Get pending timesheet approvals - ONLY where current user is the ASSIGNED RM
             pending_timesheets = run_query(f"""
                 SELECT t.id, t.username, t.work_date, t.project_name, t.work_desc, t.hours, 
                        COALESCE(t.break_hours, 0) as break_hours, t.start_time, t.end_time,
                        u.name as employee_name
                 FROM timesheets t
                 JOIN users u ON t.username = u.username
-                WHERE t.username IN ({placeholders}) AND t.rm_status = 'Pending'
+                JOIN report r ON t.username = r.username
+                WHERE t.username IN ({placeholders}) 
+                AND t.rm_status = 'Pending' 
+                AND r.rm = ?
                 ORDER BY t.work_date ASC
-            """, tuple(all_team))
+            """, tuple(direct_reports + [user]))
 
-            # Get pending leave approvals
+            # Get pending leave approvals - ONLY where current user is the ASSIGNED RM
             pending_leaves = run_query(f"""
                 SELECT l.id, l.username, l.start_date, l.end_date, l.leave_type, l.description, 
                        l.rm_status, l.health_document,
@@ -2203,27 +2305,30 @@ def view_employee(user):
                        CASE WHEN l.health_document IS NOT NULL THEN 1 ELSE 0 END as has_document
                 FROM leaves l
                 JOIN users u ON l.username = u.username
-                WHERE l.username IN ({placeholders}) AND l.rm_status = 'Pending'
+                JOIN report r ON l.username = r.username
+                WHERE l.username IN ({placeholders}) 
+                AND l.rm_status = 'Pending' 
+                AND r.rm = ?
                 ORDER BY l.start_date ASC
-            """, tuple(all_team))
+            """, tuple(direct_reports + [user]))
         except Exception as e:
             print(f"Error fetching pending approvals: {e}")
     
-    # SECTION 8: Get team work history with filters (if RM)
+    # Get team history with filters (if RM) - ENHANCED FILTERING
     team_work_history = pd.DataFrame()
     team_leaves = pd.DataFrame()
     
     if is_rm and all_team:
         try:
-            # Apply filters from request args
-            team_start = request.args.get('team_work_start', '').strip()
-            team_end = request.args.get('team_work_end', '').strip()
-            team_user = request.args.get('team_work_emp', '').strip()
-            team_proj = request.args.get('team_work_proj', '').strip()
-            team_desc = request.args.get('team_work_desc', '').strip()
-            team_status = request.args.get('team_work_status', '').strip()
+            # Get filter parameters from request
+            team_work_start = request.args.get('team_work_start', '').strip()
+            team_work_end = request.args.get('team_work_end', '').strip()
+            team_work_emp = request.args.get('team_work_emp', '').strip()
+            team_work_proj = request.args.get('team_work_proj', '').strip()
+            team_work_desc = request.args.get('team_work_desc', '').strip()
+            team_work_status = request.args.get('team_work_status', '').strip()
             
-            # Build dynamic query for team work history
+            # Build dynamic query for team work history with ENHANCED filters
             placeholders = ",".join(["?"] * len(all_team))
             work_base_query = f"""
                 SELECT TOP 500 t.id, t.username, t.project_name, t.work_date, t.work_desc, 
@@ -2237,33 +2342,39 @@ def view_employee(user):
                 WHERE t.username IN ({placeholders})
             """
             work_params = list(all_team)
-            
-            # Add filters
-            if team_start:
+
+            # Apply ALL filters
+            if team_work_start:
                 work_base_query += " AND t.work_date >= ?"
-                work_params.append(team_start)
-            if team_end:
+                work_params.append(team_work_start)
+            if team_work_end:
                 work_base_query += " AND t.work_date <= ?"
-                work_params.append(team_end)
-            if team_user:
+                work_params.append(team_work_end)
+            if team_work_emp:
                 work_base_query += " AND t.username = ?"
-                work_params.append(team_user)
-            if team_proj:
-                work_base_query += " AND t.project_name = ?"
-                work_params.append(team_proj)
-            if team_desc:
+                work_params.append(team_work_emp)
+            if team_work_proj:
+                work_base_query += " AND t.project_name LIKE ?"
+                work_params.append(f"%{team_work_proj}%")
+            if team_work_desc:
                 work_base_query += " AND t.work_desc LIKE ?"
-                work_params.append(f"%{team_desc}%")
-            if team_status:
+                work_params.append(f"%{team_work_desc}%")
+            if team_work_status:
                 work_base_query += " AND t.rm_status = ?"
-                work_params.append(team_status)
+                work_params.append(team_work_status)
                 
             work_base_query += " ORDER BY t.work_date DESC, t.username"
             team_work_history = run_query(work_base_query, tuple(work_params))
+
+            # Team leave history with ENHANCED filters
+            team_leave_start = request.args.get('team_leave_start', '').strip()
+            team_leave_end = request.args.get('team_leave_end', '').strip()
+            team_leave_emp = request.args.get('team_leave_emp', '').strip()
+            team_leave_type = request.args.get('team_leave_type', '').strip()
+            team_leave_status = request.args.get('team_leave_status', '').strip()
             
-            # Team leaves
             placeholders = ",".join(["?"] * len(all_team))
-            team_leaves = run_query(f"""
+            leave_base_query = f"""
                 SELECT TOP 500 l.id, l.username, l.start_date, l.end_date, l.leave_type, 
                        l.description, l.rm_status, l.rm_rejection_reason, l.rm_approver,
                        l.cancellation_requested, l.cancellation_status, l.health_document,
@@ -2273,8 +2384,28 @@ def view_employee(user):
                 FROM leaves l
                 JOIN users u ON l.username = u.username
                 WHERE l.username IN ({placeholders})
-                ORDER BY l.start_date DESC, l.username
-            """, tuple(all_team))
+            """
+            leave_params = list(all_team)
+
+            # Apply ALL leave filters
+            if team_leave_start:
+                leave_base_query += " AND l.start_date >= ?"
+                leave_params.append(team_leave_start)
+            if team_leave_end:
+                leave_base_query += " AND l.end_date <= ?"
+                leave_params.append(team_leave_end)
+            if team_leave_emp:
+                leave_base_query += " AND l.username = ?"
+                leave_params.append(team_leave_emp)
+            if team_leave_type:
+                leave_base_query += " AND l.leave_type = ?"
+                leave_params.append(team_leave_type)
+            if team_leave_status:
+                leave_base_query += " AND l.rm_status = ?"
+                leave_params.append(team_leave_status)
+
+            leave_base_query += " ORDER BY l.start_date DESC, l.username"
+            team_leaves = run_query(leave_base_query, tuple(leave_params))
         except Exception as e:
             print(f"Error fetching team history: {e}")
     
@@ -2286,7 +2417,7 @@ def view_employee(user):
         'overdue_assignments': len([w for w in assigned_work_df.to_dict('records') if w.get('urgency_status') == 'Overdue']) if not assigned_work_df.empty else 0
     }
     
-    # Pass all data to template
+    # Pass all data to template with ENHANCED filter values
     return render_template('employee.html',
         user=user,
         role=session['role'],
@@ -2310,7 +2441,7 @@ def view_employee(user):
         pending_timesheets=pending_timesheets.to_dict('records') if not pending_timesheets.empty else [],
         pending_leaves=pending_leaves.to_dict('records') if not pending_leaves.empty else [],
         
-        # Team history data
+        # Team history data with ENHANCED filtering
         employee_history_rows=team_work_history.to_dict('records') if not team_work_history.empty else [],
         employee_history_cols=team_work_history.columns.tolist() if not team_work_history.empty else [],
         team_leaves=team_leaves.to_dict('records') if not team_leaves.empty else [],
@@ -2324,14 +2455,23 @@ def view_employee(user):
         all_team=all_team,
         has_team=len(all_team) > 0,
         
-        # Filter values
-        team_start=request.args.get('team_work_start', ''),
-        team_end=request.args.get('team_work_end', ''),
-        team_user=request.args.get('team_work_emp', ''),
-        team_proj=request.args.get('team_work_proj', ''),
-        team_desc=request.args.get('team_work_desc', ''),
-        team_status=request.args.get('team_work_status', ''),
+        # ENHANCED Filter values - work history
+        team_work_start=request.args.get('team_work_start', ''),
+        team_work_end=request.args.get('team_work_end', ''),
+        team_work_emp=request.args.get('team_work_emp', ''),
+        team_work_proj=request.args.get('team_work_proj', ''),
+        team_work_desc=request.args.get('team_work_desc', ''),
+        team_work_status=request.args.get('team_work_status', ''),
+        
+        # ENHANCED Filter values - leave history
+        team_leave_start=request.args.get('team_leave_start', ''),
+        team_leave_end=request.args.get('team_leave_end', ''),
+        team_leave_emp=request.args.get('team_leave_emp', ''),
+        team_leave_type=request.args.get('team_leave_type', ''),
+        team_leave_status=request.args.get('team_leave_status', ''),
     )
+
+
 
 # Intern View Function - COMPLETE
 # --------------------
@@ -3656,10 +3796,10 @@ def assign_project_multiple_action():
             failed_employees.append(employee)
     
     if success_count > 0:
-        flash(f" Project '{project_name}' assigned successfully to {success_count} employee(s).")
+        flash(f"✅ Project '{project_name}' assigned successfully to {success_count} employee(s).")
     
     if failed_employees:
-        flash(f" Failed to assign project to: {', '.join(failed_employees)}")
+        flash(f"❌ Failed to assign project to: {', '.join(failed_employees)}")
     
     return redirect(url_for('dashboard'))
 
@@ -5137,12 +5277,12 @@ def request_asset_with_document():
         if ok:
             amount_text = f"worth ₹{amount_value:,.2f}" if amount_value else ""
             doc_text = "with supporting document" if document_path else ""
-            flash(f" Asset request for {quantity_value} {asset_type}(s) {amount_text} submitted successfully {doc_text}.")
+            flash(f"✅ Asset request for {quantity_value} {asset_type}(s) {amount_text} submitted successfully {doc_text}.")
         else:
-            flash(" Failed to send asset request.")
+            flash("❌ Failed to send asset request.")
     
     except Exception as e:
-        flash(f" Error sending asset request: {str(e)}")
+        flash(f"❌ Error sending asset request: {str(e)}")
     
     return redirect(url_for('dashboard'))
 
@@ -5428,178 +5568,7 @@ def budget_usage_details():
             'success': False,
             'error': str(e)
         })
-#leave documnets----------
-@app.route('/view-leave-doc/<int:leave_id>')
-def view_leave_document(leave_id):
-    """View leave document in browser - Enhanced for RM access"""
-    if 'username' not in session:
-        flash("Access denied.")
-        return redirect(url_for('login_sso'))
-    
-    user = session['username']
-    user_role = session.get('role', '')
-    
-    try:
-        # Get leave details with document path
-        leave_doc = run_query("""
-            SELECT l.health_document, l.username, l.leave_type, l.start_date, l.end_date,
-                   r.rm, r.manager, u.role as employee_role
-            FROM leaves l
-            LEFT JOIN report r ON l.username = r.username
-            LEFT JOIN users u ON l.username = u.username
-            WHERE l.id = ?
-        """, (leave_id,))
-        
-        if leave_doc.empty:
-            flash("Leave request not found.")
-            return redirect(url_for('dashboard'))
-        
-        leave_data = leave_doc.iloc[0]
-        doc_filename = leave_data['health_document']
-        leave_username = leave_data['username']
-        employee_role = leave_data['employee_role']
-        assigned_rm = leave_data['rm']
-        assigned_manager = leave_data['manager']
-        
-        if not doc_filename:
-            flash("No document attached to this leave request.")
-            return redirect(url_for('dashboard'))
-        
-        # FIXED: Clearer permission checking with debug info
-        print(f" DEBUG: User {user} (role: {user_role}) accessing document for {leave_username}")
-        
-        # Define who can view documents
-        can_view_doc = False
-        access_reason = ""
-        
-        # 1. Employee viewing their own document
-        if user == leave_username:
-            can_view_doc = True
-            access_reason = "own document"
-        
-        # 2. HR & Finance Controller can view all documents
-        elif user_role == 'Hr & Finance Controller':
-            can_view_doc = True
-            access_reason = "HR & Finance Controller privilege"
-        
-        # 3. Manager roles can view all documents
-        elif user_role in ['Manager', 'Admin Manager', 'Lead', 'Finance Manager']:
-            can_view_doc = True
-            access_reason = f"{user_role} privilege"
-        
-        # 4. Team lead can view subordinate documents
-        elif user_role in ['Manager', 'Lead']:
-            team = get_all_reports_recursive(user)
-            if leave_username in team:
-                can_view_doc = True
-                access_reason = "team member document"
-        
-        # 5. Assigned RM or manager can view
-        elif user == assigned_rm:
-            can_view_doc = True
-            access_reason = "assigned RM"
-        elif user == assigned_manager:
-            can_view_doc = True
-            access_reason = "assigned manager"
-        
-        print(f" DEBUG: Access granted: {can_view_doc} ({access_reason})")
-        
-        if not can_view_doc:
-            flash(f" Access denied - you can only view documents for your team members. Your role: {user_role}")
-            return redirect(url_for('dashboard'))
-        
-        # Construct the file path properly
-        doc_path = os.path.join(UPLOAD_DIR, doc_filename)
-        
-        print(f" DEBUG: Document path: {doc_path}")
-        print(f" DEBUG: File exists: {os.path.exists(doc_path)}")
-        
-        if not os.path.exists(doc_path):
-            flash(f"Document file not found: {doc_filename}")
-            return redirect(url_for('dashboard'))
-        
-        # Get file extension to determine MIME type
-        file_ext = doc_filename.lower().split('.')[-1] if '.' in doc_filename else ''
-        
-        # Set appropriate MIME type
-        mime_types = {
-            'pdf': 'application/pdf',
-            'jpg': 'image/jpeg',
-            'jpeg': 'image/jpeg', 
-            'png': 'image/png',
-            'gif': 'image/gif',
-            'doc': 'application/msword',
-            'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-        }
-        
-        mime_type = mime_types.get(file_ext, 'application/octet-stream')
-        
-        print(f" DEBUG: File extension: {file_ext}, MIME type: {mime_type}")
-        
-        # For PDFs and images, display inline
-        if file_ext in ['pdf', 'jpg', 'jpeg', 'png', 'gif']:
-            return send_file(doc_path, as_attachment=False, mimetype=mime_type)
-        else:
-            # For other files, force download
-            return send_file(doc_path, as_attachment=True, download_name=doc_filename)
-        
-    except Exception as e:
-        print(f" ERROR in view_leave_document: {str(e)}")
-        import traceback
-        traceback.print_exc()  # This will show the full error stack
-        flash(f"Error accessing document: {str(e)}")
-        return redirect(url_for('dashboard'))
 
-
-
-
-@app.route('/download-leave-doc/<int:leave_id>')
-def download_leave_document(leave_id):
-    """Force download leave document"""
-    if 'username' not in session:
-        flash("Access denied.")
-        return redirect(url_for('login_sso'))
-    
-    user = session['username']
-    
-    try:
-        leave_doc = run_query("""
-            SELECT health_document, username FROM leaves 
-            WHERE id = ?
-        """, (leave_id,))
-        
-        if leave_doc.empty:
-            flash("Leave request not found.")
-            return redirect(url_for('dashboard'))
-        
-        doc_filename = leave_doc.iloc[0]['health_document']
-        leave_username = leave_doc.iloc[0]['username']
-        
-        if not doc_filename:
-            flash("No document attached to this leave request.")
-            return redirect(url_for('dashboard'))
-        
-        # Check permissions
-        team = get_all_reports_recursive(user)
-        is_manager = session['role'] in ['Manager', 'Admin Manager', 'Hr & Finance Controller', 'Lead', 'Finance Manager']
-        can_download = (user == leave_username or leave_username in team or is_manager)
-        
-        if not can_download:
-            flash("Access denied - you can only download documents for your team members.")
-            return redirect(url_for('dashboard'))
-        
-        doc_path = os.path.join(UPLOAD_DIR, doc_filename)
-        
-        if not os.path.exists(doc_path):
-            flash(f"Document file not found: {doc_filename}")
-            return redirect(url_for('dashboard'))
-        
-        return send_file(doc_path, as_attachment=True, download_name=doc_filename)
-        
-    except Exception as e:
-        print(f" ERROR in download_leave_document: {str(e)}")
-        flash(f"Error downloading document: {str(e)}")
-        return redirect(url_for('dashboard'))
     
 # Download Routes
 # --------------------
@@ -8687,7 +8656,7 @@ def update_salary_admin():
         
         # Check if any change is being made
         if new_monthly == current_monthly and new_yearly == current_yearly:
-            flash(f"No salary changes made for {employee_username}. Current: ₹{current_monthly:,.2f}/month, ₹{current_yearly:,.2f}/year")
+            flash(f"ℹ️ No salary changes made for {employee_username}. Current: ₹{current_monthly:,.2f}/month, ₹{current_yearly:,.2f}/year")
             return redirect(url_for('dashboard'))
         
         # Update salary in database
@@ -9256,12 +9225,12 @@ def edit_employee_admin():
             """, (int(total_leaves), int(sick_total), int(paid_total), int(casual_total), employee_username))
         
         if ok1 and ok2:
-            flash(f" Employee '{name}' ({employee_username}) updated successfully with all details!")
+            flash(f"✅ Employee '{name}' ({employee_username}) updated successfully with all details!")
         else:
-            flash(" Failed to update some employee details. Please try again.")
+            flash("❌ Failed to update some employee details. Please try again.")
     
     except Exception as e:
-        flash(f" Error updating employee: {str(e)}")
+        flash(f"❌ Error updating employee: {str(e)}")
         print(f"Employee update error: {e}")
     
     return redirect(url_for('dashboard'))
@@ -9378,12 +9347,12 @@ def delete_employee_admin():
         ok2 = run_exec("UPDATE users SET status = 'Inactive' WHERE username = ?", (username,))
         
         if ok1 and ok2:
-            flash(f" Employee {username} moved to resigned employees successfully.")
+            flash(f"✅ Employee {username} moved to resigned employees successfully.")
         else:
-            flash(" Failed to delete employee.")
+            flash("❌ Failed to delete employee.")
     
     except Exception as e:
-        flash(f" Error deleting employee: {str(e)}")
+        flash(f"❌ Error deleting employee: {str(e)}")
     
     return redirect(url_for('dashboard'))
 
