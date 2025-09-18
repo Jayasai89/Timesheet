@@ -24,6 +24,51 @@ from flask_socketio import emit, join_room, leave_room
 import mimetypes
 import numpy as np
 import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+
+
+# Email Configuration
+SMTP_HOST = os.getenv('SMTP_HOST', 'smtp.gmail.com')
+SMTP_PORT = int(os.getenv('SMTP_PORT', '587'))
+SMTP_USER = os.getenv('SMTP_USER')
+SMTP_PASSWORD = os.getenv('SMTP_PASSWORD')
+SMTP_FROM_EMAIL = os.getenv('SMTP_FROM_EMAIL')
+
+def send_email(to_email, subject, text_content):
+    """Send email notification - Plain text version"""
+    try:
+        if not SMTP_USER or not SMTP_PASSWORD:
+            print("Email configuration missing. Skipping email notification.")
+            return False
+            
+        msg = MIMEMultipart()
+        msg['From'] = SMTP_FROM_EMAIL or SMTP_USER
+        msg['To'] = to_email
+        msg['Subject'] = subject
+
+        # Change from 'html' to 'plain'
+        msg.attach(MIMEText(text_content, 'plain'))
+
+        with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
+            server.starttls()
+            server.login(SMTP_USER, SMTP_PASSWORD)
+            server.send_message(msg)
+
+        print(f" Email sent to {to_email} with subject '{subject}'")
+        return True
+
+    except Exception as e:
+        print(f" Failed to send email to {to_email}: {e}")
+        return False
+
+def get_user_email(username):
+    """Get user email from database"""
+    df = run_query("SELECT email FROM users WHERE username = ?", (username,))
+    if not df.empty:
+        return df.iloc[0]['email']
+    return None
+
 
 
 load_dotenv()
@@ -67,7 +112,7 @@ NGROK_URL = os.getenv('NGROK_URL')
 if USE_NGROK and NGROK_URL:
     REDIRECT_URI = f"{NGROK_URL}/callback"
 else:
-    REDIRECT_URI = "https://timesheet.chervicaon.com/callback"
+    REDIRECT_URI = "https://timesheet.chervicaon.com"
 
 
 # Azure OAuth2 URLs
@@ -76,8 +121,8 @@ TOKEN_URL = f"https://login.microsoftonline.com/{TENANT_ID}/oauth2/v2.0/token"
 SCOPES = ["openid", "profile", "email", "User.Read"]
 
 # Configuration for different user roles and privileges
-MANAGER_ROLES = ['Manager' ]
-HR_FINANCE_ROLES = ['Hr & Finance Controller', 'Finance Manager']
+MANAGER_ROLES = ['Manager']
+HR_FINANCE_ROLES = ['Hr & Finance Controller']
 LEAD_ROLES = ['Lead', 'Finance Manager']
 ADMIN_ROLES = ['Admin Manager', 'Lead Staffing Specialist']
 EMPLOYEE_ROLES = ['Employee', 'Rm', 'Lead', 'Product Owner', 'BDE Manager', 'SAP Consultant', 'Contractor']
@@ -3111,6 +3156,27 @@ def submit_timesheet_action():
         
         if ok:
             flash(f" Timesheet submitted successfully to RM: {rm_approver} (awaiting approval).")
+            rm_approver = get_rm_for_employee(user)
+            rm_email = get_user_email(rm_approver)
+            if rm_email:
+                subject = f"New Timesheet Submitted - {user}"
+                text_content = f"""Dear {rm_approver},
+
+    {user} has submitted a timesheet that requires your approval.
+
+    Details:
+    - Employee: {user}
+    - Date: {work_date}
+    - Project: {proj_val}
+    - Hours: {hours}
+    - Description: {desc}
+
+    Please log in to the system to review and approve this timesheet.
+
+    This is an automated notification from the Timesheet & Leave Management System."""
+                send_email(rm_email, subject, text_content)
+
+            
         else:
             flash(" Failed to submit timesheet.")
     
@@ -3209,7 +3275,30 @@ def request_leave_action():
         """, (user, start_d, end_d, leave_type, description, rm_approver, doc_name))
         
         if ok:
+            rm_approver = get_rm_for_employee(user)
+            rm_email = get_user_email(rm_approver)
+            if rm_email:
+                subject = f"New Leave Request - {user}"
+                text_content = f"""Dear {rm_approver},
+
+    {user} has submitted a leave request that requires your approval.
+
+    Details:
+    - Employee: {user}
+    - Leave Type: {leave_type}
+    - Duration: {start_d} to {end_d} ({days_requested} days)
+    - Reason: {description}
+    {f'- Medical Document: Attached' if doc_name else ''}
+
+    Please log in to the system to review and approve this leave request.
+
+    This is an automated notification from the Timesheet & Leave Management System."""
+                send_email(rm_email, subject, text_content)
+
             flash(f" {leave_type} leave request submitted successfully to RM: {rm_approver} for {days_requested} day(s) from {start_d} to {end_d}.")
+            
+            
+
         else:
             flash(" Failed to submit leave request.")
     
@@ -3267,6 +3356,17 @@ def approve_timesheet_action():
         
         if ok:
             flash(f" Timesheet approved for {employee_username}")
+            user_email = get_user_email(employee_username)
+            if user_email:
+                subject = f"Timesheet Approved - {employee_username}"
+                text_content = f"""Dear {employee_username},
+
+        Your timesheet has been approved by your RM.
+
+        You can view the updated status in your dashboard.
+
+        This is an automated notification from the Timesheet & Leave Management System."""
+                send_email(user_email, subject, text_content)
         else:
             flash(" Failed to approve timesheet")
     
@@ -3330,7 +3430,26 @@ def approve_leave_action():
         """, (user, int(leave_id)))
         
         if ok:
+            # Notify employee about approval
+            user_email = get_user_email(employee_username)
+            if user_email:
+                subject = f"Leave Request Approved - {employee_username}"
+                text_content = f"""Dear {employee_username},
+
+    Your leave request has been approved by your RM.
+
+    Details:
+    - Leave Type: {leave_type}
+    - Duration: {leave_days} days
+    - Status: Approved
+
+    You can view the updated status in your dashboard.
+
+    This is an automated notification from the Timesheet & Leave Management System."""
+                send_email(user_email, subject, text_content)
+
             flash(f" Leave approved for {employee_username} ({leave_days} days)")
+            
         else:
             flash(" Failed to approve leave")
     
@@ -3373,6 +3492,22 @@ def reject_timesheet_action():
     
     if ok:
         flash(f" Timesheet rejected for {employee_username} with reason: {reason}")
+        user_email = get_user_email(employee_username)
+        if user_email:
+            subject = f"Timesheet Rejected - {employee_username}"
+            text_content = f"""Dear {employee_username},
+
+    Your timesheet has been rejected by your RM.
+
+    Reason: {reason}
+
+    Please contact your RM or resubmit your timesheet with corrections.
+
+    This is an automated notification from the Timesheet & Leave Management System."""
+            send_email(user_email, subject, text_content)
+
+            
+        
     else:
         flash(" Failed to reject timesheet.")
     
@@ -3411,7 +3546,23 @@ def reject_leave_action():
     """, (user, reason, int(leave_id)))
     
     if ok:
+        # Notify employee about rejection
+        user_email = get_user_email(employee_username)
+        if user_email:
+            subject = f"Leave Request Rejected - {employee_username}"
+            text_content = f"""Dear {employee_username},
+
+Your leave request has been rejected by your RM.
+
+Reason: {reason}
+
+Please contact your RM for clarification or resubmit your request with corrections.
+
+This is an automated notification from the Timesheet & Leave Management System."""
+            send_email(user_email, subject, text_content)
+
         flash(f" Leave rejected for {employee_username} with reason: {reason}")
+        
     else:
         flash(" Failed to reject leave.")
     
@@ -3449,14 +3600,54 @@ def approve_manager_timesheet():
     placeholders = ",".join(["?"] * len(manager_team))
     
     try:
-        ok = run_exec(f"""
-            UPDATE timesheets 
-            SET rm_status = 'Approved', rm_approver = ?, rm_rejection_reason = NULL
-            WHERE id = ? AND username IN ({placeholders}) AND rm_status = 'Pending'
-        """, (user, int(timesheet_id)) + tuple(manager_team))
+        # First, get the timesheet details
+        timesheet_details = run_query(f"""
+            SELECT t.username, t.projectname, t.workdate, t.hours, t.workdesc 
+            FROM timesheets t 
+            WHERE t.id = ? AND t.username IN ({placeholders}) AND t.rmstatus = 'Pending'
+        """, [int(timesheet_id)] + list(manager_team))
         
-        if ok:
-            flash(" Timesheet approved successfully.")
+        if not timesheet_details.empty:
+            # PROPERLY extract variables from query result
+            employee_username = timesheet_details.iloc[0]['username']
+            project_name = timesheet_details.iloc[0]['projectname']
+            work_date = timesheet_details.iloc[0]['workdate']
+            hours = timesheet_details.iloc[0]['hours']
+            work_desc = timesheet_details.iloc[0]['workdesc']
+            
+            # Now update the timesheet
+            ok = run_exec(f"""
+                UPDATE timesheets 
+                SET rmstatus = 'Approved', rmapprover = ?, rmrejectionreason = NULL 
+                WHERE id = ? AND username IN ({placeholders}) AND rmstatus = 'Pending'
+            """, [user, int(timesheet_id)] + tuple(manager_team))
+            
+            if ok:
+                flash('Timesheet approved successfully.')
+                
+                # Send email notification - now employee_username is properly defined
+                user_email = get_user_email(employee_username)
+                if user_email:
+                    subject = f"Timesheet Approved by Manager - {employee_username}"
+                    text_content = f"""Dear {employee_username},
+
+Your timesheet has been approved by your Manager {user}.
+
+Details:
+- Date: {work_date}
+- Project: {project_name}
+- Hours: {hours}
+- Description: {work_desc[:100]}{'...' if len(work_desc) > 100 else ''}
+- Status: Approved
+
+You can view the updated status in your dashboard.
+
+This is an automated notification from the Timesheet Leave Management System."""
+                    
+                    send_email(user_email, subject, text_content)
+
+            
+            
         else:
             flash(" Failed to approve timesheet or timesheet not found.")
     
@@ -3499,14 +3690,54 @@ def reject_manager_timesheet():
     placeholders = ",".join(["?"] * len(manager_team))
     
     try:
-        ok = run_exec(f"""
-            UPDATE timesheets 
-            SET rm_status = 'Rejected', rm_approver = ?, rm_rejection_reason = ?
-            WHERE id = ? AND username IN ({placeholders}) AND rm_status = 'Pending'
-        """, (user, rejection_reason, int(timesheet_id)) + tuple(manager_team))
+        # First, get the timesheet details
+        timesheet_details = run_query(f"""
+            SELECT t.username, t.projectname, t.workdate, t.hours, t.workdesc 
+            FROM timesheets t 
+            WHERE t.id = ? AND t.username IN ({placeholders}) AND t.rmstatus = 'Pending'
+        """, [int(timesheet_id)] + list(manager_team))
         
-        if ok:
-            flash(f" Timesheet rejected. Reason: {rejection_reason}")
+        if not timesheet_details.empty:
+            # PROPERLY extract variables from query result
+            employee_username = timesheet_details.iloc[0]['username']
+            project_name = timesheet_details.iloc[0]['projectname']
+            work_date = timesheet_details.iloc[0]['workdate']
+            hours = timesheet_details.iloc[0]['hours']
+            work_desc = timesheet_details.iloc[0]['workdesc']
+            
+            # Now update the timesheet
+            ok = run_exec(f"""
+                UPDATE timesheets 
+                SET rmstatus = 'Rejected', rmapprover = ?, rmrejectionreason = ? 
+                WHERE id = ? AND username IN ({placeholders}) AND rmstatus = 'Pending'
+            """, [user, rejection_reason, int(timesheet_id)] + tuple(manager_team))
+            
+            if ok:
+                flash(f'Timesheet rejected. Reason: {rejection_reason}')
+                
+                # Send email notification - now employee_username is properly defined
+                user_email = get_user_email(employee_username)
+                if user_email:
+                    subject = f"Timesheet Rejected by Manager - {employee_username}"
+                    text_content = f"""Dear {employee_username},
+
+Your timesheet has been rejected by your Manager {user}.
+
+Details:
+- Date: {work_date}
+- Project: {project_name}
+- Hours: {hours}
+- Description: {work_desc[:100]}{'...' if len(work_desc) > 100 else ''}
+- Status: Rejected
+- Rejection Reason: {rejection_reason}
+
+Please contact your Manager for clarification or resubmit your timesheet with corrections.
+
+This is an automated notification from the Timesheet Leave Management System."""
+                    
+                    send_email(user_email, subject, text_content)
+
+
         else:
             flash(" Failed to reject timesheet or timesheet not found.")
     
@@ -3544,32 +3775,56 @@ def approve_manager_leave_request():
     placeholders = ",".join(["?"] * len(manager_team))
     
     try:
-        # Get leave details for balance update
+        # First, get the leave details
         leave_details = run_query(f"""
-            SELECT username, leave_type, start_date, end_date 
+            SELECT username, leavetype, startdate, enddate, description 
             FROM leaves 
-            WHERE id = ? AND username IN ({placeholders}) AND rm_status = 'Pending'
-        """, (int(leave_id),) + tuple(manager_team))
+            WHERE id = ? AND username IN ({placeholders}) AND rmstatus = 'Pending'
+        """, [int(leave_id)] + tuple(manager_team))
         
         if not leave_details.empty:
+            # PROPERLY extract variables from query result
             leave_username = leave_details.iloc[0]['username']
-            leave_type = str(leave_details.iloc[0]['leave_type'])
-            start_date = parse(str(leave_details.iloc[0]['start_date']))
-            end_date = parse(str(leave_details.iloc[0]['end_date']))
+            leave_type = str(leave_details.iloc[0]['leavetype'])
+            start_date = parse(str(leave_details.iloc[0]['startdate']))
+            end_date = parse(str(leave_details.iloc[0]['enddate']))
+            description = leave_details.iloc[0]['description']
             leave_days = (end_date - start_date).days + 1
             
             # Apply leave balance deduction
-            _apply_leave_balance(leave_username, leave_type, leave_days, +1)
+            _apply_leave_balance(leave_username, leave_type, leave_days, 1)
             
-            # Approve leave
+            # Now update the leave
             ok = run_exec(f"""
                 UPDATE leaves 
-                SET rm_status = 'Approved', rm_approver = ?, rm_rejection_reason = NULL
-                WHERE id = ? AND username IN ({placeholders}) AND rm_status = 'Pending'
-            """, (user, int(leave_id)) + tuple(manager_team))
+                SET rmstatus = 'Approved', rmapprover = ?, rmrejectionreason = NULL 
+                WHERE id = ? AND username IN ({placeholders}) AND rmstatus = 'Pending'
+            """, [user, int(leave_id)] + tuple(manager_team))
             
             if ok:
-                flash(f" Leave approved successfully for {leave_username} ({leave_days} days).")
+                flash(f'Leave approved successfully for {leave_username} ({leave_days} days).')
+                
+                # Send email notification - now leave_username is properly defined
+                user_email = get_user_email(leave_username)
+                if user_email:
+                    subject = f"Leave Approved by Manager - {leave_username}"
+                    text_content = f"""Dear {leave_username},
+
+Your leave request has been approved by your Manager {user}.
+
+Details:
+- Leave Type: {leave_type}
+- Duration: {leave_days} days
+- Start Date: {start_date.strftime('%Y-%m-%d')}
+- End Date: {end_date.strftime('%Y-%m-%d')}
+- Reason: {description}
+- Status: Approved
+
+You can view the updated status in your dashboard.
+
+This is an automated notification from the Timesheet Leave Management System."""
+                    
+                    send_email(user_email, subject, text_content)
             else:
                 flash(" Failed to approve leave.")
         else:
@@ -3710,7 +3965,36 @@ def create_project_action():
     """, (pname, pdesc, date.today(), due, user))
     
     if ok:
+        # NEW: Email notification to HR about new project creation
+        hr_users = run_query("""
+            SELECT email FROM users 
+            WHERE role IN ('Hr & Finance Controller', 'Manager', 'Admin Manager') 
+            AND status = 'Active' AND email IS NOT NULL
+        """)
+        
+        if not hr_users.empty:
+            for _, hr_user in hr_users.iterrows():
+                hr_email = hr_user['email']
+                if hr_email:
+                    subject = f"New Project Created - {pname}"
+                    text_content = f"""Dear Team,
+
+A new project has been created and requires approval.
+
+Project Details:
+- Name: {pname}
+- Description: {pdesc}
+- Created by: {user}
+- Due date: {due}
+- Status: Pending Approval
+
+Please log in to the system to review and approve this project.
+
+This is an automated notification from the Timesheet & Leave Management System."""
+                    send_email(hr_email, subject, text_content)
+
         flash(f"Project '{pname}' created successfully and submitted for approval.")
+        
     else:
         flash("Failed to create project.")
     
@@ -3748,6 +4032,36 @@ def record_expense_action():
         """, (project, category, float(amount), exp_date, desc, user, document_path))
         
         if ok:
+            # NEW: Email notification to managers about expense recording
+            managers = run_query("""
+                SELECT email FROM users 
+                WHERE role IN ('Manager', 'Hr & Finance Controller', 'Lead', 'Finance Manager') 
+                AND status = 'Active' AND email IS NOT NULL
+            """)
+            
+            if not managers.empty:
+                for _, manager in managers.iterrows():
+                    manager_email = manager['email']
+                    if manager_email:
+                        subject = f"New Expense Recorded - {project}"
+                        text_content = f"""Dear Manager,
+
+A new expense has been recorded that may require your review.
+
+Expense Details:
+- Project: {project}
+- Category: {category}
+- Amount: ₹{float(amount):,.2f}
+- Date: {exp_date}
+- Description: {desc}
+- Recorded by: {user}
+- Document: {'Attached' if document_path else 'Not provided'}
+
+Please review this expense entry in the system.
+
+This is an automated notification from the Timesheet & Leave Management System."""
+                        send_email(manager_email, subject, text_content)
+
             flash("Expense recorded successfully.")
         else:
             flash("Failed to record expense.")
@@ -3796,10 +4110,10 @@ def assign_project_multiple_action():
             failed_employees.append(employee)
     
     if success_count > 0:
-        flash(f"✅ Project '{project_name}' assigned successfully to {success_count} employee(s).")
+        flash(f" Project '{project_name}' assigned successfully to {success_count} employee(s).")
     
     if failed_employees:
-        flash(f"❌ Failed to assign project to: {', '.join(failed_employees)}")
+        flash(f" Failed to assign project to: {', '.join(failed_employees)}")
     
     return redirect(url_for('dashboard'))
 
@@ -3899,6 +4213,25 @@ def rm_assign_work_action():
             
             if ok:
                 success_count += 1
+                # Send notification to assigned employee
+                emp_email = get_user_email(employee)
+                if emp_email:
+                    subject = f"New Work Assignment - {employee}"
+                    text_content = f"""Dear {employee},
+
+You have been assigned a new task by your RM {user}.
+
+Details:
+- Assigned by: {user}
+- Project: {project_name}
+- Task Description: {task_desc}
+- Due Date: {due_date}
+
+Please log in to the system to view the complete assignment details.
+
+This is an automated notification from the Timesheet & Leave Management System."""
+                    send_email(emp_email, subject, text_content)
+
             else:
                 failed_employees.append(employee)
                 
@@ -3910,6 +4243,7 @@ def rm_assign_work_action():
     if success_count > 0:
         successful_employees = [emp for emp in employee_usernames if emp not in failed_employees]
         flash(f" Work assigned successfully to {success_count} team member(s): {', '.join(successful_employees)}")
+        
     
     if failed_employees:
         flash(f" Failed to assign work to: {', '.join(failed_employees)}")
@@ -3950,6 +4284,32 @@ def complete_work_assignment():
         """, (completion_notes, int(assignment_id), user))
         
         if ok:
+            # Get assignment details for notification
+            assignment_details = run_query("""
+                SELECT assigned_by, task_desc, project_name 
+                FROM assigned_work WHERE id = ?
+            """, (int(assignment_id),))
+            
+            if not assignment_details.empty:
+                assigner = assignment_details.iloc[0]['assigned_by']
+                task_desc = assignment_details.iloc[0]['task_desc']
+                project_name = assignment_details.iloc[0]['project_name']
+                
+                assigner_email = get_user_email(assigner)
+                if assigner_email:
+                    subject = f"Work Assignment Completed - {user}"
+                    text_content = f"""Dear {assigner},
+
+    {user} has completed the work assignment you assigned.
+
+    Details:
+    - Task: {task_desc}
+    - Project: {project_name}
+    - Completed by: {user}
+    - Completion Notes: {completion_notes or 'None provided'}
+
+    This is an automated notification from the Timesheet & Leave Management System."""
+                    send_email(assigner_email, subject, text_content)
             flash(" Work assignment marked as completed!")
         else:
             flash(" Failed to update assignment status.")
@@ -4168,6 +4528,31 @@ def allocate_budget_action():
                 """, (budget_amount, cost_center, project_name))
                 
                 if ok:
+                    # Notify project creator about budget allocation
+                    project_details = run_query("""
+                        SELECT created_by FROM projects WHERE project_name = ?
+                    """, (project_name,))
+                    
+                    if not project_details.empty:
+                        creator = project_details.iloc[0]['created_by']
+                        creator_email = get_user_email(creator)
+                        
+                        if creator_email:
+                            subject = f"Budget Allocated - {project_name}"
+                            text_content = f"""Dear {creator},
+
+            Budget has been allocated to your project.
+
+            Project: {project_name}
+            Budget Amount: ₹{budget_amount:,.2f}
+            Cost Center: {cost_center}
+            Allocated by: {user}
+
+            You can now start incurring expenses for this project.
+
+            This is an automated notification from the Timesheet & Leave Management System."""
+                            send_email(creator_email, subject, text_content)
+
                     flash(f" Budget of ₹{budget_amount:,.2f} allocated to project '{project_name}'. Remaining budget: ₹{remaining_budget-budget_amount:,.2f}")
                 else:
                     flash(" Failed to allocate budget.")
@@ -4266,7 +4651,27 @@ def update_salary_action():
         """, (new_monthly, new_yearly, username))
         
         if ok:
+            # Notify employee about salary update
+            emp_email = get_user_email(username)
+            if emp_email:
+                subject = f"Salary Update Notification - {username}"
+                text_content = f"""Dear {username},
+
+    Your salary has been updated in the system.
+
+    New Salary Details:
+    - Monthly Salary: ₹{float(new_monthly):,.2f}
+    - Yearly Salary: ₹{float(new_yearly):,.2f}
+
+    This change will be reflected in your next payroll cycle.
+
+    If you have any questions, please contact the HR department.
+
+    This is an automated notification from the Timesheet & Leave Management System."""
+                send_email(emp_email, subject, text_content)
+
             flash(f" Salary updated for {username}: ₹{new_monthly:,.2f}/month, ₹{new_yearly:,.2f}/year")
+            
             # Force page refresh to show updated budget
             return redirect(url_for('dashboard') + '?tab=payroll')
         else:
@@ -4366,8 +4771,28 @@ def approve_asset_request_hr():
                         """, (session['username'], int(request_id)))
                         
                         if ok2:
+                            # Notify requester about approval
+                            requester_email = get_user_email(request_details.iloc[0]['requested_by'])
+                            if requester_email:
+                                subject = f"Asset Request Approved - {request_details.iloc[0]['asset_type']}"
+                                text_content = f"""Dear {request_details.iloc[0]['requested_by']},
+
+            Your asset request has been approved by HR.
+
+            Details:
+            - Asset Type: {request_details.iloc[0]['asset_type']}
+            - Amount: ₹{amount:,.2f}
+            - Status: Approved
+
+            The asset will be processed and delivered soon.
+
+            This is an automated notification from the Timesheet & Leave Management System."""
+                                send_email(requester_email, subject, text_content)
+
+                            
                             new_remaining = remaining_budget - amount
                             flash(f" Asset request approved! ₹{amount:,.2f} deducted from remaining budget. New remaining: ₹{new_remaining:,.2f}")
+                            
                             
                             # Force page refresh to show updated budget
                             return redirect(url_for('dashboard') + '?tab=asset-approvals')
@@ -4411,6 +4836,34 @@ def reject_asset_request_hr():
         """, (session['username'], reason, int(request_id)))
         
         if ok:
+            # Get requester details for notification
+            request_details = run_query("""
+                SELECT requested_by, asset_type, amount 
+                FROM asset_requests WHERE id = ?
+            """, (int(request_id),))
+            
+            if not request_details.empty:
+                requester = request_details.iloc[0]['requested_by']
+                asset_type = request_details.iloc[0]['asset_type']
+                amount = request_details.iloc[0]['amount']
+                
+                requester_email = get_user_email(requester)
+                if requester_email:
+                    subject = f"Asset Request Rejected - {asset_type}"
+                    text_content = f"""Dear {requester},
+
+    Your asset request has been rejected by HR.
+
+    Details:
+    - Asset Type: {asset_type}
+    - Amount: ₹{float(amount or 0):,.2f}
+    - Status: Rejected
+    - Reason: {reason}
+
+    If you have questions about this decision, please contact the HR department.
+
+    This is an automated notification from the Timesheet & Leave Management System."""
+                    send_email(requester_email, subject, text_content)
             flash(f" Asset request #{request_id} rejected successfully.")
         else:
             flash(" Failed to reject asset request or request not found.")
@@ -4511,7 +4964,33 @@ def approve_project_hr_action():
         ))
         
         if ok:
+            # Get project creator details
+            project_details = run_query("""
+                SELECT created_by, project_name FROM projects WHERE project_id = ?
+            """, (int(project_id),))
+            
+            if not project_details.empty:
+                creator = project_details.iloc[0]['created_by']
+                project_name = project_details.iloc[0]['project_name']
+                creator_email = get_user_email(creator)
+                
+                if creator_email:
+                    subject = f"Project Approved - {project_name}"
+                    text_content = f"""Dear {creator},
+
+    Your project has been approved by HR.
+
+    Project: {project_name}
+    Status: Approved
+    Budget: ₹{float(request.form.get('budget_amount', 0)):,.2f}
+
+    You can now start working on this project.
+
+    This is an automated notification from the Timesheet & Leave Management System."""
+                    send_email(creator_email, subject, text_content)
+
             flash(f" Project '{project_name}' approved successfully!")
+            
         else:
             flash(" Failed to approve project.")
     
@@ -5219,6 +5698,51 @@ def add_employee_action():
         """, (username, int(total_leaves), int(sick_total), int(paid_total), int(casual_total)))
         
         if ok1 and ok2 and ok3:
+            # Send welcome email to new employee
+            if email:
+                subject = f"Welcome to the Company - {name}"
+                text_content = f"""Dear {name},
+
+    Welcome to our company! Your employee account has been created successfully.
+
+    Your Account Details:
+    - Username: {username}
+    - Temporary Password: {password}
+    - Role: {role}
+    - Email: {email}
+
+    Please log in to the Timesheet & Leave Management System at your earliest convenience and change your password.
+
+    System Access: [Your System URL]
+
+    If you have any questions, please contact your reporting manager or the HR department.
+
+    Welcome aboard!
+
+    This is an automated notification from the Timesheet & Leave Management System."""
+                send_email(email, subject, text_content)
+
+            # Notify reporting manager if assigned
+            if reporting_manager:
+                rm_email = get_user_email(reporting_manager)
+                if rm_email:
+                    subject = f"New Team Member Assigned - {name}"
+                    text_content = f"""Dear {reporting_manager},
+
+    A new team member has been assigned to report to you.
+
+    Employee Details:
+    - Name: {name}
+    - Username: {username}
+    - Role: {role}
+    - Email: {email}
+    - Joining Date: {joining_date}
+
+    Please help them get settled and provide any necessary guidance.
+
+    This is an automated notification from the Timesheet & Leave Management System."""
+                    send_email(rm_email, subject, text_content)
+
             flash(f"Employee '{name}' ({username}) added successfully!")
         else:
             flash("Failed to add employee. Please try again.")
@@ -5275,14 +5799,47 @@ def request_asset_with_document():
               description, session['username'], document_path))
         
         if ok:
+            # EMAIL NOTIFICATION TO HR/ADMIN
+            hr_users = run_query("""
+                SELECT email FROM users 
+                WHERE role IN ('Hr & Finance Controller', 'Admin Manager') 
+                AND status = 'Active' AND email IS NOT NULL
+            """)
+            
+            if not hr_users.empty:
+                for _, hr_user in hr_users.iterrows():
+                    hr_email = hr_user['email']
+                    if hr_email:
+                        subject = f"New Asset Request - {asset_type}"
+                        text_content = f"""Dear HR Team,
+
+A new asset request has been submitted that requires your approval.
+
+Details:
+- Requested by: {session['username']}
+- Asset Type: {asset_type}
+- Quantity: {quantity_value}
+- Amount: ₹{amount_value:,.2f} (if specified)
+- For Employee: {for_employee or 'General Use'}
+- Description: {description}
+- Document: {'Attached' if document_path else 'Not provided'}
+
+Please log in to the system to review and approve this asset request.
+
+This is an automated notification from the Timesheet & Leave Management System."""
+                        send_email(hr_email, subject, text_content)
+
+
+
             amount_text = f"worth ₹{amount_value:,.2f}" if amount_value else ""
             doc_text = "with supporting document" if document_path else ""
-            flash(f"✅ Asset request for {quantity_value} {asset_type}(s) {amount_text} submitted successfully {doc_text}.")
+            flash(f" Asset request for {quantity_value} {asset_type}(s) {amount_text} submitted successfully {doc_text}.")
+            
         else:
-            flash("❌ Failed to send asset request.")
+            flash(" Failed to send asset request.")
     
     except Exception as e:
-        flash(f"❌ Error sending asset request: {str(e)}")
+        flash(f" Error sending asset request: {str(e)}")
     
     return redirect(url_for('dashboard'))
 
@@ -5351,6 +5908,29 @@ def admin_assign_work_to_team():
             
             if ok:
                 success_count += 1
+
+                # Send email notification to assignee
+                emp_email = get_user_email(assignee)
+                if emp_email:
+                    subject = f"New Work Assignment - {assignee}"
+                    text_content = f"""Dear {assignee},
+
+You have been assigned new work by your {session['role']}.
+
+Assignment Details:
+- Assigned by: {user}
+- Project: {project_name}
+- Task: {task_desc}
+- Start Date: {start_date}
+- Due Date: {due_date}
+- Work Type: {work_type}
+
+Please log in to your dashboard to view the complete assignment details and update the status as you progress.
+
+This is an automated notification from the Timesheet & Leave Management System."""
+                    send_email(emp_email, subject, text_content)
+                
+
                 print(f" {user} assigned work to {assignee}")
             else:
                 failed_employees.append(assignee)
@@ -5686,6 +6266,21 @@ def approve_leave_cancellation():
             """, (user, int(leave_id)))
             
             if ok:
+                emp_email = get_user_email(leave_username)
+                if emp_email:
+                    subject = f"Leave Cancellation Approved - {leave_username}"
+                    text_content = f"""Dear {leave_username},
+
+        Your leave cancellation request has been approved.
+
+        Leave Details:
+        - Leave Type: {leave_type}
+        - Duration: {leave_days} days
+        - Leave Balance Restored: {leave_days} days
+
+        This is an automated notification from the Timesheet & Leave Management System."""
+                    send_email(emp_email, subject, text_content)
+
                 flash(f" Leave cancellation approved for {leave_username}. {leave_days} day(s) restored to balance.")
             else:
                 flash(" Failed to approve leave cancellation.")
@@ -6607,6 +7202,48 @@ def deactivate_employee_action():
         """, (employee_username,))
         
         if ok:
+            # NEW: Email notification to employee about deactivation
+            emp_email = get_user_email(employee_username)
+            if emp_email:
+                subject = f"Account Deactivated - {employee_username}"
+                text_content = f"""Dear {employee_username},
+
+Your account has been deactivated by the administration.
+
+Reason: {reason}
+Deactivated by: {session['username']}
+Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+
+If you have any questions about this action, please contact the HR department.
+
+This is an automated notification from the Timesheet & Leave Management System."""
+                send_email(emp_email, subject, text_content)
+
+            # NEW: Email notification to HR about employee deactivation
+            hr_users = run_query("""
+                SELECT email FROM users 
+                WHERE role IN ('Hr & Finance Controller', 'Admin Manager') 
+                AND status = 'Active' AND email IS NOT NULL
+            """)
+            
+            if not hr_users.empty:
+                for _, hr_user in hr_users.iterrows():
+                    hr_email = hr_user['email']
+                    if hr_email:
+                        subject = f"Employee Deactivated - {employee_username}"
+                        text_content = f"""Dear HR Team,
+
+An employee account has been deactivated.
+
+Details:
+- Employee: {employee_username}
+- Deactivated by: {session['username']} ({session['role']})
+- Reason: {reason}
+- Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+
+This is an automated notification from the Timesheet & Leave Management System."""
+                        send_email(hr_email, subject, text_content)
+
             flash(f" Employee {employee_username} deactivated. Reason: {reason}")
         else:
             flash(" Failed to deactivate employee.")
@@ -6974,6 +7611,30 @@ def approve_team_work_hr():
         
         if ok:
             flash(" Work approved successfully.")
+            # Get employee details for email notification
+            timesheet_details = run_query(f"""
+                SELECT username, project_name, work_date 
+                FROM timesheets 
+                WHERE id = ? AND username IN ({placeholders}) AND rm_status = 'Approved'
+            """, (int(work_id),) + tuple(team_members))
+            
+            if not timesheet_details.empty:
+                employee_username = timesheet_details.iloc[0]['username']
+                
+                # Send email notification
+                employee_email = get_user_email(employee_username)
+                if employee_email:
+                    subject = f"Timesheet Approved by HR - {employee_username}"
+                    text_content = f"""Dear {employee_username},
+
+        Your timesheet has been approved by HR ({user}).
+
+        You can view the updated status in your dashboard.
+
+        This is an automated notification from the Timesheet & Leave Management System."""
+                    send_email(employee_email, subject, text_content)
+
+
         else:
             flash(" Failed to approve work. Make sure this employee reports to you.")
     except Exception as e:
@@ -7038,6 +7699,24 @@ def approve_team_leave_hr():
             """, (user, int(leave_id)) + tuple(team_members))
             
             if ok:
+                # Send email notification
+                user_email = get_user_email(leave_username)
+                if user_email:
+                    subject = f"Leave Approved by HR - {leave_username}"
+                    text_content = f"""Dear {leave_username},
+
+            Your leave request has been approved by HR ({user}).
+
+            Details:
+            - Leave Type: {leave_type}
+            - Duration: {leave_days} days
+            - Status: Approved
+
+            You can view the updated status in your dashboard.
+
+            This is an automated notification from the Timesheet & Leave Management System."""
+                    send_email(user_email, subject, text_content)
+
                 flash(f" Leave approved for {leave_username} ({leave_days} days).")
             else:
                 flash(" Failed to approve leave.")
@@ -7056,6 +7735,7 @@ def reject_team_work():
         flash(" Access denied. HR & Finance Controller privileges required.")
         return redirect(url_for('dashboard'))
     
+    user = session['username']
     timesheet_id = request.form.get('timesheet_id')
     rejection_reason = request.form.get('rejection_reason', '').strip()
     
@@ -7089,6 +7769,29 @@ def reject_team_work():
         """, (session['username'], rejection_reason, int(timesheet_id)) + tuple(sabitha_team))
         
         if ok:
+            # Get employee details for email notification
+            timesheet_details = run_query(f"""
+                SELECT username FROM timesheets 
+                WHERE id = ? AND username IN ({placeholders}) AND rm_status = 'Rejected'
+            """, (int(timesheet_id),) + tuple(sabitha_team))
+            
+            if not timesheet_details.empty:
+                employee_username = timesheet_details.iloc[0]['username']
+                
+                # Send email notification
+                employee_email = get_user_email(employee_username)
+                if employee_email:
+                    subject = f"Timesheet Rejected by HR - {employee_username}"
+                    text_content = f"""Dear {employee_username},
+
+        Your timesheet has been rejected by HR ({user}).
+
+        Reason: {rejection_reason}
+
+        Please contact HR for clarification or resubmit your timesheet with corrections.
+
+        This is an automated notification from the Timesheet & Leave Management System."""
+                    send_email(employee_email, subject, text_content)
             flash(f" Team work rejected. Reason: {rejection_reason}")
         else:
             flash(" Failed to reject team work or work not found.")
@@ -7105,6 +7808,7 @@ def reject_team_leave():
         flash(" Access denied. HR & Finance Controller privileges required.")
         return redirect(url_for('dashboard'))
     
+    user = session['username']
     leave_id = request.form.get('leave_id')
     rejection_reason = request.form.get('rejection_reason', '').strip()
     
@@ -7138,6 +7842,31 @@ def reject_team_leave():
         """, (session['username'], rejection_reason, int(leave_id)) + tuple(sabitha_team))
         
         if ok:
+            # Get employee details for email notification
+            leave_details = run_query(f"""
+                SELECT username, leave_type FROM leaves 
+                WHERE id = ? AND username IN ({placeholders}) AND rm_status = 'Rejected'
+            """, (int(leave_id),) + tuple(sabitha_team))
+            
+            if not leave_details.empty:
+                employee_username = leave_details.iloc[0]['username']
+                leave_type = str(leave_details.iloc[0]['leave_type'])
+                
+                # Send email notification
+                user_email = get_user_email(employee_username)
+                if user_email:
+                    subject = f"Leave Request Rejected by HR - {employee_username}"
+                    text_content = f"""Dear {employee_username},
+
+        Your {leave_type} leave request has been rejected by HR ({user}).
+
+        Reason: {rejection_reason}
+
+        Please contact HR for clarification or resubmit your leave request with corrections.
+
+        This is an automated notification from the Timesheet & Leave Management System."""
+                    send_email(user_email, subject, text_content)
+
             flash(f" Team leave rejected. Reason: {rejection_reason}")
         else:
             flash(" Failed to reject team leave or leave not found.")
@@ -7883,7 +8612,32 @@ def admin_submit_personal_timesheet():
         return redirect(url_for('dashboard'))
     
     # This is just an alias to the regular submit_timesheet_action
-    return submit_timesheet_action()
+    result = submit_timesheet_action()
+
+    # Additional email to HR about admin timesheet submission
+    user = session['username']
+    hr_users = run_query("""
+        SELECT email FROM users 
+        WHERE role IN ('Hr & Finance Controller', 'Manager') 
+        AND status = 'Active' AND email IS NOT NULL
+    """)
+    
+    if not hr_users.empty:
+        for _, hr_user in hr_users.iterrows():
+            hr_email = hr_user['email']
+            if hr_email:
+                subject = f"Admin Timesheet Submitted - {user}"
+                text_content = f"""Dear HR Team,
+
+{user} ({session['role']}) has submitted a personal timesheet.
+
+This is for informational purposes as an admin-level user submission.
+
+Please review if needed through the dashboard.
+
+This is an automated notification from the Timesheet & Leave Management System."""
+                send_email(hr_email, subject, text_content)
+    return result
 
 @app.route('/admin_submit_personal_leave', methods=['POST'])
 def admin_submit_personal_leave():
@@ -7966,6 +8720,7 @@ def admin_approve_team_timesheet():
         flash("Access denied. Admin Manager privileges required.")
         return redirect(url_for('dashboard'))
     
+   
     timesheet_id = request.form.get('timesheet_id')
     
     if not timesheet_id:
@@ -7991,6 +8746,40 @@ def admin_approve_team_timesheet():
         
         if ok:
             flash(" Timesheet approved successfully.")
+            # Get timesheet details and send email notification
+            timesheet_details = run_query(f"""
+                SELECT t.username, t.projectname, t.workdate, t.hours, t.workdesc 
+                FROM timesheets t 
+                WHERE t.id = ? AND t.username IN ({placeholders})
+            """, (int(timesheet_id),) + tuple(team))
+
+            if not timesheet_details.empty:
+                employee_username = timesheet_details.iloc[0]['username']
+                project_name = timesheet_details.iloc[0]['projectname']
+                work_date = timesheet_details.iloc[0]['workdate']
+                hours = timesheet_details.iloc[0]['hours']
+                work_desc = timesheet_details.iloc[0]['workdesc']
+                
+                user_email = get_user_email(employee_username)
+                if user_email:
+                    subject = f"Timesheet Approved by Admin - {employee_username}"
+                    text_content = f"""Dear {employee_username},
+
+            Your timesheet has been approved by Admin {user}.
+
+            Details:
+            - Date: {work_date}
+            - Project: {project_name}
+            - Hours: {hours}
+            - Description: {work_desc[:100]}{'...' if len(work_desc) > 100 else ''}
+            - Status: Approved
+
+            You can view the updated status in your dashboard.
+
+            This is an automated notification from the Timesheet Leave Management System."""
+                    send_email(user_email, subject, text_content)
+
+            
         else:
             flash(" Failed to approve timesheet or timesheet not found.")
     
@@ -8009,6 +8798,7 @@ def admin_reject_team_timesheet():
     if session['role'] not in ('Admin Manager', 'Lead Staffing Specialist'):
         flash("Access denied. Admin Manager privileges required.")
         return redirect(url_for('dashboard'))
+    
     
     timesheet_id = request.form.get('timesheet_id')
     rejection_reason = request.form.get('rejection_reason', '').strip()
@@ -8039,6 +8829,40 @@ def admin_reject_team_timesheet():
         
         if ok:
             flash(f" Timesheet rejected. Reason: {rejection_reason}")
+            # Get timesheet details and send email notification
+            timesheet_details = run_query(f"""
+                SELECT t.username, t.projectname, t.workdate, t.hours, t.workdesc 
+                FROM timesheets t 
+                WHERE t.id = ? AND t.username IN ({placeholders})
+            """, (int(timesheet_id),) + tuple(team))
+
+            if not timesheet_details.empty:
+                employee_username = timesheet_details.iloc[0]['username']
+                project_name = timesheet_details.iloc[0]['projectname']
+                work_date = timesheet_details.iloc[0]['workdate']
+                hours = timesheet_details.iloc[0]['hours']
+                work_desc = timesheet_details.iloc[0]['workdesc']
+                
+                user_email = get_user_email(employee_username)
+                if user_email:
+                    subject = f"Timesheet Rejected by Admin - {employee_username}"
+                    text_content = f"""Dear {employee_username},
+
+            Your timesheet has been rejected by Admin {user}.
+
+            Details:
+            - Date: {work_date}
+            - Project: {project_name}
+            - Hours: {hours}
+            - Description: {work_desc[:100]}{'...' if len(work_desc) > 100 else ''}
+            - Status: Rejected
+            - Rejection Reason: {rejection_reason}
+
+            Please contact your Admin for clarification or resubmit your timesheet with corrections.
+
+            This is an automated notification from the Timesheet Leave Management System."""
+                    send_email(user_email, subject, text_content)
+
         else:
             flash(" Failed to reject timesheet or timesheet not found.")
     
@@ -8100,6 +8924,26 @@ def admin_approve_team_leave():
             
             if ok:
                 flash(f" Leave approved for {leave_username} ({leave_days} days).")
+                user_email = get_user_email(leave_username)
+                if user_email:
+                    subject = f"Leave Approved by Admin - {leave_username}"
+                    text_content = f"""Dear {leave_username},
+
+                Your leave request has been approved by Admin {user}.
+
+                Details:
+                - Leave Type: {leave_type}
+                - Duration: {leave_days} days
+                - Start Date: {start_date.strftime('%Y-%m-%d')}
+                - End Date: {end_date.strftime('%Y-%m-%d')}
+                - Status: Approved
+                - Processed by: {user}
+
+                You can view the updated status in your dashboard.
+
+                This is an automated notification from the Timesheet Leave Management System."""
+                    send_email(user_email, subject, text_content)
+
             else:
                 flash(" Failed to approve leave.")
         else:
@@ -8150,6 +8994,43 @@ def admin_reject_team_leave():
         
         if ok:
             flash(f" Leave rejected. Reason: {rejection_reason}")
+            # Get leave details for email notification
+            leave_details = run_query(f"""
+                SELECT username, leave_type, start_date, end_date, description 
+                FROM leaves 
+                WHERE id = ? AND username IN ({placeholders})
+            """, (int(leave_id),) + tuple(team))
+
+            if not leave_details.empty:
+                leave_username = leave_details.iloc[0]['username']
+                leave_type = str(leave_details.iloc[0]['leave_type'])
+                start_date = parse(str(leave_details.iloc[0]['start_date']))
+                end_date = parse(str(leave_details.iloc[0]['end_date']))
+                leave_days = (end_date - start_date).days + 1
+                description = leave_details.iloc[0]['description']
+                
+                user_email = get_user_email(leave_username)
+                if user_email:
+                    subject = f"Leave Rejected by Admin - {leave_username}"
+                    text_content = f"""Dear {leave_username},
+
+            Your leave request has been rejected by Admin {user}.
+
+            Details:
+            - Leave Type: {leave_type}
+            - Duration: {leave_days} days
+            - Start Date: {start_date.strftime('%Y-%m-%d')}
+            - End Date: {end_date.strftime('%Y-%m-%d')}
+            - Reason: {description}
+            - Status: Rejected
+            - Rejection Reason: {rejection_reason}
+            - Processed by: {user}
+
+            Please contact your Admin for clarification or resubmit your request with corrections.
+
+            This is an automated notification from the Timesheet Leave Management System."""
+                    send_email(user_email, subject, text_content)
+
         else:
             flash(" Failed to reject leave or leave not found.")
     
@@ -8490,6 +9371,37 @@ def admin_bulk_timesheet_action():
         
         if success_count > 0:
             flash(f" {success_count} timesheets {action}d successfully.")
+
+            # Send bulk notification email to affected employees
+            affected_employees = []
+            for timesheet_id in timesheet_ids:
+                try:
+                    emp_details = run_query("SELECT username FROM timesheets WHERE id = ?", (int(timesheet_id),))
+                    if not emp_details.empty:
+                        username = emp_details.iloc[0]['username']
+                        if username not in affected_employees:
+                            affected_employees.append(username)
+                except:
+                    continue
+            
+            # Send individual emails to each affected employee
+            for emp_username in affected_employees:
+                emp_email = get_user_email(emp_username)
+                if emp_email:
+                    subject = f"Bulk Timesheet {action.title()} - {emp_username}"
+                    text_content = f"""Dear {emp_username},
+
+    Your timesheets have been {action}d in a bulk action by {session['username']} ({session['role']}).
+
+    Action: {action.title()}
+    Processed by: {session['username']}
+    Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+
+    Please check your dashboard for the updated status of your timesheet entries.
+
+    This is an automated notification from the Timesheet & Leave Management System."""
+                    send_email(emp_email, subject, text_content)
+
         
         if failed_count > 0:
             flash(f" {failed_count} timesheets failed to process.")
@@ -8533,39 +9445,87 @@ def admin_bulk_leave_action():
         
         for leave_id in leave_ids:
             try:
-                if action == 'approve':
-                    # Get leave details for balance update
-                    leave_details = run_query(f"""
-                        SELECT username, leave_type, start_date, end_date 
-                        FROM leaves 
-                        WHERE id = ? AND username IN ({placeholders}) AND rm_status = 'Pending'
-                    """, (int(leave_id),) + tuple(team))
+                # Get leave details first for email notification
+                leave_details = run_query(f"""
+                    SELECT username, leavetype, startdate, enddate, description 
+                    FROM leaves 
+                    WHERE id = ? AND username IN ({placeholders}) AND rmstatus = 'Pending'
+                """, [int(leave_id)] + tuple(team))
+                
+                if not leave_details.empty:
+                    leave_username = leave_details.iloc[0]['username']
+                    leave_type = str(leave_details.iloc[0]['leavetype'])
+                    start_date = parse(str(leave_details.iloc[0]['startdate']))
+                    end_date = parse(str(leave_details.iloc[0]['enddate']))
+                    description = leave_details.iloc[0]['description']
+                    leave_days = (end_date - start_date).days + 1
                     
-                    if not leave_details.empty:
-                        leave_username = leave_details.iloc[0]['username']
-                        leave_type = str(leave_details.iloc[0]['leave_type'])
-                        start_date = parse(str(leave_details.iloc[0]['start_date']))
-                        end_date = parse(str(leave_details.iloc[0]['end_date']))
-                        leave_days = (end_date - start_date).days + 1
-                        
+                    if action == 'approve':
                         # Apply leave balance deduction
-                        _apply_leave_balance(leave_username, leave_type, leave_days, +1)
+                        _apply_leave_balance(leave_username, leave_type, leave_days, 1)
                         
-                        # Approve leave
                         ok = run_exec(f"""
                             UPDATE leaves 
-                            SET rm_status = 'Approved', rm_approver = ?, rm_rejection_reason = NULL
-                            WHERE id = ? AND username IN ({placeholders}) AND rm_status = 'Pending'
-                        """, (user, int(leave_id)) + tuple(team))
-                    else:
-                        ok = False
+                            SET rmstatus = 'Approved', rmapprover = ?, rmrejectionreason = NULL 
+                            WHERE id = ? AND username IN ({placeholders}) AND rmstatus = 'Pending'
+                        """, [user, int(leave_id)] + tuple(team))
                         
-                elif action == 'reject':
-                    ok = run_exec(f"""
-                        UPDATE leaves 
-                        SET rm_status = 'Rejected', rm_approver = ?, rm_rejection_reason = ?
-                        WHERE id = ? AND username IN ({placeholders}) AND rm_status = 'Pending'
-                    """, (user, rejection_reason, int(leave_id)) + tuple(team))
+                        if ok:
+                            # Send approval email
+                            user_email = get_user_email(leave_username)
+                            if user_email:
+                                subject = f"Leave Approved (Bulk Action) - {leave_username}"
+                                text_content = f"""Dear {leave_username},
+
+Your leave request has been approved in a bulk action by {user}.
+
+Details:
+- Leave Type: {leave_type}
+- Duration: {leave_days} days
+- Start Date: {start_date.strftime('%Y-%m-%d')}
+- End Date: {end_date.strftime('%Y-%m-%d')}
+- Reason: {description}
+- Status: Approved
+- Processed by: {user}
+
+You can view the updated status in your dashboard.
+
+This is an automated notification from the Timesheet Leave Management System."""
+                                
+                                send_email(user_email, subject, text_content)
+                    
+                    elif action == 'reject':
+                        ok = run_exec(f"""
+                            UPDATE leaves 
+                            SET rmstatus = 'Rejected', rmapprover = ?, rmrejectionreason = ? 
+                            WHERE id = ? AND username IN ({placeholders}) AND rmstatus = 'Pending'
+                        """, [user, rejection_reason, int(leave_id)] + tuple(team))
+                        
+                        if ok:
+                            # Send rejection email
+                            user_email = get_user_email(leave_username)
+                            if user_email:
+                                subject = f"Leave Rejected (Bulk Action) - {leave_username}"
+                                text_content = f"""Dear {leave_username},
+
+Your leave request has been rejected in a bulk action by {user}.
+
+Details:
+- Leave Type: {leave_type}
+- Duration: {leave_days} days
+- Start Date: {start_date.strftime('%Y-%m-%d')}
+- End Date: {end_date.strftime('%Y-%m-%d')}
+- Reason: {description}
+- Status: Rejected
+- Rejection Reason: {rejection_reason}
+- Processed by: {user}
+
+Please contact your supervisor for clarification or resubmit your request with corrections.
+
+This is an automated notification from the Timesheet Leave Management System."""
+                                
+                                send_email(user_email, subject, text_content)
+
                 else:
                     ok = False
                 
@@ -8739,6 +9699,20 @@ def activate_employee_admin():
         ok = run_exec("UPDATE users SET status = 'Active' WHERE username = ?", (employee_username,))
         
         if ok:
+            emp_email = get_user_email(employee_username)
+            if emp_email:
+                subject = f"Account Activated - {employee_username}"
+                text_content = f"""Dear {employee_username},
+
+    Your account has been activated by the administration.
+
+    You can now access the Timesheet & Leave Management System.
+
+    If you have any questions, please contact the HR department.
+
+    This is an automated notification from the Timesheet & Leave Management System."""
+                send_email(emp_email, subject, text_content)
+
             flash(f" Employee {employee_username} activated successfully.")
         else:
             flash(" Failed to activate employee.")
@@ -8801,6 +9775,20 @@ def reset_password_admin():
         ok = run_exec("UPDATE users SET password = ? WHERE username = ?", (new_password, employee_username))
         
         if ok:
+            emp_email = get_user_email(employee_username)
+            if emp_email:
+                subject = f"Password Reset - {employee_username}"
+                text_content = f"""Dear {employee_username},
+
+    Your password has been reset by the administration.
+
+    New Password: {new_password}
+
+    Please log in with your new password and change it immediately for security reasons.
+
+    This is an automated notification from the Timesheet & Leave Management System."""
+                send_email(emp_email, subject, text_content)
+
             flash(f" Password reset for {employee_username}. New password: {new_password}")
         else:
             flash(" Failed to reset password.")
@@ -8841,6 +9829,23 @@ def update_employee_role_admin():
             ok2 = run_exec("UPDATE employee_details SET role = ? WHERE username = ?", (new_role, employee_username))
             
             if ok1 and ok2:
+                emp_email = get_user_email(employee_username)
+                if emp_email:
+                    subject = f"Role Updated - {employee_username}"
+                    text_content = f"""Dear {employee_username},
+
+        Your role has been updated in the system.
+
+        Previous Role: {current_role}
+        New Role: {new_role}
+        Updated by: {session['username']}
+        Reason: {role_change_reason}
+
+        Please log in to see your updated permissions.
+
+        This is an automated notification from the Timesheet & Leave Management System."""
+                    send_email(emp_email, subject, text_content)
+
                 flash(f" Role updated for {employee_username}: {current_role} → {new_role}")
             else:
                 flash(" Failed to update role.")
@@ -9225,12 +10230,12 @@ def edit_employee_admin():
             """, (int(total_leaves), int(sick_total), int(paid_total), int(casual_total), employee_username))
         
         if ok1 and ok2:
-            flash(f"✅ Employee '{name}' ({employee_username}) updated successfully with all details!")
+            flash(f" Employee '{name}' ({employee_username}) updated successfully with all details!")
         else:
-            flash("❌ Failed to update some employee details. Please try again.")
+            flash(" Failed to update some employee details. Please try again.")
     
     except Exception as e:
-        flash(f"❌ Error updating employee: {str(e)}")
+        flash(f" Error updating employee: {str(e)}")
         print(f"Employee update error: {e}")
     
     return redirect(url_for('dashboard'))
@@ -9347,12 +10352,12 @@ def delete_employee_admin():
         ok2 = run_exec("UPDATE users SET status = 'Inactive' WHERE username = ?", (username,))
         
         if ok1 and ok2:
-            flash(f"✅ Employee {username} moved to resigned employees successfully.")
+            flash(f" Employee {username} moved to resigned employees successfully.")
         else:
-            flash("❌ Failed to delete employee.")
+            flash(" Failed to delete employee.")
     
     except Exception as e:
-        flash(f"❌ Error deleting employee: {str(e)}")
+        flash(f" Error deleting employee: {str(e)}")
     
     return redirect(url_for('dashboard'))
 
