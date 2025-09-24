@@ -5,7 +5,7 @@
     <div class="bg-gradient-to-r from-blue-600 to-purple-600 rounded-xl shadow-lg p-6 text-white">
         <div class="flex items-center justify-between">
             <div>
-                <h1 class="text-2xl font-bold">{{ user }} ({{ role }})</h1>
+                <h1 class="text-2xl font-bold">{{ user }}( HR & Finance Controller )</h1>
                 <p class="text-blue-100 mt-1">HR & Finance Dashboard - Complete financial oversight and management</p>
             </div>
             <div class="flex items-center space-x-4">
@@ -85,7 +85,7 @@
                 <h3 class="text-2xl font-bold" id="remainingBudgetDisplay">₹{{ "{:,.0f}".format(remaining_allocation|default(0)|float) }}</h3>
                 <p class="text-blue-100 text-sm">Remaining Budget</p>
                 <p class="text-orange-200 text-xs mt-1">💰 Available for allocation</p>
-                <p class="text-orange-200 text-xs">🖱️ Click for details</p>
+                
             </div>
             <div class="bg-white bg-opacity-20 rounded-lg p-2">
                 <i class="fas fa-wallet text-2xl"></i>
@@ -1445,6 +1445,7 @@
                                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
                                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Hours</th>
                                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Break Hours</th>
+                                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Overtime</th>
                                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                                             </tr>
                                         </thead>
@@ -1460,6 +1461,18 @@
                                                 </td>
                                                 <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">{{ work.hours }}</td>
                                                 <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">{{ work.break_hours or 0 }}</td>
+                                                <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+                    {% set overtime_hours = (work.hours - 8) if work.hours > 8 else 0 %}
+                    {% if overtime_hours > 0 %}
+                        <span class="inline-flex px-2 py-1 text-xs font-semibold bg-orange-100 text-orange-800 rounded-full">
+                            <i class="fas fa-clock mr-1"></i>{{ overtime_hours }}h OT
+                        </span>
+                    {% else %}
+                        <span class="text-gray-400 text-xs">-</span>
+                    {% endif %}
+                </td>
+                
+                
                                                 <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
                                                     {% set status = work.rm_status|lower if work.rm_status else '' %}
                                                     {% if status == 'approved' %}
