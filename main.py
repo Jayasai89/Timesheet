@@ -968,7 +968,7 @@ def dashboard():
     direct_reports = get_direct_reports(user)
     is_rm = len(direct_reports) > 0
     
-    # Enhanced routing logic that considers RM status
+    # Enhanced routing logic that considers RM statusf
     if role == 'Manager':
         return view_manager(user)
     elif role == 'Hr & Finance Controller':
@@ -1601,13 +1601,16 @@ def view_hr_finance(user):
 
     # Employee Work Records
     try:
-        employee_timesheets = run_query("""
-            SELECT TOP 1000 id, username, work_date, project_name, work_desc, hours, 
-                   COALESCE(break_hours, 0) as break_hours, rm_status,
-                   MONTH(work_date) as work_month, YEAR(work_date) as work_year
-            FROM timesheets
-            ORDER BY work_date DESC
-        """)
+     employee_timesheets = run_query("""
+        SELECT TOP 1000 id, username, work_date, project_name, work_desc, hours, 
+               COALESCE(break_hours, 0) as break_hours, rm_status,
+               CASE WHEN hours > 8 THEN hours - 8 ELSE 0 END as overtime_hours,
+               MONTH(work_date) as work_month, YEAR(work_date) as work_year,
+               start_time, end_time
+        FROM timesheets
+        ORDER BY work_date DESC
+    """)
+
     except Exception as e:
         employee_timesheets = pd.DataFrame()
 
