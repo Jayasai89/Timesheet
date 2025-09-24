@@ -490,14 +490,15 @@
                         <div class="p-6">
                             <form method="post" action="{{ url_for('submit_timesheet_action') }}" class="space-y-4">
                                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                    <div>
-                                        <label class="block text-sm font-medium text-gray-700 mb-2">Project *</label>
-                                        <select name="project" required class="form-select w-full rounded-lg border-gray-300">
-                                            {% for project in proj_list %}
-                                            <option value="{{ project }}">{{ project }}</option>
-                                            {% endfor %}
-                                        </select>
-                                    </div>
+   <div class="form-group">
+    <label for="project">Project/Work *</label>
+    <select name="project" id="project" required class="form-select">
+        <option value="">Select Project/Work</option>
+        {% for option in project_options %}
+            <option value="{{ option.value }}">{{ option.label }}</option>
+        {% endfor %}
+    </select>
+</div>
                                     <div>
                                         <label class="block text-sm font-medium text-gray-700 mb-2">Work Date *</label>
                                         <input type="date" name="work_date" required class="form-input w-full rounded-lg border-gray-300" max="{{ today }}">
@@ -559,6 +560,12 @@
                                             <option value="Other">Other</option>
                                         </select>
                                     </div>
+                                    <div id="vacation-warning" class="alert alert-info mb-3" role="alert" style="display: none;">
+    <i class="fas fa-info-circle"></i>
+    <strong>⚠️ Vacation Leave Policy: Must be requested at least 3 days in advance</strong>
+    <br>
+    <small>This policy applies when selecting "Vacation" as leave type.</small>
+</div>
                                     <div>
                                         <label class="block text-sm font-medium text-gray-700 mb-2">Start Date *</label>
                                         <input type="date" name="start_d" required class="form-input w-full rounded-lg border-gray-300" min="{{ today }}">
@@ -763,9 +770,19 @@
                                             <td class="px-4 py-4 whitespace-nowrap">
                                                 <div class="flex items-center">
                                                     <div class="flex-shrink-0 h-8 w-8">
-                                                        {% if employee.photo_url %}
-                                                            <img class="h-8 w-8 rounded-full object-cover" src="{{ employee.photo_url }}" alt="{{ employee.name }}">
-                                                        {% else %}
+      {% if employee.photo_url %}
+    <img class="h-10 w-10 rounded-full object-cover border border-gray-200" 
+         src="{{ employee.photo_url }}" 
+         alt="{{ employee.name or employee.username }}"
+         onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+    <div class="h-10 w-10 rounded-full bg-blue-100 items-center justify-center" style="display: none;">
+        <span class="text-sm font-medium text-blue-600">
+            {{ (employee.name[0] if employee.name else employee.username[0]).upper() }}
+        </span>
+    </div>
+{% else %}
+
+
                                                             <div class="h-8 w-8 rounded-full bg-blue-100 flex items-center justify-center">
                                                                 <span class="text-xs font-medium text-blue-600">{{ employee.name[0]|upper if employee.name else employee.username[0]|upper }}</span>
                                                             </div>
@@ -1128,8 +1145,8 @@
                                             <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Assigned To</th>
                                             <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Task</th>
                                             <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Project</th>
+                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Start Date</th>
                                             <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Due Date</th>
-                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                                             <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Urgency</th>
                                         </tr>
                                     </thead>
@@ -1143,16 +1160,9 @@
                                                 <div class="truncate" title="{{ assignment.task_desc }}">{{ assignment.task_desc }}</div>
                                             </td>
                                             <td class="px-4 py-4 whitespace-nowrap text-sm">{{ assignment.project_name or '(No project)' }}</td>
+                                            <td class="px-4 py-4 whitespace-nowrap text-sm">{{ assignment.startdate or assignment.assignedon or 'N/A' }}</td>
                                             <td class="px-4 py-4 whitespace-nowrap text-sm">{{ assignment.due_date or 'N/A' }}</td>
-                                            <td class="px-4 py-4 whitespace-nowrap">
-                                                <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full
-                                                    {% if assignment.rm_status == 'Completed' %}bg-green-100 text-green-800
-                                                    {% elif assignment.rm_status == 'In Progress' %}bg-yellow-100 text-yellow-800
-                                                    {% elif assignment.rm_status == 'Rejected' %}bg-red-100 text-red-800
-                                                    {% else %}bg-blue-100 text-blue-800{% endif %}">
-                                                    {{ assignment.rm_status }}
-                                                </span>
-                                            </td>
+                                            
                                             <td class="px-4 py-4 whitespace-nowrap">
                                                 {% if assignment.urgency_status == 'Overdue' %}
                                                     <span class="inline-flex px-2 py-1 text-xs font-semibold bg-red-100 text-red-800 rounded-full">
@@ -1198,8 +1208,8 @@
                                             <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Assigned By</th>
                                             <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Task</th>
                                             <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Project</th>
+                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Start Date</th>
                                             <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Due Date</th>
-                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                                             <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Urgency</th>
                                         </tr>
                                     </thead>
@@ -1213,16 +1223,9 @@
                                                 <div class="truncate" title="{{ assignment.task_desc }}">{{ assignment.task_desc }}</div>
                                             </td>
                                             <td class="px-4 py-4 whitespace-nowrap text-sm">{{ assignment.project_name or '(No project)' }}</td>
+                                            <td class="px-4 py-4 whitespace-nowrap text-sm">{{ assignment.startdate or assignment.assignedon or 'N/A' }}</td>
                                             <td class="px-4 py-4 whitespace-nowrap text-sm">{{ assignment.due_date or 'N/A' }}</td>
-                                            <td class="px-4 py-4 whitespace-nowrap">
-                                                <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full
-                                                    {% if assignment.rm_status == 'Completed' %}bg-green-100 text-green-800
-                                                    {% elif assignment.rm_status == 'In Progress' %}bg-yellow-100 text-yellow-800
-                                                    {% elif assignment.rm_status == 'Rejected' %}bg-red-100 text-red-800
-                                                    {% else %}bg-blue-100 text-blue-800{% endif %}">
-                                                    {{ assignment.rm_status }}
-                                                </span>
-                                            </td>
+                                            
                                             <td class="px-4 py-4 whitespace-nowrap">
                                                 {% if assignment.urgency_status == 'Overdue' %}
                                                     <span class="inline-flex px-2 py-1 text-xs font-semibold bg-red-100 text-red-800 rounded-full">
@@ -2360,7 +2363,28 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 });
-
+// Vacation leave warning functionality
+document.addEventListener('DOMContentLoaded', function() {
+    const leaveTypeSelect = document.querySelector('select[name="leave_type"]');
+    const vacationWarning = document.getElementById('vacation-warning');
+    
+    if (leaveTypeSelect && vacationWarning) {
+        leaveTypeSelect.addEventListener('change', function() {
+            const selectedType = this.value;
+            
+            if (selectedType === 'Vacation') {
+                vacationWarning.style.display = 'block';
+                // Add visual emphasis
+                vacationWarning.classList.add('animate-pulse');
+                setTimeout(() => {
+                    vacationWarning.classList.remove('animate-pulse');
+                }, 3000);
+            } else {
+                vacationWarning.style.display = 'none';
+            }
+        });
+    }
+});
 // Keyboard shortcuts
 document.addEventListener('keydown', function(e) {
     // Ctrl/Cmd + K to focus search
