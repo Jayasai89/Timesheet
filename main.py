@@ -2,7 +2,7 @@ from multiprocessing import connection
 import os
 from traceback import print_list
 from dotenv import load_dotenv
-from flask import Flask, render_template, request, redirect, send_file, url_for, session, flash, jsonify
+from flask import Flask, render_template, request, redirect, send_file, send_from_directory, url_for, session, flash, jsonify
 from flask_moment import Moment
 from werkzeug.utils import secure_filename
 import pyodbc
@@ -26,6 +26,8 @@ import numpy as np
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from flask import jsonify  
+import json
 
 
 # Email Configuration
@@ -957,12 +959,16 @@ def reset_password():
 @app.route('/dashboard', methods=['GET', 'POST'])
 def dashboard():
     if 'username' not in session:
-        return redirect(url_for('login_sso'))
+        return redirect(url_for('loginsso'))
     
     user = session['username']
     role = session['role']
     
-    # Handle your specific database roles
+    # Check if user is an RM regardless of their primary role
+    direct_reports = get_direct_reports(user)
+    is_rm = len(direct_reports) > 0
+    
+    # Enhanced routing logic that considers RM status
     if role == 'Manager':
         return view_manager(user)
     elif role == 'Hr & Finance Controller':
@@ -977,14 +983,22 @@ def dashboard():
         return view_admin_manager(user)
     elif role == 'Lead':
         return view_lead(user)
-    elif role in ('Product Owner', 'BDE Manager', 'SAP Consultant', 'Contractor'):
+    elif role in ('Product Owner', 'BDE Manager', 'Contractor'):
         return view_employee(user)
+    elif role == 'SAP Consultant':
+        # SAP Consultants get RM view if they have direct reports, otherwise employee view
+        if is_rm:
+            return view_employee(user)  # view_employee handles RM functionality
+        else:
+            return view_employee(user)
     else:
         flash(f"Role '{role}' not specifically mapped, showing employee view.")
         return view_employee(user)
+
+
     
-    # --------------------
-# Manager View Function - COMPLETE
+
+    # Manager View Function - COMPLETE
 # --------------------
 def view_manager(user):
     """Manager dashboard view - ROLE BASED with REAL-TIME BUDGET UPDATES"""
@@ -1103,10 +1117,10 @@ def view_manager(user):
 
     # Get all employees for project assignment
     all_employees = run_query("""
-        SELECT username, role, name FROM users 
-        WHERE role IN ('Employee', 'Intern', 'Lead') AND status = 'Active'
-        ORDER BY username
-    """)
+            SELECT username, role, name FROM users 
+            WHERE status = 'Active'
+            ORDER BY role, COALESCE(name, username)
+        """)
 
     # Get approved projects (EXCLUDING SALARY/ASSET PROJECTS)
     all_projects = run_query("""
@@ -1412,7 +1426,7 @@ def view_manager(user):
         leave_type=leave_type,
         leave_desc=leave_desc
     )
-# --------------------
+
 # HR Finance View Function - COMPLETE
 # --------------------
 def view_hr_finance(user):
@@ -1488,6 +1502,8 @@ def view_hr_finance(user):
     print(f"   Payroll & Asset Allocations: ₹{payroll_asset_allocated:,.2f}")
     print(f"   Remaining Available: ₹{remaining_allocation:,.2f}")
 
+
+    
     # CORRECTED Budget Summary query - ONLY actual projects
     try:
         budget_summary = run_query("""
@@ -1756,9 +1772,9 @@ def view_hr_finance(user):
         # NEW: Work assignment data
         all_employees=all_employees.to_dict('records') if not all_employees.empty else [],
         work_assignments=work_assignments.to_dict('records') if not work_assignments.empty else [],
+       
     )
 
-# --------------------
 # Lead View Function - COMPLETE
 # --------------------
 def view_lead(user):
@@ -1973,6 +1989,17 @@ ORDER BY date DESC
     
     all_employee_leave_history = run_query(leave_base_query, tuple(leave_params))
     
+    # Add this query to get all employees for work assignment
+    try:
+        all_employees = run_query("""
+            SELECT username, role, name FROM users 
+            WHERE status = 'Active'
+            ORDER BY role, COALESCE(name, username)
+        """)
+    except Exception as e:
+        print(f"All employees query error: {e}")
+        all_employees = pd.DataFrame()
+
     # Get ALL work assignments
     work_assignments = run_query("""
         SELECT TOP 500 id, assigned_by, assigned_to, project_name, task_desc, 
@@ -2073,6 +2100,7 @@ ORDER BY date DESC
     return render_template('lead.html',
         user=user,
         role=session['role'],
+        all_employees=all_employees.to_dict('records') if not all_employees.empty else [],  
         today=date.today().isoformat(),
         
         # ENHANCED Financial Overview (same as HR Finance)
@@ -2127,97 +2155,12 @@ ORDER BY date DESC
         leave_type=leave_type,
         leave_status=leave_status
     )
-# Employee View Function - COMPLETE WITH WORK ASSIGNMENTS
-# --------------------
-# Add these missing document viewing routes with proper permission checks
-@app.route('/view-leave-document/<int:leave_id>')
-def view_leave_document(leave_id):
-    """View leave document with proper permission checks"""
-    if 'username' not in session:
-        return redirect(url_for('login_sso'))
-    
-    user = session['username']
-    
-    # Get leave details
-    leave_query = run_query("""
-        SELECT l.username, l.health_document, r.rm, r.manager 
-        FROM leaves l
-        LEFT JOIN report r ON l.username = r.username
-        WHERE l.id = ?
-    """, (leave_id,))
-    
-    if leave_query.empty:
-        flash("Document not found.")
-        return redirect(url_for('dashboard'))
-    
-    leave_record = leave_query.iloc[0]
-    document_owner = leave_record['username']
-    assigned_rm = leave_record['rm']
-    assigned_manager = leave_record['manager']
-    document_path = leave_record['health_document']
-    
-    # Check permissions: user must be document owner, assigned RM, or assigned manager
-    if user != document_owner and user != assigned_rm and user != assigned_manager:
-        flash("Access denied. You don't have permission to view this document.")
-        return redirect(url_for('dashboard'))
-    
-    if not document_path:
-        flash("No document attached to this leave request.")
-        return redirect(url_for('dashboard'))
-    
-    try:
-        return send_file(os.path.join(app.config['UPLOAD_FOLDER'], document_path))
-    except FileNotFoundError:
-        flash("Document file not found on server.")
-        return redirect(url_for('dashboard'))
-
-@app.route('/download-leave-document/<int:leave_id>')
-def download_leave_document(leave_id):
-    """Download leave document with proper permission checks"""
-    if 'username' not in session:
-        return redirect(url_for('login_sso'))
-    
-    user = session['username']
-    
-    # Get leave details
-    leave_query = run_query("""
-        SELECT l.username, l.health_document, r.rm, r.manager 
-        FROM leaves l
-        LEFT JOIN report r ON l.username = r.username
-        WHERE l.id = ?
-    """, (leave_id,))
-    
-    if leave_query.empty:
-        flash("Document not found.")
-        return redirect(url_for('dashboard'))
-    
-    leave_record = leave_query.iloc[0]
-    document_owner = leave_record['username']
-    assigned_rm = leave_record['rm']
-    assigned_manager = leave_record['manager']
-    document_path = leave_record['health_document']
-    
-    # Check permissions
-    if user != document_owner and user != assigned_rm and user != assigned_manager:
-        flash("Access denied. You don't have permission to download this document.")
-        return redirect(url_for('dashboard'))
-    
-    if not document_path:
-        flash("No document attached to this leave request.")
-        return redirect(url_for('dashboard'))
-    
-    try:
-        return send_file(
-            os.path.join(app.config['UPLOAD_FOLDER'], document_path),
-            as_attachment=True
-        )
-    except FileNotFoundError:
-        flash("Document file not found on server.")
-        return redirect(url_for('dashboard'))
 
 # Update the view_employee function to fix team history filters
 def view_employee(user):
     """Employee dashboard view - FIXED with proper team history filters and document access"""
+
+  
     
     # Check if user is an RM
     direct_reports = get_direct_reports(user)
@@ -2388,6 +2331,8 @@ def view_employee(user):
             """
             work_params = list(all_team)
 
+           
+
             # Apply ALL filters
             if team_work_start:
                 work_base_query += " AND t.work_date >= ?"
@@ -2461,7 +2406,8 @@ def view_employee(user):
         'pending_approvals': len(pending_timesheets.to_dict('records')) + len(pending_leaves.to_dict('records')) if is_rm else 0,
         'overdue_assignments': len([w for w in assigned_work_df.to_dict('records') if w.get('urgency_status') == 'Overdue']) if not assigned_work_df.empty else 0
     }
-    
+    vacation_info = get_vacation_leave_info()
+    project_options = get_assigned_projects_and_work(user)
     # Pass all data to template with ENHANCED filter values
     return render_template('employee.html',
         user=user,
@@ -2514,9 +2460,9 @@ def view_employee(user):
         team_leave_emp=request.args.get('team_leave_emp', ''),
         team_leave_type=request.args.get('team_leave_type', ''),
         team_leave_status=request.args.get('team_leave_status', ''),
+        project_options=project_options,
+        vacation_leave_info=vacation_info
     )
-
-
 
 # Intern View Function - COMPLETE
 # --------------------
@@ -2573,12 +2519,12 @@ def view_intern(user):
     
     # Calculate remaining leaves
     remaining_leaves = _get_remaining_balances(user)
-    
+    vacation_info = get_vacation_leave_info()
     # Convert DataFrames to dictionaries for template
     assigned_work = assigned_work_df.to_dict('records') if not assigned_work_df.empty else []
     work_history = work_history_df.to_dict('records') if not work_history_df.empty else []
     leaves = leaves_df.to_dict('records') if not leaves_df.empty else []
-    
+    project_options = get_assigned_projects_and_work(user)
     return render_template('intern_dashboard.html',
         user=user,
         role=session['role'],
@@ -2591,9 +2537,10 @@ def view_intern(user):
         leave_rows=leaves,
         leave_cols=leaves_df.columns.tolist() if not leaves_df.empty else [],
         remaining_leaves=remaining_leaves,
+        project_options=project_options,
+        vacation_leave_info=vacation_info,
         today=date.today().isoformat()
     )
-
 # Admin Manager View Function - COMPLETE WITH FIXED DATA
 # --------------------
 def view_admin_manager(user):
@@ -2636,7 +2583,7 @@ def view_admin_manager(user):
         FROM users u
         LEFT JOIN employee_details ed ON u.username = ed.username
         LEFT JOIN report r ON u.username = r.username
-        WHERE u.status IN ('Active', 'Inactive', 'Suspended')
+        WHERE u.status IN ('Active')
         ORDER BY u.role, u.username
     """)
     
@@ -2645,34 +2592,34 @@ def view_admin_manager(user):
     if direct_reports_list:
         placeholders = ",".join(["?"] * len(direct_reports_list))
         my_assigned_work = run_query(f"""
-            SELECT aw.id, aw.assigned_to, aw.task_desc, aw.project_name, aw.start_date, 
-                   aw.end_date, aw.due_date, aw.assigned_on, aw.rm_status, aw.manager_status, 
-                   aw.work_type, aw.rm_approver, aw.rm_rejection_reason,
-                   u.name as assigned_to_name,
-                   CASE 
-                       WHEN aw.due_date < GETDATE() AND aw.rm_status != 'Completed' THEN 'Overdue'
-                       WHEN aw.due_date <= DATEADD(day, 3, GETDATE()) AND aw.rm_status != 'Completed' THEN 'Due Soon'
-                       ELSE 'Active'
-                   END as urgency_status
-            FROM assigned_work aw
-            LEFT JOIN users u ON aw.assigned_to = u.username
+            SELECT aw.id, aw.assigned_to, aw.task_desc, aw.project_name, 
+                COALESCE(aw.start_date, aw.assigned_on) as startdate,
+                aw.end_date, aw.due_date, aw.assigned_on, aw.rm_status, aw.manager_status, 
+                aw.work_type, aw.rm_approver, aw.rm_rejection_reason, u.name as assigned_to_name,
+                CASE 
+                    WHEN aw.due_date < GETDATE() AND aw.rm_status != 'Completed' THEN 'Overdue'
+                    WHEN aw.due_date <= DATEADD(day, 3, GETDATE()) AND aw.rm_status != 'Completed' THEN 'Due Soon'
+                    ELSE 'Active'
+                END as urgency_status
+            FROM assigned_work aw 
+            LEFT JOIN users u ON aw.assigned_to = u.username 
             WHERE aw.assigned_by = ? AND aw.assigned_to IN ({placeholders})
             ORDER BY aw.assigned_on DESC, aw.due_date ASC
         """, (user,) + tuple(direct_reports_list))
     
     # Get work assigned TO this admin manager
     work_assigned_to_me = run_query("""
-        SELECT aw.id, aw.assigned_by, aw.task_desc, aw.project_name, aw.start_date, 
-               aw.end_date, aw.due_date, aw.assigned_on, aw.rm_status, aw.manager_status, 
-               aw.work_type, aw.rm_rejection_reason,
-               u.name as assigned_by_name,
-               CASE 
-                   WHEN aw.due_date < GETDATE() AND aw.rm_status != 'Completed' THEN 'Overdue'
-                   WHEN aw.due_date <= DATEADD(day, 3, GETDATE()) AND aw.rm_status != 'Completed' THEN 'Due Soon'
-                   ELSE 'Active'
-               END as urgency_status
-        FROM assigned_work aw
-        LEFT JOIN users u ON aw.assigned_by = u.username
+        SELECT aw.id, aw.assigned_by, aw.task_desc, aw.project_name, 
+            COALESCE(aw.start_date, aw.assigned_on) as startdate,
+            aw.end_date, aw.due_date, aw.assigned_on, aw.rm_status, aw.manager_status, 
+            aw.work_type, aw.rm_rejection_reason, u.name as assigned_by_name,
+            CASE 
+                WHEN aw.due_date < GETDATE() AND aw.rm_status != 'Completed' THEN 'Overdue'
+                WHEN aw.due_date <= DATEADD(day, 3, GETDATE()) AND aw.rm_status != 'Completed' THEN 'Due Soon'
+                ELSE 'Active'
+            END as urgency_status
+        FROM assigned_work aw 
+        LEFT JOIN users u ON aw.assigned_by = u.username 
         WHERE aw.assigned_to = ?
         ORDER BY aw.assigned_on DESC, aw.due_date ASC
     """, (user,))
@@ -2694,11 +2641,10 @@ def view_admin_manager(user):
     
     # Get resigned employees
     resigned_employees = run_query("""
-        SELECT username, name, role, joining_date, resigned_date, monthly_salary, yearly_salary,
-               employment_type, mobile_number, emergency_contact, resigned_by, resignation_reason
-        FROM resigned_employees
-        ORDER BY resigned_date DESC
-    """)
+    SELECT username, name, role, joining_date, resigned_date, resigned_by, resignation_reason
+    FROM resigned_employees
+    ORDER BY resigned_date DESC
+""")
     
     # Get projects list for work assignments
     projects_df = run_query("""
@@ -2716,7 +2662,7 @@ def view_admin_manager(user):
             SELECT id, asset_type, quantity, 
                    COALESCE(CAST(amount AS DECIMAL(18,2)), 0) as amount, 
                    for_employee, description, requested_by, requested_date, 
-                   status, approved_by, approved_date, rejection_reason
+                   status, approved_by, approved_date, rejection_reason,document_path
             FROM asset_requests
             ORDER BY 
                 CASE 
@@ -2742,6 +2688,7 @@ def view_admin_manager(user):
                 except (ValueError, TypeError):
                     record['amount'] = 0.0
                     record['rejection_reason'] = ''
+                    record['documentpath'] = record.get('document_path', '')
             all_asset_requests_list = asset_records
         else:
             all_asset_requests_list = []
@@ -3010,6 +2957,8 @@ def view_admin_manager(user):
             department_breakdown = dept_stats.to_dict('records')
     except Exception as e:
         print(f"Error calculating department breakdown: {e}")
+    project_options = get_assigned_projects_and_work(user)
+    vacation_info = get_vacation_leave_info()
     
     return render_template('admin_manager.html',
         user=user,
@@ -3094,97 +3043,149 @@ def view_admin_manager(user):
         
         # Add missing variables that template expects
         my_work_assignments=my_assigned_work_records,  # Alternative name
-        work_assigned_to_admin=work_assigned_to_me_records,  # Alternative name
+        work_assigned_to_admin=work_assigned_to_me_records,
+        project_options=project_options, 
+        vacation_leave_info=vacation_info # Alternative name
     )
+
+
+
 
 @app.route('/submit_timesheet', methods=['POST'])
 def submit_timesheet_action():
+    """Submit timesheet with assigned projects/work filter"""
     if 'username' not in session:
         return redirect(url_for('login_sso'))
     
     user = session['username']
     project = request.form.get('project')
-    work_date = request.form.get('work_date')
+    workdate = request.form.get('work_date')
     desc = request.form.get('desc')
-    start_t_str = request.form.get('start_t')
-    end_t_str = request.form.get('end_t')
-    brk = request.form.get('brk', 0.0)
-
-    # Validate date is not in the future
-    if work_date:
-        work_date_obj = datetime.strptime(work_date, '%Y-%m-%d').date()
-        if work_date_obj > date.today():
-            flash(" Cannot submit timesheet for future dates.")
-            return redirect(url_for('dashboard'))
+    starttstr = request.form.get('start_t')
+    endtstr = request.form.get('end_t')
+    brk = request.form.get('brk', '0.0')
     
-    if not all([project, work_date, desc, start_t_str, end_t_str]):
-        flash(" All fields are required for timesheet submission.")
+    if not project or not workdate or not desc or not starttstr or not endtstr:
+        flash("All fields are required.")
         return redirect(url_for('dashboard'))
     
     try:
-        start_t = time.fromisoformat(start_t_str)
-        end_t = time.fromisoformat(end_t_str)
+        start_t = time.fromisoformat(starttstr)
+        end_t = time.fromisoformat(endtstr)
         hours = calc_hours(start_t, end_t, float(brk))
         
+        # Handle project selection
         proj_val = "(non-project)" if project == "(non-project)" or not project else project
         cost_center = None
         
+        # Get cost center if it's a real project - CORRECTED COLUMN NAME
         if proj_val and proj_val != "(non-project)":
             df = run_query("SELECT cost_center FROM projects WHERE project_name = ?", (proj_val,))
             if not df.empty:
                 cost_center = df.iloc[0]['cost_center']
         
+        # Convert time objects to strings for database storage
         start_time_str = start_t.strftime("%H:%M:%S")
         end_time_str = end_t.strftime("%H:%M:%S")
         
-        #  CRITICAL FIX: Get the DIRECT RM for this user
+        # Get RM approver for the user
         rm_approver = get_rm_for_employee(user)
         
-        if not rm_approver:
-            flash(" No reporting manager found. Please contact admin to set up reporting structure.")
-            return redirect(url_for('dashboard'))
-        
-        print(f" DEBUG: Timesheet submission - User: {user} -> RM Approver: {rm_approver}")
-        
+        # Insert timesheet record - CORRECTED COLUMN NAMES
         ok = run_exec("""
-            INSERT INTO [timesheet_db].[dbo].[timesheets]
-            (username, project_name, work_desc, hours, work_date, start_time, end_time, 
-             break_hours, rm_status, manager_status, cost_center, rm_approver)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'Pending', '-', ?, ?)
-        """, (user, proj_val, desc, int(round(hours)), work_date, start_time_str, 
-              end_time_str, float(brk), cost_center, rm_approver))
+            INSERT INTO [timesheet_db].[dbo].[timesheets] 
+            (username, work_date, project_name, work_desc, hours, start_time, end_time, break_hours, 
+             rm_status, cost_center, rm_approver)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)
+        """, (user, workdate, proj_val, desc, int(round(hours)), 
+              start_time_str, end_time_str, float(brk), cost_center, rm_approver))
         
         if ok:
-            flash(f" Timesheet submitted successfully to RM: {rm_approver} (awaiting approval).")
-            rm_approver = get_rm_for_employee(user)
-            rm_email = get_user_email(rm_approver)
-            if rm_email:
-                subject = f"New Timesheet Submitted - {user}"
-                text_content = f"""Dear {rm_approver},
-
-    {user} has submitted a timesheet that requires your approval.
-
-    Details:
-    - Employee: {user}
-    - Date: {work_date}
-    - Project: {proj_val}
-    - Hours: {hours}
-    - Description: {desc}
-
-    Please log in to the system to review and approve this timesheet.
-
-    This is an automated notification from the Timesheet & Leave Management System."""
-                send_email(rm_email, subject, text_content)
-
+            flash("Timesheet submitted successfully (awaiting RM approval).")
             
+            # Send email notification to RM
+            if rm_approver:
+                rm_email = get_user_email(rm_approver)
+                if rm_email:
+                    subject = f"New Timesheet Pending Approval - {user}"
+                    text_content = f"""Dear {rm_approver},
+
+A new timesheet has been submitted by {user} and requires your approval.
+
+Timesheet Details:
+- Employee: {user}
+- Date: {workdate}
+- Project: {proj_val}
+- Hours: {hours}
+- Description: {desc[:100]}{'...' if len(desc) > 100 else ''}
+- Status: Pending Approval
+
+Please log in to the system to review and approve this timesheet.
+
+This is an automated notification from the Timesheet & Leave Management System."""
+                    send_email(rm_email, subject, text_content)
         else:
-            flash(" Failed to submit timesheet.")
+            flash("Failed to submit timesheet.")
     
+    except ValueError as e:
+        flash(f"Invalid time format: {str(e)}")
     except Exception as e:
-        flash(f" Error submitting timesheet: {str(e)}")
-        print(f"Timesheet submission error: {e}")
+        flash(f"Error submitting timesheet: {str(e)}")
     
     return redirect(url_for('dashboard'))
+
+
+def get_assigned_projects_and_work(username):
+    """Get ONLY projects and work assigned to user for timesheet dropdown with assignor info"""
+    try:
+        # CORRECTED: Use actual table name 'assigned_work' and include assigned_by info
+        assigned_options = run_query("""
+            SELECT DISTINCT p.project_name as name, 'Project' as type, p.created_by as assigned_by
+            FROM projects p 
+            INNER JOIN assigned_work aw ON p.project_name = aw.project_name 
+            WHERE aw.assigned_to = ? AND p.hr_approval_status = 'approved'
+            
+            UNION
+            
+            SELECT DISTINCT aw.project_name as name, 'Work' as type, aw.assigned_by
+            FROM assigned_work aw 
+            WHERE aw.assigned_to = ? AND aw.rm_status IN ('pending', 'approved')
+            
+            ORDER BY type, name
+        """, (username, username))
+        
+        # Create dropdown options with labels including assignor
+        project_options = []
+        
+        # Always add non-project option first
+        project_options.append({
+            'value': '(non-project)',
+            'label': '(Non-Project Work)'
+        })
+        
+        # Add ONLY assigned projects and work with assignor info
+        if not assigned_options.empty:
+            for _, row in assigned_options.iterrows():
+                if row['type'] == 'Project':
+                    project_options.append({
+                        'value': row['name'],
+                        'label': f"{row['name']} (Project - Assigned by: {row['assigned_by']})"
+                    })
+                else:
+                    project_options.append({
+                        'value': row['name'], 
+                        'label': f"{row['name']} (Work - Assigned by: {row['assigned_by']})"
+                    })
+        
+        return project_options
+        
+    except Exception as e:
+        print(f"Error fetching assigned projects: {e}")
+        return [{'value': '(non-project)', 'label': '(Non-Project Work)'}]
+
+
+
+
 
 @app.route('/request_leave', methods=['POST'])
 def request_leave_action():
@@ -3219,6 +3220,13 @@ def request_leave_action():
             flash(" Cannot apply for leave in the past.")
             return redirect(url_for('dashboard'))
         
+        # Vacation leave advance notice validation
+        if leave_type == 'Vacation':
+            days_in_advance = (start_date - date.today()).days
+            if days_in_advance < 3:
+                flash('Vacation leave must be requested at least 3 days in advance.')
+                return redirect(url_for('dashboard'))
+            
         days_requested = (end_date - start_date).days + 1
         remaining = _get_remaining_balances(user)
         
@@ -3309,6 +3317,101 @@ def request_leave_action():
     return redirect(url_for('dashboard'))
 
 
+def get_vacation_leave_info():
+    """Get vacation leave policy information for dashboard display"""
+    return {
+        'policy_message': '⚠️ Vacation Leave Policy: Must be requested at least 3 days in advance',
+        'advance_days': 3,
+        'leave_type': 'Vacation'
+    }
+
+# Add these missing document viewing routes with proper permission checks
+@app.route('/view-leave-document/<int:leave_id>')
+def view_leave_document(leave_id):
+    """View leave document with proper permission checks"""
+    if 'username' not in session:
+        return redirect(url_for('login_sso'))
+    
+    user = session['username']
+    
+    # Get leave details
+    leave_query = run_query("""
+        SELECT l.username, l.health_document, r.rm, r.manager 
+        FROM leaves l
+        LEFT JOIN report r ON l.username = r.username
+        WHERE l.id = ?
+    """, (leave_id,))
+    
+    if leave_query.empty:
+        flash("Document not found.")
+        return redirect(url_for('dashboard'))
+    
+    leave_record = leave_query.iloc[0]
+    document_owner = leave_record['username']
+    assigned_rm = leave_record['rm']
+    assigned_manager = leave_record['manager']
+    document_path = leave_record['health_document']
+    
+    # Check permissions: user must be document owner, assigned RM, or assigned manager
+    if user != document_owner and user != assigned_rm and user != assigned_manager:
+        flash("Access denied. You don't have permission to view this document.")
+        return redirect(url_for('dashboard'))
+    
+    if not document_path:
+        flash("No document attached to this leave request.")
+        return redirect(url_for('dashboard'))
+    
+    try:
+        return send_file(os.path.join(app.config['UPLOAD_FOLDER'], document_path))
+    except FileNotFoundError:
+        flash("Document file not found on server.")
+        return redirect(url_for('dashboard'))
+
+@app.route('/download-leave-document/<int:leave_id>')
+def download_leave_document(leave_id):
+    """Download leave document with proper permission checks"""
+    if 'username' not in session:
+        return redirect(url_for('login_sso'))
+    
+    user = session['username']
+    
+    # Get leave details
+    leave_query = run_query("""
+        SELECT l.username, l.health_document, r.rm, r.manager 
+        FROM leaves l
+        LEFT JOIN report r ON l.username = r.username
+        WHERE l.id = ?
+    """, (leave_id,))
+    
+    if leave_query.empty:
+        flash("Document not found.")
+        return redirect(url_for('dashboard'))
+    
+    leave_record = leave_query.iloc[0]
+    document_owner = leave_record['username']
+    assigned_rm = leave_record['rm']
+    assigned_manager = leave_record['manager']
+    document_path = leave_record['health_document']
+    
+    # Check permissions
+    if user != document_owner and user != assigned_rm and user != assigned_manager:
+        flash("Access denied. You don't have permission to download this document.")
+        return redirect(url_for('dashboard'))
+    
+    if not document_path:
+        flash("No document attached to this leave request.")
+        return redirect(url_for('dashboard'))
+    
+    try:
+        return send_file(
+            os.path.join(app.config['UPLOAD_FOLDER'], document_path),
+            as_attachment=True
+        )
+    except FileNotFoundError:
+        flash("Document file not found on server.")
+        return redirect(url_for('dashboard'))
+    
+    
 @app.route('/approve_timesheet', methods=['POST'])
 def approve_timesheet_action():
     if 'username' not in session:
@@ -3568,7 +3671,6 @@ This is an automated notification from the Timesheet & Leave Management System."
     
     return redirect(url_for('dashboard'))
 
-# --------------------
 # Manager Specific Routes
 # --------------------
 @app.route('/approve_manager_timesheet', methods=['POST'])
@@ -3876,6 +3978,35 @@ def reject_manager_leave_request():
         """, (user, rejection_reason, int(leave_id)) + tuple(manager_team))
         
         if ok:
+            # Get leave details for email
+            leave_details = run_query("""
+                SELECT l.username, l.leave_type, l.start_date, l.end_date, l.description 
+                FROM leaves l
+                WHERE l.id = ? AND l.rm_status = 'Rejected'
+            """, (int(leave_id),))
+            
+            if not leave_details.empty:
+                leave_username = leave_details.iloc[0]['username']
+                leave_type = leave_details.iloc[0]['leave_type']
+                
+                # Send email notification
+                user_email = get_user_email(leave_username)
+                if user_email:
+                    subject = f"Leave Request Rejected - {leave_username}"
+                    text_content = f"""Dear {leave_username},
+
+        Your leave request has been rejected by your Manager.
+
+        Details:
+        - Leave Type: {leave_type}
+        - Rejection Reason: {rejection_reason}
+        - Rejected by: {user}
+
+        Please contact your Manager for clarification or resubmit your request with corrections.
+
+        This is an automated notification from the Timesheet & Leave Management System."""
+                    
+                    send_email(user_email, subject, text_content)  
             flash(f" Leave rejected. Reason: {rejection_reason}")
         else:
             flash(" Failed to reject leave or leave not found.")
@@ -3936,8 +4067,8 @@ def budget_refresh():
         
     except Exception as e:
         return jsonify({'error': str(e)}), 500
-# --------------------
-# Project Management Routes
+    
+    # Project Management Routes
 # --------------------
 @app.route('/create_project_action', methods=['POST'])
 def create_project_action():
@@ -4103,6 +4234,27 @@ def assign_project_multiple_action():
             
             if ok:
                 success_count += 1
+                # ADD EMAIL NOTIFICATION HERE
+                emp_email = get_user_email(employee)
+                if emp_email:
+                    subject = f"New Project Assignment - {employee}"
+                    text_content = f"""Dear {employee},
+
+You have been assigned to a new project.
+
+Project Assignment Details:
+- Assigned by: {session['username']}
+- Project: {project_name}
+- Start Date: {start_date}
+- End Date: {end_date}
+- Notes: {assignment_notes or 'No additional notes'}
+
+Please log in to your dashboard to view the complete project details and begin work.
+
+This is an automated notification from the Timesheet & Leave Management System."""
+                    
+                    send_email(emp_email, subject, text_content)
+
             else:
                 failed_employees.append(employee)
         except Exception as e:
@@ -4151,6 +4303,27 @@ def manager_assign_work_action():
             
             if ok:
                 success_count += 1
+                # ADD EMAIL NOTIFICATION HERE
+                emp_email = get_user_email(assignee)
+                if emp_email:
+                    subject = f"New Work Assignment - {assignee}"
+                    text_content = f"""Dear {assignee},
+
+You have been assigned new work by your Manager {user}.
+
+Assignment Details:
+- Assigned by: {user}
+- Project: {project or 'General Task'}
+- Task Description: {description}
+- Start Date: {start_date}
+- Due Date: {due_date}
+
+Please log in to your dashboard to view the complete assignment details and update the status as you progress.
+
+This is an automated notification from the Timesheet & Leave Management System."""
+                    
+                    send_email(emp_email, subject, text_content)
+
             else:
                 failed_employees.append(assignee)
         except Exception as e:
@@ -4379,7 +4552,6 @@ def reject_rm_assignment():
     
     return redirect(url_for('dashboard'))
 
-# --------------------
 # HR Finance Action Routes - COMPLETE
 # --------------------
 @app.route('/view_expense_document/<int:expense_id>')
@@ -5029,6 +5201,33 @@ def reject_project_hr_action():
         """, (rejection_reason, int(project_id),))
         
         if ok:
+            # Get project creator details
+            project_details = run_query("""
+                SELECT project_name, created_by FROM projects WHERE project_id = ?
+            """, (int(project_id),))
+            
+            if not project_details.empty:
+                project_name = project_details.iloc[0]['project_name']
+                creator_username = project_details.iloc[0]['created_by']
+                
+                # Send email notification to project creator
+                creator_email = get_user_email(creator_username)
+                if creator_email:
+                    subject = f"Project Rejected by HR - {project_name}"
+                    text_content = f"""Dear {creator_username},
+
+        Your project has been rejected by HR.
+
+        Project: {project_name}
+        Status: Rejected
+        Reason: {rejection_reason}
+
+        Please review the feedback and consider resubmitting with required modifications.
+
+        This is an automated notification from the Timesheet & Leave Management System."""
+                    
+                    send_email(creator_email, subject, text_content)
+
             flash(f" Project '{project_name}' rejected. Reason: {rejection_reason}")
         else:
             flash(" Failed to reject project.")
@@ -5088,7 +5287,6 @@ def update_total_budget_action():
     
     return redirect(url_for('dashboard'))
 
-
 # HR Finance Work Assignment Route
 @app.route('/hr_assign_work_action', methods=['POST'])
 def hr_assign_work_action():
@@ -5121,6 +5319,28 @@ def hr_assign_work_action():
             
             if ok:
                 success_count += 1
+                # Send email notification to assigned employee
+                emp_email = get_user_email(employee)
+                if emp_email:
+                    subject = f"New Work Assignment - {employee}"
+                    text_content = f"""Dear {employee},
+
+            You have been assigned new work by HR.
+
+            Assignment Details:
+            - Assigned by: {user}
+            - Project: {project_name or 'General Task'}
+            - Task Description: {task_desc}
+            - Start Date: {start_date}
+            - Due Date: {due_date}
+
+            Please log in to your dashboard to view the complete assignment details and update the status as you progress.
+
+            This is an automated notification from the Timesheet & Leave Management System."""
+                    
+                    send_email(emp_email, subject, text_content)
+
+    
             else:
                 failed_employees.append(employee)
         except Exception as e:
@@ -5290,6 +5510,32 @@ def resubmit_timesheet():
               float(brk), cost_center, int(timesheet_id), user))
         
         if ok:
+            # Get RM details for notification
+            rm_details = run_query("""
+                SELECT r.rm FROM report r WHERE r.username = ?
+            """, (user,))
+            
+            if not rm_details.empty:
+                rm_username = rm_details.iloc[0]['rm']
+                rm_email = get_user_email(rm_username)
+                if rm_email:
+                    subject = f"Timesheet Resubmitted - {user}"
+                    text_content = f"""Dear {rm_username},
+
+        {user} has resubmitted their timesheet for your approval.
+
+        Timesheet Details:
+        - Date: {work_date}
+        - Project: {proj_val}
+        - Hours: {int(round(hours))}
+        - Description: {desc}
+
+        Please review and approve/reject through your dashboard.
+
+        This is an automated notification from the Timesheet & Leave Management System."""
+                    
+                    send_email(rm_email, subject, text_content)
+            
             flash("Timesheet updated and resubmitted successfully (awaiting RM approval).")
         else:
             flash("Failed to update timesheet.")
@@ -5751,6 +5997,7 @@ def add_employee_action():
         flash(f"Error adding employee: {str(e)}")
     
     return redirect(url_for('dashboard'))
+
 @app.route('/request_asset_with_document', methods=['POST'])
 def request_asset_with_document():
     """Request assets with document upload functionality"""
@@ -5791,7 +6038,7 @@ def request_asset_with_document():
         quantity_value = int(quantity) if quantity else 1
         
         ok = run_exec("""
-            INSERT INTO asset_requests (
+            INSERT INTO  [timesheet_db].[dbo].[asset_requests](
                 asset_type, quantity, amount, for_employee, description, 
                 requested_by, requested_date, status, document_path
             ) VALUES (?, ?, ?, ?, ?, ?, GETDATE(), 'Pending', ?)
@@ -6077,6 +6324,34 @@ def admin_delete_assignment_action():
         flash(f" Error deleting assignment: {str(e)}")
     
     return redirect(url_for('dashboard'))
+
+# Download Routes
+# --------------------
+@app.route('/download-financial-report')
+def download_financial_report():
+    """Download financial report"""
+    flash("Financial report download functionality would be implemented here.")
+    return redirect(url_for('dashboard'))
+
+@app.route('/export-budget-data')
+def export_budget_data():
+    """Export budget data"""
+    flash("Budget data export functionality would be implemented here.")
+    return redirect(url_for('dashboard'))
+
+@app.route('/generate-payroll-report')
+def generate_payroll_report():
+    """Generate payroll report"""
+    flash("Payroll report generation functionality would be implemented here.")
+    return redirect(url_for('dashboard'))
+
+@app.route('/generate-payslip')
+def generate_payslip():
+    """Generate payslip for specific employee"""
+    username = request.args.get('username')
+    flash(f"Payslip generation for {username} would be implemented here.")
+    return redirect(url_for('dashboard'))
+
 # API Routes - COMPLETE
 # --------------------
 @app.route('/api/budget_data')
@@ -6150,32 +6425,7 @@ def budget_usage_details():
         })
 
     
-# Download Routes
-# --------------------
-@app.route('/download-financial-report')
-def download_financial_report():
-    """Download financial report"""
-    flash("Financial report download functionality would be implemented here.")
-    return redirect(url_for('dashboard'))
 
-@app.route('/export-budget-data')
-def export_budget_data():
-    """Export budget data"""
-    flash("Budget data export functionality would be implemented here.")
-    return redirect(url_for('dashboard'))
-
-@app.route('/generate-payroll-report')
-def generate_payroll_report():
-    """Generate payroll report"""
-    flash("Payroll report generation functionality would be implemented here.")
-    return redirect(url_for('dashboard'))
-
-@app.route('/generate-payslip')
-def generate_payslip():
-    """Generate payslip for specific employee"""
-    username = request.args.get('username')
-    flash(f"Payslip generation for {username} would be implemented here.")
-    return redirect(url_for('dashboard'))
 
 # --------------------
 # Additional Utility Routes
@@ -6587,6 +6837,7 @@ def get_employee_leave_balance(username):
         return jsonify(balance)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+    
 
         # Add these missing project management routes:
 
@@ -7043,7 +7294,6 @@ def reject_expense_action():
         flash(f" Error rejecting expense: {str(e)}")
     
     return redirect(url_for('dashboard'))
-
 
 # Add missing budget-related routes:
 
@@ -8515,6 +8765,8 @@ def unlock_budget_action():
         flash(f" Error unlocking budget: {str(e)}")
     
     return redirect(url_for('dashboard'))
+
+
 @app.route('/view-team-leave-doc/<int:leave_id>')
 def view_team_leave_document(leave_id):
     """View leave document for team members (enhanced permissions)"""
@@ -9673,11 +9925,6 @@ def get_all_employees_for_salary_update():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
-
-
-
-
-
 @app.route('/activate_employee_admin', methods=['POST'])
 def activate_employee_admin():
     """Activate employee account (Admin Manager specific)"""
@@ -9898,9 +10145,6 @@ def transfer_employee_admin():
     
     return redirect(url_for('dashboard'))
 # Add these ABSOLUTELY FINAL missing Admin Manager routes:
-
-
-
 
 @app.route('/view_employee_admin/<username>')
 def view_employee_admin(username):
@@ -10174,7 +10418,7 @@ def edit_employee_admin():
         if employee_details_exists.empty:
             # Insert new record
             ok2 = run_exec("""
-                INSERT INTO employee_details (
+                INSERT INTO [timesheet_db].[dbo]. [employee_details] (
                     username, name, role, joining_date, employment_type, blood_group,
                     mobile_number, emergency_contact, id_card, id_card_provided, photo_url,
                     linkedin_url, laptop_provided, email_provided, asset_details,
@@ -10203,7 +10447,7 @@ def edit_employee_admin():
             report_exists = run_query("SELECT username FROM report WHERE username = ?", (employee_username,))
             if report_exists.empty:
                 ok3 = run_exec("""
-                    INSERT INTO report (username, rm, manager)
+                    INSERT INTO [timesheet_db].[dbo].[report] (username, rm, manager)
                     VALUES (?, ?, ?)
                 """, (employee_username, new_reporting_manager, new_reporting_manager))
             else:
@@ -10217,7 +10461,7 @@ def edit_employee_admin():
         leave_balance_exists = run_query("SELECT username FROM leave_balances WHERE username = ?", (employee_username,))
         if leave_balance_exists.empty:
             ok4 = run_exec("""
-                INSERT INTO leave_balances (
+                INSERT INTO [timesheet_db].[dbo].[leave_balances] (
                     username, total_leaves, sick_total, paid_total, casual_total,
                     sick_used, paid_used, casual_used
                 ) VALUES (?, ?, ?, ?, ?, 0, 0, 0)
@@ -10240,14 +10484,38 @@ def edit_employee_admin():
     
     return redirect(url_for('dashboard'))
 
+
+def check_user_role(required_roles):
+    """
+    Check if current user has required role - CASE INSENSITIVE
+    Args:
+        required_roles: list of role names or single role name
+    Returns:
+        True if user has required role, False otherwise
+    """
+    if 'username' not in session:
+        return False
+    
+    if isinstance(required_roles, str):
+        required_roles = [required_roles]
+    
+    user_role = session['role'].lower().strip()
+    allowed_roles = [role.lower().strip() for role in required_roles]
+    
+    return user_role in allowed_roles
+
+
 @app.route('/get_employee_details_json')
 def get_employee_details_json():
-    """Get employee details as JSON with RM information - ENHANCED"""
+    """Get employee details as JSON with RM information - ENHANCED with case-insensitive roles"""
     if 'username' not in session:
         return jsonify({'error': 'Unauthorized'}), 401
     
-    # Check admin privileges
-    if session['role'] not in ('Admin Manager', 'Lead Staffing Specialist'):
+    # Check admin privileges - CASE INSENSITIVE
+    user_role = session['role'].lower().strip()
+    allowed_roles = ['admin manager', 'lead staffing specialist', 'hr & finance controller']
+    
+    if user_role not in allowed_roles:
         return jsonify({'error': 'Access denied'}), 403
     
     username = request.args.get('username')
@@ -10282,11 +10550,11 @@ def get_employee_details_json():
         
         emp_data = employee.iloc[0].to_dict()
         
-        # Convert any date objects to strings
+        # Convert any date objects to strings and handle NaN values
         for key, value in emp_data.items():
             if hasattr(value, 'strftime'):
                 emp_data[key] = value.strftime('%Y-%m-%d')
-            elif value is None:
+            elif value is None or str(value).lower() == 'nan':
                 emp_data[key] = ''
         
         # Add RM details specifically
@@ -10301,21 +10569,29 @@ def get_employee_details_json():
         })
     
     except Exception as e:
+        print(f"ERROR in get_employee_details_json: {e}")
         return jsonify({
             'success': False,
             'error': str(e)
         }), 500
 
+    # Check admin privileges - FLEXIBLE ROLE CHECK
+
+
+
 @app.route('/delete_employee_admin', methods=['POST'])
 def delete_employee_admin():
-    """Delete employee (move to resigned employees) - COMPLETE"""
+    """Delete employee (move to resigned employees) - CORRECTED ROLE CHECK"""
     if 'username' not in session:
         return redirect(url_for('login_sso'))
     
-    # Check admin privileges
-    if session['role'] not in ('Admin Manager', 'Lead Staffing Specialist'):
+    # Check admin privileges - FIXED: Use exact database role names
+    # Check admin privileges - FLEXIBLE ROLE CHECK
+    allowed_roles = ('admin manager', 'Lead staffing Specialist', 'Admin Manager', 'Lead Staffing Specialist', 'admin manager ')
+    if session['role'].strip() not in allowed_roles:
         flash("Access denied. Admin Manager privileges required.")
         return redirect(url_for('dashboard'))
+
     
     username = request.form.get('username')
     if not username:
@@ -10325,11 +10601,11 @@ def delete_employee_admin():
     try:
         # Get employee details before deletion
         employee_details = run_query("""
-            SELECT u.username, u.name, u.role, u.monthly_salary, u.yearly_salary,
-                   ed.joining_date, ed.employment_type, ed.mobile_number, ed.emergency_contact
+            SELECT u.username, u.email, u.role, u.monthly_salary, u.yearly_salary,
+                   ed.name, ed.joining_date, ed.employment_type, ed.mobile_number, ed.emergency_contact
             FROM users u
             LEFT JOIN employee_details ed ON u.username = ed.username
-            WHERE u.username = ? AND u.status = 'Active'
+            WHERE u.username = ? AND (u.status IS NULL OR u.status = 'Active')
         """, (username,))
         
         if employee_details.empty:
@@ -10340,15 +10616,15 @@ def delete_employee_admin():
         
         # Move to resigned employees table
         ok1 = run_exec("""
-            INSERT INTO resigned_employees (
+            INSERT INTO [timesheet_db].[dbo].[resigned_employees] (
                 username, name, role, joining_date, resigned_date, monthly_salary, yearly_salary,
                 employment_type, mobile_number, emergency_contact, resigned_by, resignation_reason
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (username, emp['name'], emp['role'], emp['joining_date'], date.today(),
-              emp['monthly_salary'], emp['yearly_salary'], emp['employment_type'],
-              emp['mobile_number'], emp['emergency_contact'], session['username'], 'Deleted by Admin'))
+        """, (username, emp.get('name', ''), emp['role'], emp.get('joining_date'), date.today(),
+              emp.get('monthly_salary'), emp.get('yearly_salary'), emp.get('employment_type'),
+              emp.get('mobile_number'), emp.get('emergency_contact'), session['username'], 'Deleted by Admin'))
         
-        # Update user status to Inactive
+        # Update user status to Inactive instead of deleting
         ok2 = run_exec("UPDATE users SET status = 'Inactive' WHERE username = ?", (username,))
         
         if ok1 and ok2:
@@ -10360,6 +10636,9 @@ def delete_employee_admin():
         flash(f" Error deleting employee: {str(e)}")
     
     return redirect(url_for('dashboard'))
+
+
+
 
 @app.route('/view_resigned_employee_details')
 def view_resigned_employee_details():
@@ -10398,13 +10677,7 @@ def view_resigned_employee_details():
 
 # Add this function for duration field toggle in edit mode
 def toggleDurationFieldForEdit():
-    pass  # This will be handled by JavaScript
-
-
-
-
-
-
+    pass 
 
 @app.route('/get_employee_stats_json')
 def get_employee_stats_json():
@@ -10629,6 +10902,32 @@ def approve_work_admin():
         """, (user, int(timesheet_id)) + tuple(team))
         
         if ok:
+            # Get timesheet details for email
+            timesheet_details = run_query(f"""
+                SELECT t.username, t.project_name, t.work_date, t.hours, t.work_desc 
+                FROM timesheets t 
+                WHERE t.id = ? AND t.username IN ({placeholders})
+            """, (int(timesheet_id),) + tuple(team))
+            
+            if not timesheet_details.empty:
+                employee_username = timesheet_details.iloc[0]['username']
+                
+                # Send email notification
+                user_email = get_user_email(employee_username)
+                if user_email:
+                    subject = f"Timesheet Approved - {employee_username}"
+                    text_content = f"""Dear {employee_username},
+
+        Your timesheet has been approved by Admin.
+
+        Status: Approved
+        Approved by: {user}
+
+        You can view the updated status in your dashboard.
+
+        This is an automated notification from the Timesheet & Leave Management System."""
+                    
+                    send_email(user_email, subject, text_content)
             flash(" Work approved successfully.")
         else:
             flash(" Failed to approve work or work not found.")
@@ -10677,6 +10976,33 @@ def reject_work_admin():
         """, (user, rejection_reason, int(timesheet_id)) + tuple(team))
         
         if ok:
+            # Get timesheet details for email
+            timesheet_details = run_query(f"""
+                SELECT t.username, t.project_name, t.work_date, t.hours, t.work_desc 
+                FROM timesheets t 
+                WHERE t.id = ? AND t.username IN ({placeholders})
+            """, (int(timesheet_id),) + tuple(team))
+            
+            if not timesheet_details.empty:
+                employee_username = timesheet_details.iloc[0]['username']
+                
+                # Send email notification
+                user_email = get_user_email(employee_username)
+                if user_email:
+                    subject = f"Timesheet Rejected - {employee_username}"
+                    text_content = f"""Dear {employee_username},
+
+        Your timesheet has been rejected by Admin.
+
+        Status: Rejected
+        Rejection Reason: {rejection_reason}
+        Rejected by: {user}
+
+        Please contact your Admin for clarification or resubmit with corrections.
+
+        This is an automated notification from the Timesheet & Leave Management System."""
+                    
+                    send_email(user_email, subject, text_content)
             flash(f" Work rejected. Reason: {rejection_reason}")
         else:
             flash(" Failed to reject work or work not found.")
@@ -10685,7 +11011,6 @@ def reject_work_admin():
         flash(f" Error rejecting work: {str(e)}")
     
     return redirect(url_for('dashboard'))
-
 @app.route('/approve_leave_admin', methods=['POST'])
 def approve_leave_admin():
     """Approve leave (Admin Manager specific)"""
@@ -10738,6 +11063,26 @@ def approve_leave_admin():
             """, (user, int(leave_id)) + tuple(team))
             
             if ok:
+                # Send email notification to employee
+                user_email = get_user_email(leave_username)
+                if user_email:
+                    subject = f"Leave Request Approved - {leave_username}"
+                    text_content = f"""Dear {leave_username},
+
+            Your leave request has been approved by Admin.
+
+            Details:
+            - Leave Type: {leave_type}
+            - Start Date: {start_date.strftime('%Y-%m-%d')}
+            - End Date: {end_date.strftime('%Y-%m-%d')}
+            - Duration: {leave_days} days
+            - Approved by: {user}
+
+            Your leave balance has been updated accordingly. You can view the status in your dashboard.
+
+            This is an automated notification from the Timesheet & Leave Management System."""
+                    
+                    send_email(user_email, subject, text_content)
                 flash(f" Leave approved for {leave_username} ({leave_days} days).")
             else:
                 flash(" Failed to approve leave.")
@@ -10788,6 +11133,40 @@ def reject_leave_admin():
         """, (user, rejection_reason, int(leave_id)) + tuple(team))
         
         if ok:
+            # Get employee username for email notification
+            leave_details = run_query(f"""
+                SELECT username, leave_type, start_date, end_date 
+                FROM leaves 
+                WHERE id = ? AND username IN ({placeholders}) AND rm_status = 'Rejected'
+            """, (int(leave_id),) + tuple(team))
+            
+            if not leave_details.empty:
+                leave_username = leave_details.iloc[0]['username']
+                leave_type = str(leave_details.iloc[0]['leave_type'])
+                start_date = parse(str(leave_details.iloc[0]['start_date']))
+                end_date = parse(str(leave_details.iloc[0]['end_date']))
+                
+                # Send email notification to employee
+                user_email = get_user_email(leave_username)
+                if user_email:
+                    subject = f"Leave Request Rejected - {leave_username}"
+                    text_content = f"""Dear {leave_username},
+
+        Your leave request has been rejected by Admin.
+
+        Details:
+        - Leave Type: {leave_type}
+        - Start Date: {start_date.strftime('%Y-%m-%d')}
+        - End Date: {end_date.strftime('%Y-%m-%d')}
+        - Rejection Reason: {rejection_reason}
+        - Rejected by: {user}
+
+        Please contact your Admin for clarification or resubmit your request with corrections.
+
+        This is an automated notification from the Timesheet & Leave Management System."""
+                    
+                    send_email(user_email, subject, text_content)
+
             flash(f" Leave rejected. Reason: {rejection_reason}")
         else:
             flash(" Failed to reject leave or leave not found.")
@@ -10796,9 +11175,6 @@ def reject_leave_admin():
         flash(f" Error rejecting leave: {str(e)}")
     
     return redirect(url_for('dashboard'))
-
-
-# Add these TRULY FINAL missing resigned employee management routes:
 
 
 
@@ -11421,10 +11797,88 @@ def update_assignment_status():
         flash(f'Error updating assignment status: {str(e)}', 'error')
     
     return redirect(request.referrer or url_for('dashboard'))
+# lead route
+@app.route('/assign_work_lead', methods=['POST'])
+def assign_work_lead():
+    """Lead assigns work to any employee"""
+    if 'username' not in session or session.get('role') != 'Lead':
+        flash('Access denied. Lead privileges required.', 'error')
+        return redirect(url_for('login'))
+    
+    user = session['username']
+    assigned_to_list = request.form.getlist('assigned_to')  # Support multiple selection
+    project_name = request.form.get('project_name')
+    task_desc = request.form.get('task_desc', '').strip()
+    due_date = request.form.get('due_date')
+    
+    
+    if not assigned_to_list or not task_desc:
+        flash('Please select at least one employee and provide task description.', 'error')
+        return redirect(url_for('dashboard') + '?tab=work-assignments')
+    
+    success_count = 0
+    failed_employees = []
+    
+    for assigned_to in assigned_to_list:
+        try:
+            # Use the SAME table name as other views (without schema prefix)
+            ok = run_exec("""
+                INSERT INTO [timesheet_db].[dbo].[assigned_work] 
+                (assigned_by, assigned_to, project_name, task_desc, start_date, due_date, assigned_on, rm_status, manager_status, work_type) 
+                VALUES (?, ?, ?, ?, ?, ?, GETDATE(), 'Pending', 'Approved', 'Task Assignment')
+            """, (user, assigned_to, project_name or None, task_desc, date.today(), due_date))
+            
+            if ok:
+                success_count += 1
+                # Send email notification
+                emp_email = get_user_email(assigned_to)
+                if emp_email:
+                    subject = f"New Work Assignment - {assigned_to}"
+                    text_content = f"""Dear {assigned_to},
 
-# --------------------
-# MAIN APPLICATION ENTRY POINT
-# --------------------
+You have been assigned new work by Lead {user}.
+
+Assignment Details:
+- Assigned by: {user}
+- Project: {project_name or 'General Task'}
+- Task: {task_desc}
+- Due Date: {due_date}
+
+
+Please log in to your dashboard to view the complete assignment details.
+
+This is an automated notification from the Timesheet & Leave Management System."""
+                    
+                    send_email(emp_email, subject, text_content)
+            else:
+                failed_employees.append(assigned_to)
+                
+        except Exception as e:
+            print(f"Error assigning work to {assigned_to}: {e}")
+            failed_employees.append(assigned_to)
+    
+    # Success/failure messages
+    if success_count > 0:
+        successful_employees = [emp for emp in assigned_to_list if emp not in failed_employees]
+        flash(f'Work successfully assigned to {success_count} employee(s): {", ".join(successful_employees)}', 'success')
+        
+    if failed_employees:
+        flash(f'Failed to assign work to: {", ".join(failed_employees)}', 'error')
+    
+    return redirect(url_for('dashboard') + '?tab=work-assignments')
+
+
+# Add this route anywhere in your app.py file (around line 11000+)
+@app.route('/uploads/<filename>')
+def uploaded_file(filename):
+    """Serve uploaded files"""
+    try:
+        return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+    except Exception as e:
+        print(f"Error serving file {filename}: {e}")
+        return '', 404
+    
+    # --------------------
 # Add this function to create missing database columns:
 def ensure_cancellation_columns():
     """Ensure leave cancellation columns exist in the database"""
@@ -11543,3 +11997,4 @@ if __name__ == '__main__':
     # Initialize database and run with SocketIO
     initialize_database()
     socketio.run(app, debug=app.debug, port=flask_port, host=flask_host, allow_unsafe_werkzeug=True)
+    
