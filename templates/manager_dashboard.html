@@ -1538,9 +1538,8 @@
                                             <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Project</th>
                                             <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Assigned On</th>
                                             <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Due Date</th>
-                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                                             <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Task Description</th>
-                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                                            
                                         </tr>
                                     </thead>
                                     <tbody class="bg-white divide-y divide-gray-200">
@@ -1565,42 +1564,14 @@
                                             <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">{{ assignment.project_name or 'General Task' }}</td>
                                             <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">{{ assignment.assigned_on }}</td>
                                             <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">{{ assignment.due_date }}</td>
-                                            <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                                                <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full
-                                                    {% if assignment.manager_status == 'Pending' %}bg-yellow-100 text-yellow-800
-                                                    {% elif assignment.manager_status == 'Approved' %}bg-green-100 text-green-800
-                                                    {% elif assignment.manager_status == 'Rejected' %}bg-red-100 text-red-800
-                                                    {% endif %}">
-                                                    {% if assignment.manager_status == 'Pending' %}<i class="fas fa-clock mr-1"></i>
-                                                    {% elif assignment.manager_status == 'Approved' %}<i class="fas fa-check mr-1"></i>
-                                                    {% elif assignment.manager_status == 'Rejected' %}<i class="fas fa-times mr-1"></i>
-                                                    {% endif %}
-                                                    {{ assignment.manager_status }}
-                                                </span>
-                                            </td>
+                                            
                                             <td class="px-4 py-4 text-sm text-gray-900 max-w-xs">
                                                 <div class="truncate" title="{{ assignment.task_desc }}">{{ assignment.task_desc }}</div>
                                                 {% if assignment.rejection_reason %}
                                                 <div class="text-xs text-red-600 mt-1">Reason: {{ assignment.rejection_reason }}</div>
                                                 {% endif %}
                                             </td>
-                                            <td class="px-4 py-4 whitespace-nowrap text-sm font-medium">
-                                                {% if assignment.manager_status == 'Pending' %}
-                                                <div class="flex space-x-2">
-                                                    <form method="post" action="{{ url_for('approve_rm_assignment') }}" style="display: inline;">
-                                                        <input type="hidden" name="assignment_id" value="{{ assignment.id }}">
-                                                        <button type="submit" class="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-sm">
-                                                            <i class="fas fa-check mr-1"></i>Approve
-                                                        </button>
-                                                    </form>
-                                                    <button onclick="rejectRMAssignment('{{ assignment.id }}')" class="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded text-sm">
-                                                        <i class="fas fa-times mr-1"></i>Reject
-                                                    </button>
-                                                </div>
-                                                {% else %}
-                                                <span class="text-gray-400">{{ assignment.manager_status }}</span>
-                                                {% endif %}
-                                            </td>
+                                            
                                         </tr>
                                         {% endfor %}
                                     </tbody>
