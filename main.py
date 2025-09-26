@@ -114,7 +114,7 @@ NGROK_URL = os.getenv('NGROK_URL')
 if USE_NGROK and NGROK_URL:
     REDIRECT_URI = f"{NGROK_URL}/callback"
 else:
-    REDIRECT_URI = "https://timesheet.chervicaon.com"
+    REDIRECT_URI = "https://nexus.chervicaon.com"
 
 
 # Azure OAuth2 URLs
