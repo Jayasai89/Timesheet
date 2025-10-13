@@ -2611,7 +2611,6 @@ def view_admin_manager(user):
         my_assigned_work = run_query("""
     SELECT aw.id, aw.assigned_by, aw.assigned_to, aw.task_desc, 
            aw.project_name, aw.due_date, aw.start_date,
-           aw.jira_issue_key, aw.jira_status, aw.jira_status_color,
            aw.employee_status, aw.employee_progress_notes, aw.last_updated,
            u.name as assigned_to_name, u.role as assigned_to_role,
            CASE 
