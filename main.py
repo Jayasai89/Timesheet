@@ -2603,8 +2603,8 @@ def view_admin_manager(user):
     """)
     
   # ✅ FULLY CORRECTED - All non-existent columns removed
-my_assigned_work = run_query("""
-    SELECT 
+    my_assigned_work = run_query("""
+        SELECT 
         aw.id, 
         aw.assigned_by, 
         aw.assigned_to, 
