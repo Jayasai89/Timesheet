@@ -563,7 +563,7 @@
                                         <label class="block text-sm font-medium text-gray-700 mb-2">Approved Project</label>
                                         <select name="project_name" required class="form-select w-full rounded-lg border-gray-300">
                                             <option value="">Select Approved Project</option>
-                                            {% for project in pending_projects %}
+                                            {% for project in projects_needing_budget %}
                                                 <option value="{{ project.project_name }}">
                                                     {{ project.project_name }} (by {{ project.created_by }})
                                                 </option>
