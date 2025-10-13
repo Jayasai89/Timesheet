@@ -956,19 +956,18 @@ def reset_password():
 # --------------------
 # Dashboard Route
 # --------------------
+# In your dashboard route, find this section and update it:
+ 
 @app.route('/dashboard', methods=['GET', 'POST'])
 def dashboard():
     if 'username' not in session:
-        return redirect(url_for('loginsso'))
-    
+        return redirect(url_for('login_sso'))
     user = session['username']
     role = session['role']
-    
     # Check if user is an RM regardless of their primary role
     direct_reports = get_direct_reports(user)
     is_rm = len(direct_reports) > 0
-    
-    # Enhanced routing logic that considers RM statusf
+    # ENHANCED routing logic
     if role == 'Manager':
         return view_manager(user)
     elif role == 'Hr & Finance Controller':
@@ -977,20 +976,32 @@ def dashboard():
         return view_lead(user)
     elif role in ('Rm', 'Employee'):
         return view_employee(user)
-    elif role == 'Intern':
+    # UPDATED: Include HR Intern with regular Intern
+    elif role in ('Intern', 'HR Intern'):
+        print(f"DEBUG: {role} {user} getting intern view")
         return view_intern(user)
     elif role in ('Admin Manager', 'Lead Staffing Specialist'):
         return view_admin_manager(user)
     elif role == 'Lead':
         return view_lead(user)
-    elif role in ('Product Owner', 'BDE Manager', 'Contractor'):
-        return view_employee(user)
     elif role == 'SAP Consultant':
-        # SAP Consultants get RM view if they have direct reports, otherwise employee view
         if is_rm:
-            return view_employee(user)  # view_employee handles RM functionality
+            return view_employee(user)
         else:
             return view_employee(user)
+    elif role == 'BDE Manager':
+        if is_rm:
+            print(f"DEBUG: BDE Manager {user} has {len(direct_reports)} direct reports - giving RM view")
+            return view_employee(user)
+        else:
+            print(f"DEBUG: BDE Manager {user} has no direct reports - giving employee view")
+            return view_employee(user)
+    elif role in ('Product Owner', 'Contractor'):
+        return view_employee(user)
+    # NEW: Handle Jr HR Executive
+    elif role == 'Jr HR Executive':
+        print(f"DEBUG: Jr HR Executive {user} getting employee view with HR context")
+        return view_employee(user)  # Could create special HR employee view later
     else:
         flash(f"Role '{role}' not specifically mapped, showing employee view.")
         return view_employee(user)
@@ -1764,6 +1775,7 @@ def view_hr_finance(user):
         # Employee records
         employee_timesheets=employee_timesheets.to_dict('records') if not employee_timesheets.empty else [],
         employee_leaves=employee_leaves.to_dict('records') if not employee_leaves.empty else [],
+        projects_needing_budget=projects_needing_budget.to_dict('records') if not projects_needing_budget.empty else [],
         
         # Asset requests and team approvals
         asset_requests=asset_requests.to_dict('records') if not asset_requests.empty else [],
