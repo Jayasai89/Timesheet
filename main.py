@@ -4102,7 +4102,7 @@ def create_project_action():
         # NEW: Email notification to HR about new project creation
         hr_users = run_query("""
             SELECT email FROM users 
-            WHERE role IN ('Hr & Finance Controller', 'Manager', 'Admin Manager') 
+            WHERE role IN ('Hr & Finance Controller', 'Manager') 
             AND status = 'Active' AND email IS NOT NULL
         """)
         
