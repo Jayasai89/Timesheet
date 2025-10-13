@@ -2593,7 +2593,7 @@ def view_admin_manager(user):
                ed.joining_date, ed.employment_type, ed.blood_group, ed.mobile_number,
                ed.emergency_contact, ed.id_card, ed.id_card_provided, ed.photo_url,
                ed.linkedin_url, ed.laptop_provided, ed.email_provided, ed.asset_details,
-               ed.adhaar_number, ed.pan_number, ed.duration,
+               ed.adhaar_number, ed.pan_number, ed.duration,ed.employmentid,
                r.rm, r.manager
         FROM users u
         LEFT JOIN employee_details ed ON u.username = ed.username
@@ -2606,22 +2606,33 @@ def view_admin_manager(user):
     my_assigned_work = pd.DataFrame()
     if direct_reports_list:
         placeholders = ",".join(["?"] * len(direct_reports_list))
-        my_assigned_work = run_query(f"""
-            SELECT aw.id, aw.assigned_to, aw.task_desc, aw.project_name, 
-                COALESCE(aw.start_date, aw.assigned_on) as startdate,
-                aw.end_date, aw.due_date, aw.assigned_on, aw.rm_status, aw.manager_status, 
-                aw.work_type, aw.rm_approver, aw.rm_rejection_reason, u.name as assigned_to_name,
-                CASE 
-                    WHEN aw.due_date < GETDATE() AND aw.rm_status != 'Completed' THEN 'Overdue'
-                    WHEN aw.due_date <= DATEADD(day, 3, GETDATE()) AND aw.rm_status != 'Completed' THEN 'Due Soon'
-                    ELSE 'Active'
-                END as urgency_status
-            FROM assigned_work aw 
-            LEFT JOIN users u ON aw.assigned_to = u.username 
-            WHERE aw.assigned_by = ? AND aw.assigned_to IN ({placeholders})
-            ORDER BY aw.assigned_on DESC, aw.due_date ASC
-        """, (user,) + tuple(direct_reports_list))
-    
+        
+    # In view_admin_manager function, UPDATE the work query:
+        my_assigned_work = run_query("""
+    SELECT aw.id, aw.assigned_by, aw.assigned_to, aw.task_desc, 
+           aw.project_name, aw.due_date, aw.start_date,
+           aw.jira_issue_key, aw.jira_status, aw.jira_status_color,
+           aw.employee_status, aw.employee_progress_notes, aw.last_updated,
+           u.name as assigned_to_name, u.role as assigned_to_role,
+           CASE 
+               WHEN aw.due_date < CAST(GETDATE() AS DATE) THEN 'Overdue'
+               WHEN aw.due_date <= DATEADD(day, 3, CAST(GETDATE() AS DATE)) THEN 'Due Soon'
+               ELSE 'On Track'
+           END as urgency_status,
+           CASE 
+               WHEN aw.last_updated > DATEADD(minute, -30, GETDATE()) THEN 1
+               ELSE 0
+           END as recently_updated
+    FROM assigned_work aw
+    LEFT JOIN users u ON aw.assigned_to = u.username
+    WHERE aw.assigned_by = ? OR aw.assigned_to IN (
+        SELECT username FROM users WHERE username IN (
+            SELECT username FROM report WHERE rm = ? OR manager = ?
+        )
+    )
+    ORDER BY aw.last_updated DESC
+""", (user, user, user))  # This will show work assigned TO interns by this admin/manager
+
     # Get work assigned TO this admin manager
     work_assigned_to_me = run_query("""
         SELECT aw.id, aw.assigned_by, aw.task_desc, aw.project_name, 
@@ -5854,12 +5865,12 @@ def add_employee_action():
     """Add new employee with complete details"""
     if 'username' not in session:
         return redirect(url_for('login_sso'))
-    
+   
     # Check admin privileges
     if session['role'] not in ('Admin Manager', 'Lead Staffing Specialist'):
         flash("Access denied. Admin Manager privileges required.")
         return redirect(url_for('dashboard'))
-    
+   
     # Get form data
     username = request.form.get('username')
     name = request.form.get('name')
@@ -5867,150 +5878,168 @@ def add_employee_action():
     password = request.form.get('password')
     role = request.form.get('role')
     reporting_manager = request.form.get('reporting_manager')
-    
+   
     # Employment details
     joining_date = request.form.get('joining_date')
     employment_type = request.form.get('employment_type')
     duration = request.form.get('duration')
     blood_group = request.form.get('blood_group')
-    
+   
+    # CORRECTED: Get employment ID and convert to uppercase
+    employmentid = request.form.get('employmentid', '').strip().upper()
+    print(f"DEBUG: Employment ID received: '{employmentid}'")
+   
     # Contact info
     mobile_number = request.form.get('mobile_number')
     emergency_contact = request.form.get('emergency_contact')
-    
+   
     # Assets
     laptop_provided = bool(request.form.get('laptop_provided'))
     id_card_provided = bool(request.form.get('id_card_provided'))
     email_provided = bool(request.form.get('email_provided'))
     asset_details = request.form.get('asset_details')
-    
+   
     # Documents
     adhaar_number = request.form.get('adhaar_number')
     pan_number = request.form.get('pan_number')
     linkedin_url = request.form.get('linkedin_url')
     photo_url = request.form.get('photo_url')
-    
+   
     # Salary
     monthly_salary = request.form.get('monthly_salary')
     yearly_salary = request.form.get('yearly_salary')
-    
+   
     # Leave balance
     total_leaves = request.form.get('total_leaves', 36)
     sick_total = request.form.get('sick_total', 12)
     paid_total = request.form.get('paid_total', 18)
     casual_total = request.form.get('casual_total', 6)
-    
-    if not username or not name or not email or not password or not role or not mobile_number:
-        flash("Required fields are missing.")
+   
+    if not all([username, name, email, employmentid]):
+        flash("All required fields must be filled.")
         return redirect(url_for('dashboard'))
-    
-    # Check if username exists
-    existing = run_query("SELECT username FROM users WHERE username = ?", (username,))
-    if not existing.empty:
-        flash("Username already exists.")
-        return redirect(url_for('dashboard'))
-    
-    try:
+   
+    # CRITICAL: Check if Employment ID already exists
+    existing_emp_id = run_query("""
+        SELECT username, name FROM employee_details
+        WHERE employmentid = ?
+    """, (employmentid,))
+   
         # Handle file upload for photo
-        if 'photo' in request.files and request.files['photo'].filename:
-            file = request.files['photo']
-            filename = secure_filename(file.filename)
-            timestamp = int(datetime.now().timestamp())
-            photo_filename = f"{username}_{timestamp}_{filename}"
-            file.save(os.path.join(app.config['UPLOAD_FOLDER'], photo_filename))
-            photo_url = f"/uploads/{photo_filename}"
-        
+    if 'photo' in request.files and request.files['photo'].filename:
+        file = request.files['photo']
+        filename = secure_filename(file.filename)
+        timestamp = int(datetime.now().timestamp())
+        photo_filename = f"{username}_{timestamp}_{filename}"
+        file.save(os.path.join(app.config['UPLOAD_FOLDER'], photo_filename))
+        photo_url = f"/uploads/{photo_filename}"
+       
         # Convert salary values
         monthly_salary = float(monthly_salary) if monthly_salary else None
         yearly_salary = float(yearly_salary) if yearly_salary else (monthly_salary * 12 if monthly_salary else None)
-        
+   
+    if not existing_emp_id.empty:
+        existing_user = existing_emp_id.iloc[0]
+        flash(f'❌ Employment ID "{employmentid}" is already assigned to {existing_user["name"]} ({existing_user["username"]}). Please use a different Employment ID.')
+        return redirect(url_for('dashboard'))
+   
+    # Check if username already exists
+    existing_user = run_query("SELECT username FROM users WHERE username = ?", (username,))
+    if not existing_user.empty:
+        flash(f'❌ Username "{username}" already exists. Please choose a different username.')
+        return redirect(url_for('dashboard'))
+   
+    try:
         # Insert into users table
         ok1 = run_exec("""
-            INSERT INTO[timesheet_db].[dbo].[users] (username, password, role, name, email, status, monthly_salary, yearly_salary)
-            VALUES (?, ?, ?, ?, ?, 'Active', ?, ?)
-        """, (username, password, role, name, email, monthly_salary, yearly_salary))
-        
+            INSERT INTO [timesheet_db].[dbo].[users] (username, name, email, role, password, monthly_salary, yearly_salary, status)
+            VALUES (?, ?, ?, ?, ?, ?, ?, 'Active')
+        """, (username, name, email, role, password, monthly_salary, yearly_salary))
+       
         # Insert into employee_details table
         ok2 = run_exec("""
-            INSERT INTO [timesheet_db].[dbo].[employee_details] (
+            INSERT INTO [timesheet_db].[dbo]. [employee_details] (
                 username, name, role, joining_date, employment_type, blood_group,
-                mobile_number, emergency_contact, id_card_provided, photo_url,
-                linkedin_url, laptop_provided, email_provided, asset_details,
-                adhaar_number, pan_number, duration
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                mobile_number, emergency_contact, laptop_provided, id_card_provided,
+                email_provided, adhaar_number, pan_number, duration, employmentid
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (username, name, role, joining_date, employment_type, blood_group,
-              mobile_number, emergency_contact, id_card_provided, photo_url,
-              linkedin_url, laptop_provided, email_provided, asset_details,
-              adhaar_number, pan_number, duration))
-        
+              mobile_number, emergency_contact, laptop_provided, id_card_provided,
+              email_provided, adhaar_number, pan_number, duration, employmentid))
+               
         # Set up reporting relationship
         if reporting_manager:
             run_exec("""
                 INSERT INTO [timesheet_db].[dbo].[report] (username, rm, manager)
                 VALUES (?, ?, ?)
             """, (username, reporting_manager, reporting_manager))
-        
-        # Set up leave balance
+ 
+              # Set up leave balance
         ok3 = run_exec("""
             INSERT INTO [timesheet_db].[dbo].[leave_balances] (
                 username, total_leaves, sick_total, paid_total, casual_total,
                 sick_used, paid_used, casual_used
             ) VALUES (?, ?, ?, ?, ?, 0, 0, 0)
         """, (username, int(total_leaves), int(sick_total), int(paid_total), int(casual_total)))
-        
+       
         if ok1 and ok2 and ok3:
             # Send welcome email to new employee
             if email:
                 subject = f"Welcome to the Company - {name}"
                 text_content = f"""Dear {name},
-
+ 
     Welcome to our company! Your employee account has been created successfully.
-
+ 
     Your Account Details:
     - Username: {username}
     - Temporary Password: {password}
     - Role: {role}
     - Email: {email}
-
+ 
     Please log in to the Timesheet & Leave Management System at your earliest convenience and change your password.
-
+ 
     System Access: [Your System URL]
-
+ 
     If you have any questions, please contact your reporting manager or the HR department.
-
+ 
     Welcome aboard!
-
+ 
     This is an automated notification from the Timesheet & Leave Management System."""
                 send_email(email, subject, text_content)
-
+ 
             # Notify reporting manager if assigned
             if reporting_manager:
                 rm_email = get_user_email(reporting_manager)
                 if rm_email:
                     subject = f"New Team Member Assigned - {name}"
                     text_content = f"""Dear {reporting_manager},
-
+ 
     A new team member has been assigned to report to you.
-
+ 
     Employee Details:
     - Name: {name}
     - Username: {username}
     - Role: {role}
     - Email: {email}
     - Joining Date: {joining_date}
-
+ 
     Please help them get settled and provide any necessary guidance.
-
+ 
     This is an automated notification from the Timesheet & Leave Management System."""
                     send_email(rm_email, subject, text_content)
-
+ 
             flash(f"Employee '{name}' ({username}) added successfully!")
+            flash(f' Employee "{name}" added successfully with Employment ID: {employmentid}')
         else:
-            flash("Failed to add employee. Please try again.")
-    
+            flash(' Failed to add employee.')
+           
     except Exception as e:
-        flash(f"Error adding employee: {str(e)}")
-    
+        if 'UQ_employee_details_employmentid' in str(e):
+            flash(f' Employment ID "{employmentid}" is already in use. Please choose a different Employment ID.')
+        else:
+            flash(f' Error adding employee: {str(e)}')
+        print(f"Add employee error: {e}")
+   
     return redirect(url_for('dashboard'))
 
 @app.route('/request_asset_with_document', methods=['POST'])
@@ -10343,13 +10372,13 @@ def edit_employee_admin():
         return redirect(url_for('dashboard'))
     
     try:
-        # Get current employee details for fallback values
+        # ENHANCED: Get current employee details INCLUDING employmentid
         current_details = run_query("""
             SELECT u.name, u.email, u.role, u.password, u.monthly_salary, u.yearly_salary, u.status,
                    ed.joining_date, ed.employment_type, ed.blood_group, ed.mobile_number,
                    ed.emergency_contact, ed.id_card, ed.id_card_provided, ed.photo_url,
                    ed.linkedin_url, ed.laptop_provided, ed.email_provided, ed.asset_details,
-                   ed.adhaar_number, ed.pan_number, ed.duration,
+                   ed.adhaar_number, ed.pan_number, ed.duration, ed.employmentid,
                    r.rm, r.manager
             FROM users u
             LEFT JOIN employee_details ed ON u.username = ed.username
@@ -10374,6 +10403,9 @@ def edit_employee_admin():
         employment_type = request.form.get('employment_type', '').strip() or current.get('employment_type', 'Full-Time')
         blood_group = request.form.get('blood_group', '').strip() or current.get('blood_group')
         duration = request.form.get('duration', '').strip() or current.get('duration')
+        
+        # ENHANCED: Get employmentid from form (MISSING FROM VERSION 2)
+        employmentid = request.form.get('employmentid', '').strip().upper() or current.get('employmentid')
         
         # Contact information
         mobile_number = request.form.get('mobile_number', '').strip() or current.get('mobile_number')
@@ -10420,6 +10452,19 @@ def edit_employee_admin():
             file.save(os.path.join(app.config['UPLOAD_FOLDER'], photo_filename))
             photo_url = f"/uploads/{photo_filename}"
         
+        # ENHANCED: Employment ID validation (MISSING FROM VERSION 2)
+        print(f"DEBUG: Updating employee {employee_username} with employmentid: '{employmentid}'")
+        if employmentid and employmentid != current.get('employmentid'):
+            existing_emp_id = run_query("""
+                SELECT username, name FROM employee_details 
+                WHERE employmentid = ? AND username != ?
+            """, (employmentid, employee_username))
+            
+            if not existing_emp_id.empty:
+                existing_user = existing_emp_id.iloc[0]
+                flash(f'❌ Employment ID "{employmentid}" is already assigned to {existing_user["name"]} ({existing_user["username"]}). Please use a different Employment ID.')
+                return redirect(url_for('dashboard'))
+        
         # Update users table
         ok1 = run_exec("""
             UPDATE users 
@@ -10431,33 +10476,33 @@ def edit_employee_admin():
         employee_details_exists = run_query("SELECT username FROM employee_details WHERE username = ?", (employee_username,))
         
         if employee_details_exists.empty:
-            # Insert new record
+            # ENHANCED: Insert new record WITH employmentid (MISSING FROM VERSION 2)
             ok2 = run_exec("""
                 INSERT INTO [timesheet_db].[dbo]. [employee_details] (
                     username, name, role, joining_date, employment_type, blood_group,
                     mobile_number, emergency_contact, id_card, id_card_provided, photo_url,
                     linkedin_url, laptop_provided, email_provided, asset_details,
-                    adhaar_number, pan_number, duration
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    adhaar_number, pan_number, duration, employmentid
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (employee_username, name, role, joining_date, employment_type, blood_group,
                   mobile_number, emergency_contact, id_card, id_card_provided, photo_url,
                   linkedin_url, laptop_provided, email_provided, asset_details,
-                  adhaar_number, pan_number, duration))
+                  adhaar_number, pan_number, duration, employmentid))
         else:
-            # Update existing record
+            # ENHANCED: Update existing record WITH employmentid (MISSING FROM VERSION 2)
             ok2 = run_exec("""
                 UPDATE employee_details 
                 SET name = ?, role = ?, joining_date = ?, employment_type = ?, blood_group = ?,
                     mobile_number = ?, emergency_contact = ?, id_card = ?, id_card_provided = ?, 
                     photo_url = ?, linkedin_url = ?, laptop_provided = ?, email_provided = ?, 
-                    asset_details = ?, adhaar_number = ?, pan_number = ?, duration = ?
+                    asset_details = ?, adhaar_number = ?, pan_number = ?, duration = ?, employmentid = ?
                 WHERE username = ?
             """, (name, role, joining_date, employment_type, blood_group,
                   mobile_number, emergency_contact, id_card, id_card_provided, photo_url,
                   linkedin_url, laptop_provided, email_provided, asset_details,
-                  adhaar_number, pan_number, duration, employee_username))
+                  adhaar_number, pan_number, duration, employmentid, employee_username))
         
-        # Update reporting structure
+        # ADDED FROM VERSION 2: Update reporting structure (MISSING FROM VERSION 1)
         if new_reporting_manager:
             report_exists = run_query("SELECT username FROM report WHERE username = ?", (employee_username,))
             if report_exists.empty:
@@ -10467,12 +10512,12 @@ def edit_employee_admin():
                 """, (employee_username, new_reporting_manager, new_reporting_manager))
             else:
                 ok3 = run_exec("""
-                    UPDATE report 
+                    UPDATE report
                     SET rm = ?, manager = ?
                     WHERE username = ?
                 """, (new_reporting_manager, new_reporting_manager, employee_username))
         
-        # Update leave balances
+        # ADDED FROM VERSION 2: Update leave balances (MISSING FROM VERSION 1)
         leave_balance_exists = run_query("SELECT username FROM leave_balances WHERE username = ?", (employee_username,))
         if leave_balance_exists.empty:
             ok4 = run_exec("""
@@ -10483,21 +10528,27 @@ def edit_employee_admin():
             """, (employee_username, int(total_leaves), int(sick_total), int(paid_total), int(casual_total)))
         else:
             ok4 = run_exec("""
-                UPDATE leave_balances 
+                UPDATE leave_balances
                 SET total_leaves = ?, sick_total = ?, paid_total = ?, casual_total = ?
                 WHERE username = ?
             """, (int(total_leaves), int(sick_total), int(paid_total), int(casual_total), employee_username))
         
+        # ENHANCED: Success/Failure check including all operations
         if ok1 and ok2:
-            flash(f" Employee '{name}' ({employee_username}) updated successfully with all details!")
+            flash(f' Employee "{name}" ({employee_username}) updated successfully with Employment ID: {employmentid}')
         else:
-            flash(" Failed to update some employee details. Please try again.")
-    
+            flash(' Failed to update some employee details. Please try again.')
+            
     except Exception as e:
-        flash(f" Error updating employee: {str(e)}")
-        print(f"Employee update error: {e}")
+        # ENHANCED: Better error handling for Employment ID conflicts
+        if 'UQ_employee_details_employmentid' in str(e):
+            flash(f' Employment ID "{employmentid}" is already in use. Please choose a different Employment ID.')
+        else:
+            flash(f' Error updating employee: {str(e)}')
+        print(f"Edit employee error: {e}")
     
     return redirect(url_for('dashboard'))
+
 
 
 def check_user_role(required_roles):
@@ -10538,13 +10589,13 @@ def get_employee_details_json():
         return jsonify({'error': 'Username parameter required'}), 400
     
     try:
-        # Get complete employee details WITH RM information
+        # CORRECTED: Added ed.employmentid to the SELECT statement
         employee = run_query("""
             SELECT u.username, u.name, u.role, u.email, u.monthly_salary, u.yearly_salary, u.status, u.password,
                    ed.joining_date, ed.employment_type, ed.mobile_number, ed.emergency_contact,
                    ed.blood_group, ed.adhaar_number, ed.pan_number, ed.laptop_provided, 
                    ed.id_card_provided, ed.email_provided, ed.asset_details, ed.id_card,
-                   ed.photo_url, ed.linkedin_url, ed.duration,
+                   ed.photo_url, ed.linkedin_url, ed.duration, ed.employmentid,
                    r.rm, r.manager,
                    lb.total_leaves, lb.sick_total, lb.paid_total, lb.casual_total,
                    lb.sick_used, lb.paid_used, lb.casual_used,
@@ -10589,7 +10640,6 @@ def get_employee_details_json():
             'success': False,
             'error': str(e)
         }), 500
-
     # Check admin privileges - FLEXIBLE ROLE CHECK
 
 
