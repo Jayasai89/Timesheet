@@ -1831,10 +1831,10 @@
                                     </select>
                                 </div>
                                 <!-- In the edit employee form -->
-<!-- Employment ID field - CORRECTED -->
+<!-- Employment ID field - EDIT FORM (OPTIONAL) -->
 <div>
-    <label class="block text-sm font-medium text-gray-700 mb-2">Employment ID *</label>
-    <input type="text" name="employmentid" 
+    <label class="block text-sm font-medium text-gray-700 mb-2">Employment ID</label>
+    <input type="text" name="employmentid" id="editemploymentid" 
            class="form-input w-full rounded-lg border-gray-300" 
            placeholder="e.g., CASINB14, CAS0B37, CASINB"
            maxlength="9" 
@@ -1842,8 +1842,9 @@
            pattern="[A-Za-z0-9]{6,9}"
            style="text-transform: uppercase;"
            oninput="this.value = this.value.toUpperCase();">
-    <p class="text-xs text-gray-500 mt-1">Must be 6-9 characters with letters and numbers</p>
+    <p class="text-xs text-gray-500 mt-1">Must be 6-9 characters with letters and numbers (leave blank to keep current)</p>
 </div>
+
 
 
                             </div>
@@ -2118,7 +2119,7 @@ function editEmployee(username, name, email, role, mobile) {
                 document.getElementById('edit_duration').value = employee.duration || '';
                 document.getElementById('edit_blood_group').value = employee.blood_group || '';
                 // Add this line in your editEmployee function
-document.getElementById('edit_employmentid').value = employee.employmentid || '';
+                document.getElementById('edit_employmentid').value = employee.employmentid || '';
 
                 document.getElementById('edit_emergency_contact').value = employee.emergency_contact || '';
                 document.getElementById('edit_reporting_manager').value = employee.reporting_manager || '';
