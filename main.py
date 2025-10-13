@@ -2626,18 +2626,18 @@ def view_admin_manager(user):
             WHEN aw.assigned_on > DATEADD(hour, -1, GETDATE()) THEN 1 
             ELSE 0 
         END as recently_updated
-    FROM assigned_work aw
-    LEFT JOIN users u ON aw.assigned_to = u.username
-    WHERE aw.assigned_by = ?
-    OR aw.assigned_to IN (
+        FROM assigned_work aw
+        LEFT JOIN users u ON aw.assigned_to = u.username
+        WHERE aw.assigned_by = ?
+        OR aw.assigned_to IN (
         SELECT username FROM users 
         WHERE username IN (
             SELECT username FROM report 
             WHERE rm = ? OR manager = ?
         )
     )
-    ORDER BY aw.assigned_on DESC
-""", (user, user, user))
+        ORDER BY aw.assigned_on DESC
+        """, (user, user, user))
 
 
 
