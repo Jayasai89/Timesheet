@@ -259,17 +259,20 @@
                                         </div>
         
      <!-- Employment ID field -->
+<!-- Employment ID field - CORRECTED -->
 <div>
     <label class="block text-sm font-medium text-gray-700 mb-2">Employment ID *</label>
     <input type="text" name="employmentid" required 
            class="form-input w-full rounded-lg border-gray-300" 
-           placeholder="e.g., CASINB14"
-           maxlength="8" 
-           minlength="8"
+           placeholder="e.g., CASINB14, CAS0B37, CASINB"
+           maxlength="9" 
+           minlength="6"
+           pattern="[A-Za-z0-9]{6,9}"
            style="text-transform: uppercase;"
            oninput="this.value = this.value.toUpperCase();">
-    <p class="text-xs text-gray-500 mt-1">Must be exactly 8 characters with both letters and numbers</p>
+    <p class="text-xs text-gray-500 mt-1">Must be 6-9 characters with letters and numbers</p>
 </div>
+
 
 
                                     </div>
@@ -467,12 +470,15 @@
                                                             <span class="inline-flex px-1 py-1 text-xs bg-purple-100 text-purple-800 rounded">📧</span>
                                                         {% endif %}
                                                     </div>
-                                                </td>
-                                                <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+    <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
     <span class="font-mono bg-gray-100 px-2 py-1 rounded text-xs">
         {{ employee.employmentid or 'N/A' }}
     </span>
+    {% if employee.employmentid and employee.employmentid|length < 8 %}
+        <span class="text-xs text-blue-600 ml-1">({{ employee.employmentid|length }} chars)</span>
+    {% endif %}
 </td>
+
 
 
                                                 <td class="px-4 py-4 whitespace-nowrap text-sm font-medium space-x-1">
@@ -1825,14 +1831,20 @@
                                     </select>
                                 </div>
                                 <!-- In the edit employee form -->
+<!-- Employment ID field - CORRECTED -->
 <div>
-    <label class="block text-sm font-medium text-gray-700 mb-2">Employment ID</label>
-    <input type="text" name="employmentid" id="edit_employmentid" 
+    <label class="block text-sm font-medium text-gray-700 mb-2">Employment ID *</label>
+    <input type="text" name="employmentid" required 
            class="form-input w-full rounded-lg border-gray-300" 
-           placeholder="Enter 8-character ID" 
-           maxlength="8" 
-           pattern="[A-Za-z0-9]{8}">
+           placeholder="e.g., CASINB14, CAS0B37, CASINB"
+           maxlength="9" 
+           minlength="6"
+           pattern="[A-Za-z0-9]{6,9}"
+           style="text-transform: uppercase;"
+           oninput="this.value = this.value.toUpperCase();">
+    <p class="text-xs text-gray-500 mt-1">Must be 6-9 characters with letters and numbers</p>
 </div>
+
 
                             </div>
                         </div>
