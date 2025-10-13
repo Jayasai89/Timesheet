@@ -2603,34 +2603,43 @@ def view_admin_manager(user):
     """)
     
     # Get work assigned BY this admin manager
-    my_assigned_work = pd.DataFrame()
-    if direct_reports_list:
-        placeholders = ",".join(["?"] * len(direct_reports_list))
-        
-    # In view_admin_manager function, UPDATE the work query:
-        my_assigned_work = run_query("""
-    SELECT aw.id, aw.assigned_by, aw.assigned_to, aw.task_desc, 
-           aw.project_name, aw.due_date, aw.start_date,
-           aw.employee_status, aw.employee_progress_notes, aw.last_updated,
-           u.name as assigned_to_name, u.role as assigned_to_role,
-           CASE 
-               WHEN aw.due_date < CAST(GETDATE() AS DATE) THEN 'Overdue'
-               WHEN aw.due_date <= DATEADD(day, 3, CAST(GETDATE() AS DATE)) THEN 'Due Soon'
-               ELSE 'On Track'
-           END as urgency_status,
-           CASE 
-               WHEN aw.last_updated > DATEADD(minute, -30, GETDATE()) THEN 1
-               ELSE 0
-           END as recently_updated
+    # ✅ CORRECTED QUERY - Remove all non-existent columns
+my_assigned_work = run_query("""
+    SELECT 
+        aw.id, 
+        aw.assigned_by, 
+        aw.assigned_to, 
+        aw.task_desc, 
+        aw.project_name, 
+        aw.due_date, 
+        aw.start_date,
+        aw.assigned_on,
+        aw.rm_status, 
+        aw.manager_status,
+        u.name as assigned_to_name, 
+        u.role as assigned_to_role,
+        CASE 
+            WHEN aw.due_date < CAST(GETDATE() AS DATE) THEN 'Overdue'
+            WHEN aw.due_date <= DATEADD(day, 3, CAST(GETDATE() AS DATE)) THEN 'Due Soon'
+            ELSE 'On Track'
+        END as urgency_status,
+        CASE 
+            WHEN aw.assigned_on > DATEADD(hour, -1, GETDATE()) THEN 1 
+            ELSE 0 
+        END as recently_updated
     FROM assigned_work aw
     LEFT JOIN users u ON aw.assigned_to = u.username
-    WHERE aw.assigned_by = ? OR aw.assigned_to IN (
-        SELECT username FROM users WHERE username IN (
-            SELECT username FROM report WHERE rm = ? OR manager = ?
+    WHERE aw.assigned_by = ?
+    OR aw.assigned_to IN (
+        SELECT username FROM users 
+        WHERE username IN (
+            SELECT username FROM report 
+            WHERE rm = ? OR manager = ?
         )
     )
-    ORDER BY aw.last_updated DESC
-""", (user, user, user))  # This will show work assigned TO interns by this admin/manager
+    ORDER BY aw.assigned_on DESC
+""", (user, user, user))
+
 
     # Get work assigned TO this admin manager
     work_assigned_to_me = run_query("""
