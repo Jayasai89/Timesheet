@@ -2602,8 +2602,7 @@ def view_admin_manager(user):
         ORDER BY u.role, u.username
     """)
     
-    # Get work assigned BY this admin manager
-    # ✅ CORRECTED QUERY - Remove all non-existent columns
+  # ✅ FULLY CORRECTED - All non-existent columns removed
 my_assigned_work = run_query("""
     SELECT 
         aw.id, 
@@ -2639,6 +2638,7 @@ my_assigned_work = run_query("""
     )
     ORDER BY aw.assigned_on DESC
 """, (user, user, user))
+
 
 
     # Get work assigned TO this admin manager
