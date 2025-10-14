@@ -5392,42 +5392,116 @@ def hr_assign_work_action():
 # HR Finance Expense Recording Route
 @app.route('/hr_record_expense_action', methods=['POST'])
 def hr_record_expense_action():
-    """HR records expense - UPDATED WITH DOCUMENT UPLOAD"""
-    if 'username' not in session or session['role'] != 'Hr & Finance Controller':
-        flash("Access denied. HR & Finance Controller privileges required.")
+    """Record new expense with proper project validation - CORRECTED"""
+    if 'username' not in session:
+        return redirect(url_for('login_sso'))
+    
+    if session['role'] != 'Hr & Finance Controller':
+        flash(" Access denied. HR Finance Controller privileges required.")
         return redirect(url_for('dashboard'))
-    
-    user = session['username']
-    project = request.form.get('project')
-    category = request.form.get('category')
-    amount = request.form.get('amount')
-    exp_date = request.form.get('exp_date')
-    desc = request.form.get('desc')
-    
-    if not project or not category or not amount or not desc:
-        flash("Please fill in all required fields.")
-        return redirect(url_for('dashboard'))
-    
-    # Handle document upload
-    document_path = None
-    if 'expense_document' in request.files:
-        file = request.files['expense_document']
-        if file.filename != '':
-            document_path = save_uploaded_file(file, "hr_expense")
     
     try:
-        ok = run_exec("""
-            INSERT INTO [timesheet_db].[dbo].[expenses] 
-            (project_name, category, amount, date, description, spent_by, document_path)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        """, (project, category, float(amount), exp_date, desc, user, document_path))
+        user = session['username']
+        project = request.form.get('project', '').strip()
+        category = request.form.get('category', '').strip()
+        amount = request.form.get('amount', 0)
+        exp_date = request.form.get('expdate', '').strip()
+        description = request.form.get('desc', '').strip()
         
-        if ok:
-            flash("Expense recorded successfully.")
+        # Handle Others category details
+        other_category_details = request.form.get('other_category_details', '').strip()
+        
+        # Validation
+        if not all([project, category, amount, description]):
+            flash(" Please fill in all required fields.")
+            return redirect(url_for('dashboard'))
+        
+        # Special validation for Others category
+        if category == 'Other' and not other_category_details:
+            flash(" Please specify what you've taken when selecting 'Other' category.")
+            return redirect(url_for('dashboard'))
+        
+        #  SOLUTION: Handle project validation for Foreign Key constraint
+        final_project = project
+        
+        # Check if project exists in projects table (for FK constraint)
+        if project != 'non-project':
+            project_exists = run_query("""
+                SELECT project_name FROM projects WHERE project_name = ?
+            """, (project,))
+            
+            if project_exists.empty:
+                flash(f" Selected project '{project}' does not exist. Please select a valid project.")
+                return redirect(url_for('dashboard'))
         else:
-            flash("Failed to record expense.")
+            # For non-project expenses, use NULL or handle differently
+            final_project = None  # This will insert NULL for non-project expenses
+        
+        # Clean up category for database storage
+        final_category = category
+        if category == 'Other' and other_category_details:
+            final_category = f"Other - {other_category_details}"
+        
+        # Handle file upload
+        expense_document = request.files.get('expense_document')
+        document_path = None
+        
+        if expense_document and expense_document.filename:
+            if allowed_file(expense_document.filename):
+                filename = secure_filename(expense_document.filename)
+                timestamp = datetime.now().strftime('%Y%m%d_%H%M%S_')
+                filename = timestamp + filename
+                
+                expense_dir = os.path.join(app.root_path, 'static', 'expenses')
+                os.makedirs(expense_dir, exist_ok=True)
+                
+                document_path = os.path.join(expense_dir, filename)
+                expense_document.save(document_path)
+                document_path = f'expenses/{filename}'
+            else:
+                flash(" Invalid file type. Please upload PDF, Images, Word, or Excel files.")
+                return redirect(url_for('dashboard'))
+        
+        #  CORRECTED: Insert with proper project handling
+        if final_project is None:
+            # Handle non-project expenses with NULL
+            success = run_exec("""
+                INSERT INTO expenses (
+                    spent_by, project_name, category, amount, description, date, document_path
+                ) VALUES (?, NULL, ?, ?, ?, ?, ?)
+            """, (
+                user, final_category, float(amount), description, exp_date, document_path
+            ))
+        else:
+            # Handle regular project expenses
+            success = run_exec("""
+                INSERT INTO expenses (
+                    spent_by, project_name, category, amount, description, date, document_path
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            """, (
+                user, final_project, final_category, float(amount), description, exp_date, document_path
+            ))
+        
+        if success:
+            success_msg = f" Expense recorded successfully: ₹{float(amount):,.2f}"
+            if category == 'Other' and other_category_details:
+                success_msg += f" for {other_category_details}"
+            success_msg += f" in {category} category"
+            if final_project:
+                success_msg += f" for project '{final_project}'"
+            else:
+                success_msg += " (non-project expense)"
+            success_msg += "."
+            
+            flash(success_msg)
+        else:
+            flash(" Failed to record expense. Please try again.")
+    
+    except ValueError:
+        flash(" Invalid amount format.")
     except Exception as e:
-        flash(f"Error recording expense: {str(e)}")
+        flash(f" Error recording expense: {str(e)}")
+        print(f"Expense recording error: {e}")
     
     return redirect(url_for('dashboard'))
 
