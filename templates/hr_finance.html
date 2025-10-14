@@ -563,7 +563,7 @@
                                         <label class="block text-sm font-medium text-gray-700 mb-2">Approved Project</label>
                                         <select name="project_name" required class="form-select w-full rounded-lg border-gray-300">
                                             <option value="">Select Approved Project</option>
-                                            {% for project in projects_needing_budget %}
+                                            {% for project in pending_projects %}
                                                 <option value="{{ project.project_name }}">
                                                     {{ project.project_name }} (by {{ project.created_by }})
                                                 </option>
@@ -673,77 +673,99 @@
             <!-- Expense Tracking Tab -->
             <div id="expense-tracking" class="tab-content hidden">
                 <div class="space-y-6">
-                    <!-- Add this expense recording form to the expense tracking tab -->
-                    <div class="bg-white rounded-lg shadow-sm border border-gray-200 mb-6">
-                        <div class="px-6 py-4 border-b border-gray-200">
-                            <h2 class="text-lg font-semibold text-gray-800">
-                                <i class="fas fa-plus text-green-600 mr-2"></i>Record New Expense
-                            </h2>
-                        </div>
-                        <div class="p-6">
-                            <form method="post" action="{{ url_for('hr_record_expense_action') }}" class="space-y-4" enctype="multipart/form-data">
-                                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                    <div>
-                                        <label class="block text-sm font-medium text-gray-700 mb-2">Project</label>
-                                        <select name="project" class="form-select w-full rounded-lg border-gray-300">
-                                            <option value="(non-project)">(non-project)</option>
-                                            {% for project in all_projects %}
-                                                <option value="{{ project.project_name }}">{{ project.project_name }}</option>
-                                            {% endfor %}
-                                        </select>
-                                    </div>
-                                    
-                                    <div>
-                                        <label class="block text-sm font-medium text-gray-700 mb-2">Category</label>
-                                        <select name="category" class="form-select w-full rounded-lg border-gray-300">
-                                            <option value="Travel">Travel</option>
-                                            <option value="Equipment">Equipment</option>
-                                            <option value="Software">Software</option>
-                                            <option value="Training">Training</option>
-                                            <option value="Resources">Resources</option>
-                                            <option value="For email">For email</option>
-                                            <option value="Github">Github</option>
-                                            <option value="Api">Api</option>
-                                            <option value="Other">Other</option>
-                                        </select>
-                                    </div>
-                                    
-                                    <div>
-                                        <label class="block text-sm font-medium text-gray-700 mb-2">Amount (₹)</label>
-                                        <input type="number" name="amount" step="0.01" required
-                                            class="form-input w-full rounded-lg border-gray-300">
-                                    </div>
-                                </div>
-                                
-                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div>
-                                        <label class="block text-sm font-medium text-gray-700 mb-2">Date</label>
-                                        <input type="date" name="exp_date" value="{{ today }}"
-                                            class="form-input w-full rounded-lg border-gray-300">
-                                    </div>
-                                    
-                                    <div>
-                                        <label class="block text-sm font-medium text-gray-700 mb-2">Description</label>
-                                        <input type="text" name="desc" required
-                                            class="form-input w-full rounded-lg border-gray-300">
-                                    </div>
-                                </div>
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700 mb-2">
-                                        <i class="fas fa-paperclip mr-1"></i>Expense Document (Optional)
-                                    </label>
-                                    <input type="file" name="expense_document" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx"
-                                        class="form-input w-full rounded-lg border-gray-300">
-                                    <p class="text-xs text-gray-500 mt-1">Supported: PDF, Images, Word, Excel files</p>
-                                </div>
-                                
-                                <button type="submit" 
-                                        class="w-full bg-green-600 hover:bg-green-700 text-white font-medium py-3 px-4 rounded-lg transition-colors">
-                                    <i class="fas fa-plus mr-2"></i>Record Expense
-                                </button>
-                            </form>
-                        </div>
-                    </div>
+               <!-- Record New Expense Form - ENHANCED with dynamic Others field -->
+<div class="bg-white rounded-lg shadow-sm border border-gray-200 mb-6">
+    <div class="px-6 py-4 border-b border-gray-200">
+        <h2 class="text-lg font-semibold text-gray-800">
+            <i class="fas fa-plus text-green-600 mr-2"></i>Record New Expense
+        </h2>
+    </div>
+    <div class="p-6">
+        <form method="post" action="{{ url_for('hr_record_expense_action') }}" class="space-y-4" enctype="multipart/form-data">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Project</label>
+                    <select name="project" class="form-select w-full rounded-lg border-gray-300">
+                        <option value="non-project">non-project</option>
+                        {% for project in allprojects %}
+                        <option value="{{ project.projectname }}">{{ project.projectname }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <!-- ENHANCED Category Field with Others Support -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Category</label>
+                    <select name="category" id="expenseCategory" class="form-select w-full rounded-lg border-gray-300" onchange="toggleOthersField()">
+                        <option value="">Select Category</option>
+                        <option value="Travel">Travel</option>
+                        <option value="Equipment">Equipment</option>
+                        <option value="Software">Software</option>
+                        <option value="Training">Training</option>
+                        <option value="Resources">Resources</option>
+                        <option value="For email">For email</option>
+                        <option value="Github">Github</option>
+                        <option value="Api">Api</option>
+                        <option value="Office Supplies">Office Supplies</option>
+                        <option value="Utilities">Utilities</option>
+                        <option value="Marketing">Marketing</option>
+                        <option value="Maintenance">Maintenance</option>
+                        <option value="Consulting">Consulting</option>
+                        <option value="Other">Other</option>
+                    </select>
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Amount ₹</label>
+                    <input type="number" name="amount" step="0.01" required 
+                           class="form-input w-full rounded-lg border-gray-300">
+                </div>
+            </div>
+
+            <!-- DYNAMIC Others Specification Field -->
+            <div id="othersFieldContainer" class="hidden">
+                <label class="block text-sm font-medium text-gray-700 mb-2">
+                    <i class="fas fa-info-circle text-blue-500 mr-1"></i>
+                    Please specify what you've taken <span class="text-red-500">*</span>
+                </label>
+                <input type="text" name="other_category_details" id="otherCategoryDetails"
+                       class="form-input w-full rounded-lg border-gray-300" 
+                       placeholder="e.g., Refreshments, Stationery, Transportation, etc."
+                       maxlength="100">
+                <p class="text-xs text-gray-500 mt-1">This field is required when 'Other' category is selected</p>
+            </div>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Date</label>
+                    <input type="date" name="expdate" value="{{ today }}" 
+                           class="form-input w-full rounded-lg border-gray-300">
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Description</label>
+                    <input type="text" name="desc" required 
+                           class="form-input w-full rounded-lg border-gray-300">
+                </div>
+            </div>
+            
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-2">
+                    <i class="fas fa-paperclip mr-1"></i>Expense Document (Optional)
+                </label>
+                <input type="file" name="expense_document" 
+                       accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx"
+                       class="form-input w-full rounded-lg border-gray-300">
+                <p class="text-xs text-gray-500 mt-1">Supported: PDF, Images, Word, Excel files</p>
+            </div>
+            
+            <button type="submit" class="w-full bg-green-600 hover:bg-green-700 text-white font-medium py-3 px-4 rounded-lg transition-colors">
+                <i class="fas fa-plus mr-2"></i>Record Expense
+            </button>
+        </form>
+    </div>
+</div>
+
 
                     <!-- Expense Filters -->
                     <div class="bg-white rounded-lg shadow-sm border border-gray-200">
@@ -825,6 +847,18 @@
                                                         {{ expense.category }}
                                                     </span>
                                                 </td>
+                                                  <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+        <div class="flex flex-col">
+            <span class="inline-flex px-2 py-1 text-xs font-semibold bg-gray-100 text-gray-800 rounded-full">
+                {{ expense.category }}
+            </span>
+            {% if expense.other_category_details %}
+            <span class="text-xs text-blue-600 mt-1 italic">
+                <i class="fas fa-info-circle mr-1"></i>{{ expense.other_category_details }}
+            </span>
+            {% endif %}
+        </div>
+    </td>
                                                 <td class="px-4 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">₹{{ "{:,.2f}".format(expense.amount|default(0)|float) }}</td>
                                                 <td class="px-4 py-4 text-sm text-gray-900 max-w-xs">
                                                     <div class="truncate" title="{{ expense.description }}">{{ expense.description }}</div>
@@ -2434,6 +2468,99 @@ function filterEmployeeDetails() {
             row.style.display = 'none';
         }
     });
+}
+// Add this JavaScript to your template
+
+// Toggle Others field based on category selection
+function toggleOthersField() {
+    const categorySelect = document.getElementById('expenseCategory');
+    const othersContainer = document.getElementById('othersFieldContainer');
+    const othersInput = document.getElementById('otherCategoryDetails');
+    
+    if (categorySelect.value === 'Other') {
+        // Show the others field
+        othersContainer.classList.remove('hidden');
+        othersInput.required = true;
+        
+        // Add visual emphasis
+        othersContainer.style.animation = 'fadeIn 0.3s ease-in';
+        
+        // Focus on the input for better UX
+        setTimeout(() => {
+            othersInput.focus();
+        }, 100);
+    } else {
+        // Hide the others field
+        othersContainer.classList.add('hidden');
+        othersInput.required = false;
+        othersInput.value = ''; // Clear the field
+    }
+}
+
+// Add CSS animation for smooth transition
+const style = document.createElement('style');
+style.textContent = `
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(-10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    
+    #othersFieldContainer {
+        transition: all 0.3s ease-in-out;
+    }
+    
+    #othersFieldContainer.hidden {
+        display: none !important;
+    }
+    
+    #otherCategoryDetails:focus {
+        border-color: #3b82f6;
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    }
+`;
+document.head.appendChild(style);
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', function() {
+    // Set up the initial state
+    toggleOthersField();
+    
+    // Add form validation
+    const form = document.querySelector('form[action*="hr_record_expense_action"]');
+    if (form) {
+        form.addEventListener('submit', function(e) {
+            const categorySelect = document.getElementById('expenseCategory');
+            const othersInput = document.getElementById('otherCategoryDetails');
+            
+            if (categorySelect.value === 'Other' && !othersInput.value.trim()) {
+                e.preventDefault();
+                alert('Please specify what you have taken in the "Other" category.');
+                othersInput.focus();
+                return false;
+            }
+        });
+    }
+});
+
+// Enhanced filtering to include other category details
+function filterExpenseTable() {
+    const categoryFilter = document.getElementById('expenseCategoryFilter').value.toLowerCase();
+    const table = document.getElementById('expenseTable');
+    const rows = table.getElementsByTagName('tr');
+    
+    for (let i = 1; i < rows.length; i++) {
+        const row = rows[i];
+        const categoryCell = row.getElementsByTagName('td')[3]; // Category column
+        
+        if (categoryCell) {
+            const categoryText = categoryCell.textContent.toLowerCase();
+            const isVisible = categoryFilter === '' || 
+                             categoryText.includes(categoryFilter) ||
+                             (categoryFilter === 'other' && categoryText.includes('other'));
+            
+            row.style.display = isVisible ? '' : 'none';
+        }
+    }
 }
 
 // View employee profile function
