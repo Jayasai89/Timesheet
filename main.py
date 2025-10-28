@@ -3155,7 +3155,7 @@ Timesheet Details:
 - Status: Pending Approval
 
 Please log in to the system to review and approve this timesheet.
-
+https://nexus.chervicaon.com
 This is an automated notification from the Timesheet & Leave Management System."""
                     send_email(rm_email, subject, text_content)
         else:
@@ -3333,7 +3333,7 @@ def request_leave_action():
     {f'- Medical Document: Attached' if doc_name else ''}
 
     Please log in to the system to review and approve this leave request.
-
+    https://nexus.chervicaon.com
     This is an automated notification from the Timesheet & Leave Management System."""
                 send_email(rm_email, subject, text_content)
 
@@ -3501,6 +3501,7 @@ def approve_timesheet_action():
         Your timesheet has been approved by your RM.
 
         You can view the updated status in your dashboard.
+        https://nexus.chervicaon.com
 
         This is an automated notification from the Timesheet & Leave Management System."""
                 send_email(user_email, subject, text_content)
@@ -3581,6 +3582,7 @@ def approve_leave_action():
     - Status: Approved
 
     You can view the updated status in your dashboard.
+    https://nexus.chervicaon.com
 
     This is an automated notification from the Timesheet & Leave Management System."""
                 send_email(user_email, subject, text_content)
@@ -3639,6 +3641,7 @@ def reject_timesheet_action():
     Reason: {reason}
 
     Please contact your RM or resubmit your timesheet with corrections.
+    https://nexus.chervicaon.com
 
     This is an automated notification from the Timesheet & Leave Management System."""
             send_email(user_email, subject, text_content)
@@ -3694,7 +3697,7 @@ Your leave request has been rejected by your RM.
 Reason: {reason}
 
 Please contact your RM for clarification or resubmit your request with corrections.
-
+https://nexus.chervicaon.com
 This is an automated notification from the Timesheet & Leave Management System."""
             send_email(user_email, subject, text_content)
 
@@ -3777,7 +3780,7 @@ Details:
 - Status: Approved
 
 You can view the updated status in your dashboard.
-
+https://nexus.chervicaon.com
 This is an automated notification from the Timesheet Leave Management System."""
                     
                     send_email(user_email, subject, text_content)
@@ -3868,7 +3871,7 @@ Details:
 - Rejection Reason: {rejection_reason}
 
 Please contact your Manager for clarification or resubmit your timesheet with corrections.
-
+https://nexus.chervicaon.com
 This is an automated notification from the Timesheet Leave Management System."""
                     
                     send_email(user_email, subject, text_content)
@@ -3957,7 +3960,7 @@ Details:
 - Status: Approved
 
 You can view the updated status in your dashboard.
-
+https://nexus.chervicaon.com
 This is an automated notification from the Timesheet Leave Management System."""
                     
                     send_email(user_email, subject, text_content)
@@ -4037,7 +4040,7 @@ def reject_manager_leave_request():
         - Rejected by: {user}
 
         Please contact your Manager for clarification or resubmit your request with corrections.
-
+        https://nexus.chervicaon.com
         This is an automated notification from the Timesheet & Leave Management System."""
                     
                     send_email(user_email, subject, text_content)  
@@ -4154,7 +4157,7 @@ Project Details:
 - Status: Pending Approval
 
 Please log in to the system to review and approve this project.
-
+https://nexus.chervicaon.com
 This is an automated notification from the Timesheet & Leave Management System."""
                     send_email(hr_email, subject, text_content)
 
@@ -4223,7 +4226,7 @@ Expense Details:
 - Document: {'Attached' if document_path else 'Not provided'}
 
 Please review this expense entry in the system.
-
+https://nexus.chervicaon.com
 This is an automated notification from the Timesheet & Leave Management System."""
                         send_email(manager_email, subject, text_content)
 
@@ -4284,7 +4287,7 @@ Project Assignment Details:
 - Notes: {assignment_notes or 'No additional notes'}
 
 Please log in to your dashboard to view the complete project details and begin work.
-
+https://nexus.chervicaon.com
 This is an automated notification from the Timesheet & Leave Management System."""
                     
                     send_email(emp_email, subject, text_content)
@@ -4353,7 +4356,7 @@ Assignment Details:
 - Due Date: {due_date}
 
 Please log in to your dashboard to view the complete assignment details and update the status as you progress.
-
+https://nexus.chervicaon.com
 This is an automated notification from the Timesheet & Leave Management System."""
                     
                     send_email(emp_email, subject, text_content)
@@ -4435,7 +4438,7 @@ Details:
 - Due Date: {due_date}
 
 Please log in to the system to view the complete assignment details.
-
+https://nexus.chervicaon.com
 This is an automated notification from the Timesheet & Leave Management System."""
                     send_email(emp_email, subject, text_content)
 
@@ -4514,7 +4517,8 @@ def complete_work_assignment():
     - Project: {project_name}
     - Completed by: {user}
     - Completion Notes: {completion_notes or 'None provided'}
-
+    please login here
+    https://nexus.chervicaon.com
     This is an automated notification from the Timesheet & Leave Management System."""
                     send_email(assigner_email, subject, text_content)
             flash(" Work assignment marked as completed!")
@@ -4755,7 +4759,7 @@ def allocate_budget_action():
             Allocated by: {user}
 
             You can now start incurring expenses for this project.
-
+            https://nexus.chervicaon.com
             This is an automated notification from the Timesheet & Leave Management System."""
                             send_email(creator_email, subject, text_content)
 
@@ -4870,7 +4874,7 @@ def update_salary_action():
     - Yearly Salary: ₹{float(new_yearly):,.2f}
 
     This change will be reflected in your next payroll cycle.
-
+    https://nexus.chervicaon.com
     If you have any questions, please contact the HR department.
 
     This is an automated notification from the Timesheet & Leave Management System."""
@@ -4991,7 +4995,7 @@ def approve_asset_request_hr():
             - Status: Approved
 
             The asset will be processed and delivered soon.
-
+            https://nexus.chervicaon.com
             This is an automated notification from the Timesheet & Leave Management System."""
                                 send_email(requester_email, subject, text_content)
 
@@ -5066,8 +5070,10 @@ def reject_asset_request_hr():
     - Status: Rejected
     - Reason: {reason}
 
+    please login here
+    https://nexus.chervicaon.com
     If you have questions about this decision, please contact the HR department.
-
+    
     This is an automated notification from the Timesheet & Leave Management System."""
                     send_email(requester_email, subject, text_content)
             flash(f" Asset request #{request_id} rejected successfully.")
@@ -5191,7 +5197,7 @@ def approve_project_hr_action():
     Budget: ₹{float(request.form.get('budget_amount', 0)):,.2f}
 
     You can now start working on this project.
-
+    https://nexus.chervicaon.com
     This is an automated notification from the Timesheet & Leave Management System."""
                     send_email(creator_email, subject, text_content)
 
@@ -5257,7 +5263,7 @@ def reject_project_hr_action():
         Reason: {rejection_reason}
 
         Please review the feedback and consider resubmitting with required modifications.
-
+        https://nexus.chervicaon.com
         This is an automated notification from the Timesheet & Leave Management System."""
                     
                     send_email(creator_email, subject, text_content)
@@ -5369,7 +5375,7 @@ def hr_assign_work_action():
             - Due Date: {due_date}
 
             Please log in to your dashboard to view the complete assignment details and update the status as you progress.
-
+            https://nexus.chervicaon.com
             This is an automated notification from the Timesheet & Leave Management System."""
                     
                     send_email(emp_email, subject, text_content)
@@ -5565,7 +5571,7 @@ def resubmit_timesheet():
         - Description: {desc}
 
         Please review and approve/reject through your dashboard.
-
+        https://nexus.chervicaon.com
         This is an automated notification from the Timesheet & Leave Management System."""
                     
                     send_email(rm_email, subject, text_content)
@@ -6005,7 +6011,7 @@ def add_employee_action():
     - Email: {email}
  
     Please log in to the Timesheet & Leave Management System at your earliest convenience and change your password.
- 
+     https://nexus.chervicaon.com
     System Access: [Your System URL]
  
     If you have any questions, please contact your reporting manager or the HR department.
@@ -6032,7 +6038,7 @@ def add_employee_action():
     - Joining Date: {joining_date}
  
     Please help them get settled and provide any necessary guidance.
- 
+     https://nexus.chervicaon.com
     This is an automated notification from the Timesheet & Leave Management System."""
                     send_email(rm_email, subject, text_content)
  
@@ -6124,7 +6130,7 @@ Details:
 - Document: {'Attached' if document_path else 'Not provided'}
 
 Please log in to the system to review and approve this asset request.
-
+https://nexus.chervicaon.com
 This is an automated notification from the Timesheet & Leave Management System."""
                         send_email(hr_email, subject, text_content)
 
@@ -6225,7 +6231,7 @@ Assignment Details:
 - Work Type: {work_type}
 
 Please log in to your dashboard to view the complete assignment details and update the status as you progress.
-
+https://nexus.chervicaon.com
 This is an automated notification from the Timesheet & Leave Management System."""
                     send_email(emp_email, subject, text_content)
                 
@@ -6579,7 +6585,8 @@ def approve_leave_cancellation():
         - Leave Type: {leave_type}
         - Duration: {leave_days} days
         - Leave Balance Restored: {leave_days} days
-
+        please login here 
+        https://nexus.chervicaon.com
         This is an automated notification from the Timesheet & Leave Management System."""
                     send_email(emp_email, subject, text_content)
 
@@ -7516,6 +7523,8 @@ Reason: {reason}
 Deactivated by: {session['username']}
 Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 
+please login here
+https://nexus.chervicaon.com
 If you have any questions about this action, please contact the HR department.
 
 This is an automated notification from the Timesheet & Leave Management System."""
@@ -7543,6 +7552,8 @@ Details:
 - Reason: {reason}
 - Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 
+please login here
+https://nexus.chervicaon.com
 This is an automated notification from the Timesheet & Leave Management System."""
                         send_email(hr_email, subject, text_content)
 
@@ -7932,7 +7943,7 @@ def approve_team_work_hr():
         Your timesheet has been approved by HR ({user}).
 
         You can view the updated status in your dashboard.
-
+        https://nexus.chervicaon.com
         This is an automated notification from the Timesheet & Leave Management System."""
                     send_email(employee_email, subject, text_content)
 
@@ -8015,7 +8026,7 @@ def approve_team_leave_hr():
             - Status: Approved
 
             You can view the updated status in your dashboard.
-
+            https://nexus.chervicaon.com
             This is an automated notification from the Timesheet & Leave Management System."""
                     send_email(user_email, subject, text_content)
 
@@ -8089,7 +8100,7 @@ def reject_team_work():
         Your timesheet has been rejected by HR ({user}).
 
         Reason: {rejection_reason}
-
+        https://nexus.chervicaon.com
         Please contact HR for clarification or resubmit your timesheet with corrections.
 
         This is an automated notification from the Timesheet & Leave Management System."""
@@ -8163,7 +8174,7 @@ def reject_team_leave():
         Your {leave_type} leave request has been rejected by HR ({user}).
 
         Reason: {rejection_reason}
-
+        https://nexus.chervicaon.com 
         Please contact HR for clarification or resubmit your leave request with corrections.
 
         This is an automated notification from the Timesheet & Leave Management System."""
@@ -8938,7 +8949,7 @@ def admin_submit_personal_timesheet():
 This is for informational purposes as an admin-level user submission.
 
 Please review if needed through the dashboard.
-
+https://nexus.chervicaon.com
 This is an automated notification from the Timesheet & Leave Management System."""
                 send_email(hr_email, subject, text_content)
     return result
@@ -9079,7 +9090,7 @@ def admin_approve_team_timesheet():
             - Status: Approved
 
             You can view the updated status in your dashboard.
-
+            https://nexus.chervicaon.com
             This is an automated notification from the Timesheet Leave Management System."""
                     send_email(user_email, subject, text_content)
 
@@ -9163,7 +9174,7 @@ def admin_reject_team_timesheet():
             - Rejection Reason: {rejection_reason}
 
             Please contact your Admin for clarification or resubmit your timesheet with corrections.
-
+            https://nexus.chervicaon.com
             This is an automated notification from the Timesheet Leave Management System."""
                     send_email(user_email, subject, text_content)
 
@@ -9244,7 +9255,7 @@ def admin_approve_team_leave():
                 - Processed by: {user}
 
                 You can view the updated status in your dashboard.
-
+                https://nexus.chervicaon.com 
                 This is an automated notification from the Timesheet Leave Management System."""
                     send_email(user_email, subject, text_content)
 
@@ -9331,7 +9342,7 @@ def admin_reject_team_leave():
             - Processed by: {user}
 
             Please contact your Admin for clarification or resubmit your request with corrections.
-
+            https://nexus.chervicaon.com
             This is an automated notification from the Timesheet Leave Management System."""
                     send_email(user_email, subject, text_content)
 
@@ -9702,7 +9713,7 @@ def admin_bulk_timesheet_action():
     Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 
     Please check your dashboard for the updated status of your timesheet entries.
-
+    https://nexus.chervicaon.com
     This is an automated notification from the Timesheet & Leave Management System."""
                     send_email(emp_email, subject, text_content)
 
@@ -9793,7 +9804,7 @@ Details:
 - Processed by: {user}
 
 You can view the updated status in your dashboard.
-
+https://nexus.chervicaon.com
 This is an automated notification from the Timesheet Leave Management System."""
                                 
                                 send_email(user_email, subject, text_content)
@@ -9825,7 +9836,7 @@ Details:
 - Processed by: {user}
 
 Please contact your supervisor for clarification or resubmit your request with corrections.
-
+https://nexus.chervicaon.com
 This is an automated notification from the Timesheet Leave Management System."""
                                 
                                 send_email(user_email, subject, text_content)
@@ -10006,7 +10017,7 @@ def activate_employee_admin():
     Your account has been activated by the administration.
 
     You can now access the Timesheet & Leave Management System.
-
+    https://nexus.chervicaon.com
     If you have any questions, please contact the HR department.
 
     This is an automated notification from the Timesheet & Leave Management System."""
@@ -10084,7 +10095,7 @@ def reset_password_admin():
     New Password: {new_password}
 
     Please log in with your new password and change it immediately for security reasons.
-
+    https://nexus.chervicaon.com
     This is an automated notification from the Timesheet & Leave Management System."""
                 send_email(emp_email, subject, text_content)
 
@@ -10141,7 +10152,7 @@ def update_employee_role_admin():
         Reason: {role_change_reason}
 
         Please log in to see your updated permissions.
-
+        https://nexus.chervicaon.com
         This is an automated notification from the Timesheet & Leave Management System."""
                     send_email(emp_email, subject, text_content)
 
@@ -10997,7 +11008,7 @@ def approve_work_admin():
         Approved by: {user}
 
         You can view the updated status in your dashboard.
-
+        https://nexus.chervicaon.com
         This is an automated notification from the Timesheet & Leave Management System."""
                     
                     send_email(user_email, subject, text_content)
@@ -11072,7 +11083,7 @@ def reject_work_admin():
         Rejected by: {user}
 
         Please contact your Admin for clarification or resubmit with corrections.
-
+        https://nexus.chervicaon.com
         This is an automated notification from the Timesheet & Leave Management System."""
                     
                     send_email(user_email, subject, text_content)
@@ -11152,7 +11163,7 @@ def approve_leave_admin():
             - Approved by: {user}
 
             Your leave balance has been updated accordingly. You can view the status in your dashboard.
-
+            https://nexus.chervicaon.com
             This is an automated notification from the Timesheet & Leave Management System."""
                     
                     send_email(user_email, subject, text_content)
@@ -11235,7 +11246,7 @@ def reject_leave_admin():
         - Rejected by: {user}
 
         Please contact your Admin for clarification or resubmit your request with corrections.
-
+        https://nexus.chervicaon.com
         This is an automated notification from the Timesheet & Leave Management System."""
                     
                     send_email(user_email, subject, text_content)
@@ -11919,7 +11930,7 @@ Assignment Details:
 
 
 Please log in to your dashboard to view the complete assignment details.
-
+https://nexus.chervicaon.com
 This is an automated notification from the Timesheet & Leave Management System."""
                     
                     send_email(emp_email, subject, text_content)
