@@ -3893,7 +3893,6 @@ def approve_manager_leave_request():
     
     user = session['username']
     
-    # Check if user has manager privileges
     if not has_role(user, MANAGER_ROLES):
         flash("Access denied. Manager privileges required.")
         return redirect(url_for('dashboard'))
@@ -3913,38 +3912,38 @@ def approve_manager_leave_request():
     placeholders = ",".join(["?"] * len(manager_team))
     
     try:
-        # First, get the leave details - FIX: Use correct parameter construction
+        # Use CORRECT column names from your schema: rm_status (not rmstatus)
         query_params = [int(leave_id)] + list(manager_team)
         leave_details = run_query(f"""
-            SELECT username, leavetype, startdate, enddate, description 
+            SELECT username, leave_type, start_date, end_date, description 
             FROM leaves 
-            WHERE id = ? AND username IN ({placeholders}) AND rmstatus = 'Pending'
+            WHERE id = ? AND username IN ({placeholders}) AND rm_status = 'Pending'
         """, query_params)
         
         if not leave_details.empty:
-            # PROPERLY extract variables from query result
+            # Extract variables from query result - use CORRECT column names
             leave_username = leave_details.iloc[0]['username']
-            leave_type = str(leave_details.iloc[0]['leavetype'])
-            start_date = parse(str(leave_details.iloc[0]['startdate']))
-            end_date = parse(str(leave_details.iloc[0]['enddate']))
+            leave_type = str(leave_details.iloc[0]['leave_type'])
+            start_date = parse(str(leave_details.iloc[0]['start_date']))
+            end_date = parse(str(leave_details.iloc[0]['end_date']))
             description = leave_details.iloc[0]['description']
             leave_days = (end_date - start_date).days + 1
             
             # Apply leave balance deduction
             _apply_leave_balance(leave_username, leave_type, leave_days, 1)
             
-            # Now update the leave - FIX: Correct parameter order and construction
+            # Update with CORRECT column names: rm_status, rm_approver, rm_rejection_reason
             update_params = [user, int(leave_id)] + list(manager_team)
             ok = run_exec(f"""
                 UPDATE leaves 
-                SET rmstatus = 'Approved', rmapprover = ?, rmrejectionreason = NULL 
-                WHERE id = ? AND username IN ({placeholders}) AND rmstatus = 'Pending'
+                SET rm_status = 'Approved', rm_approver = ?, rm_rejection_reason = NULL 
+                WHERE id = ? AND username IN ({placeholders}) AND rm_status = 'Pending'
             """, update_params)
             
             if ok:
                 flash(f'Leave approved successfully for {leave_username} ({leave_days} days).')
                 
-                # Send email notification - now leave_username is properly defined
+                # Send email notification
                 user_email = get_user_email(leave_username)
                 if user_email:
                     subject = f"Leave Approved by Manager - {leave_username}"
@@ -3984,7 +3983,6 @@ def reject_manager_leave_request():
     
     user = session['username']
     
-    # Check if user has manager privileges
     if not has_role(user, MANAGER_ROLES):
         flash("Access denied. Manager privileges required.")
         return redirect(url_for('dashboard'))
@@ -4009,28 +4007,27 @@ def reject_manager_leave_request():
     placeholders = ",".join(["?"] * len(manager_team))
     
     try:
-        # FIX: Use correct column names (rmstatus, rmapprover, rmrejectionreason)
-        # FIX: Correct parameter order and construction
+        # Use CORRECT column names: rm_status, rm_approver, rm_rejection_reason
         update_params = [user, rejection_reason, int(leave_id)] + list(manager_team)
         ok = run_exec(f"""
             UPDATE leaves 
-            SET rmstatus = 'Rejected', rmapprover = ?, rmrejectionreason = ?
-            WHERE id = ? AND username IN ({placeholders}) AND rmstatus = 'Pending'
+            SET rm_status = 'Rejected', rm_approver = ?, rm_rejection_reason = ?
+            WHERE id = ? AND username IN ({placeholders}) AND rm_status = 'Pending'
         """, update_params)
         
         if ok:
-            # Get leave details for email - FIX: Use correct column names
+            # Get leave details for email - use CORRECT column names
             leave_details = run_query("""
-                SELECT username, leavetype, startdate, enddate, description 
+                SELECT username, leave_type, start_date, end_date, description 
                 FROM leaves
-                WHERE id = ? AND rmstatus = 'Rejected'
+                WHERE id = ? AND rm_status = 'Rejected'
             """, [int(leave_id)])
             
             if not leave_details.empty:
                 leave_username = leave_details.iloc[0]['username']
-                leave_type = leave_details.iloc[0]['leavetype']
-                start_date = parse(str(leave_details.iloc[0]['startdate']))
-                end_date = parse(str(leave_details.iloc[0]['enddate']))
+                leave_type = leave_details.iloc[0]['leave_type']
+                start_date = parse(str(leave_details.iloc[0]['start_date']))
+                end_date = parse(str(leave_details.iloc[0]['end_date']))
                 leave_days = (end_date - start_date).days + 1
                 description = leave_details.iloc[0]['description']
                 
@@ -4064,6 +4061,7 @@ This is an automated notification from the Timesheet & Leave Management System."
         flash(f"Error rejecting leave: {str(e)}")
     
     return redirect(url_for('dashboard'))
+
 
 
 @app.route('/api/budget_refresh')
