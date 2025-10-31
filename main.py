@@ -3912,7 +3912,7 @@ def approve_manager_leave_request():
     placeholders = ",".join(["?"] * len(manager_team))
     
     try:
-        # Use CORRECT column names from your schema: rm_status (not rmstatus)
+        # FIXED: Use EXACT column names from your database schema
         query_params = [int(leave_id)] + list(manager_team)
         leave_details = run_query(f"""
             SELECT username, leave_type, start_date, end_date, description 
@@ -3921,7 +3921,7 @@ def approve_manager_leave_request():
         """, query_params)
         
         if not leave_details.empty:
-            # Extract variables from query result - use CORRECT column names
+            # Extract variables from query result
             leave_username = leave_details.iloc[0]['username']
             leave_type = str(leave_details.iloc[0]['leave_type'])
             start_date = parse(str(leave_details.iloc[0]['start_date']))
@@ -3932,7 +3932,7 @@ def approve_manager_leave_request():
             # Apply leave balance deduction
             _apply_leave_balance(leave_username, leave_type, leave_days, 1)
             
-            # Update with CORRECT column names: rm_status, rm_approver, rm_rejection_reason
+            # FIXED: Use EXACT column names and correct parameter order
             update_params = [user, int(leave_id)] + list(manager_team)
             ok = run_exec(f"""
                 UPDATE leaves 
@@ -4007,7 +4007,7 @@ def reject_manager_leave_request():
     placeholders = ",".join(["?"] * len(manager_team))
     
     try:
-        # Use CORRECT column names: rm_status, rm_approver, rm_rejection_reason
+        # FIXED: Use EXACT column names and correct parameter order
         update_params = [user, rejection_reason, int(leave_id)] + list(manager_team)
         ok = run_exec(f"""
             UPDATE leaves 
@@ -4016,7 +4016,7 @@ def reject_manager_leave_request():
         """, update_params)
         
         if ok:
-            # Get leave details for email - use CORRECT column names
+            # Get leave details for email
             leave_details = run_query("""
                 SELECT username, leave_type, start_date, end_date, description 
                 FROM leaves
@@ -4061,6 +4061,7 @@ This is an automated notification from the Timesheet & Leave Management System."
         flash(f"Error rejecting leave: {str(e)}")
     
     return redirect(url_for('dashboard'))
+
 
 
 
