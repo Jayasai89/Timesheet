@@ -3884,7 +3884,6 @@ This is an automated notification from the Timesheet Leave Management System."""
         flash(f" Error rejecting timesheet: {str(e)}")
     
     return redirect(url_for('dashboard'))
-
 @app.route('/approve_manager_leave_request', methods=['POST'])
 def approve_manager_leave_request():
     """Approve leave for manager's direct reports - ROLE BASED"""
@@ -3914,12 +3913,13 @@ def approve_manager_leave_request():
     placeholders = ",".join(["?"] * len(manager_team))
     
     try:
-        # First, get the leave details
+        # First, get the leave details - FIX: Use correct parameter construction
+        query_params = [int(leave_id)] + list(manager_team)
         leave_details = run_query(f"""
             SELECT username, leavetype, startdate, enddate, description 
             FROM leaves 
             WHERE id = ? AND username IN ({placeholders}) AND rmstatus = 'Pending'
-        """, [int(leave_id)] + list(manager_team))
+        """, query_params)
         
         if not leave_details.empty:
             # PROPERLY extract variables from query result
@@ -3933,12 +3933,13 @@ def approve_manager_leave_request():
             # Apply leave balance deduction
             _apply_leave_balance(leave_username, leave_type, leave_days, 1)
             
-            # Now update the leave
+            # Now update the leave - FIX: Correct parameter order and construction
+            update_params = [user, int(leave_id)] + list(manager_team)
             ok = run_exec(f"""
                 UPDATE leaves 
                 SET rmstatus = 'Approved', rmapprover = ?, rmrejectionreason = NULL 
                 WHERE id = ? AND username IN ({placeholders}) AND rmstatus = 'Pending'
-            """, [user, int(leave_id)] + list(manager_team))
+            """, update_params)
             
             if ok:
                 flash(f'Leave approved successfully for {leave_username} ({leave_days} days).')
@@ -3965,12 +3966,12 @@ This is an automated notification from the Timesheet Leave Management System."""
                     
                     send_email(user_email, subject, text_content)
             else:
-                flash(" Failed to approve leave.")
+                flash("Failed to approve leave.")
         else:
-            flash(" Leave not found in your team or already processed.")
+            flash("Leave not found in your team or already processed.")
     
     except Exception as e:
-        flash(f" Error approving leave: {str(e)}")
+        flash(f"Error approving leave: {str(e)}")
     
     return redirect(url_for('dashboard'))
 
@@ -3996,7 +3997,7 @@ def reject_manager_leave_request():
         return redirect(url_for('dashboard'))
     
     if not rejection_reason:
-        flash(" Please provide a reason for rejection.")
+        flash("Please provide a reason for rejection.")
         return redirect(url_for('dashboard'))
     
     # Get manager's team
@@ -4008,23 +4009,30 @@ def reject_manager_leave_request():
     placeholders = ",".join(["?"] * len(manager_team))
     
     try:
+        # FIX: Use correct column names (rmstatus, rmapprover, rmrejectionreason)
+        # FIX: Correct parameter order and construction
+        update_params = [user, rejection_reason, int(leave_id)] + list(manager_team)
         ok = run_exec(f"""
             UPDATE leaves 
-            SET rm_status = 'Rejected', rm_approver = ?, rm_rejection_reason = ?
-            WHERE id = ? AND username IN ({placeholders}) AND rm_status = 'Pending'
-        """, (user, rejection_reason, int(leave_id)) + list(manager_team))
+            SET rmstatus = 'Rejected', rmapprover = ?, rmrejectionreason = ?
+            WHERE id = ? AND username IN ({placeholders}) AND rmstatus = 'Pending'
+        """, update_params)
         
         if ok:
-            # Get leave details for email
+            # Get leave details for email - FIX: Use correct column names
             leave_details = run_query("""
-                SELECT l.username, l.leave_type, l.start_date, l.end_date, l.description 
-                FROM leaves l
-                WHERE l.id = ? AND l.rm_status = 'Rejected'
-            """, (int(leave_id),))
+                SELECT username, leavetype, startdate, enddate, description 
+                FROM leaves
+                WHERE id = ? AND rmstatus = 'Rejected'
+            """, [int(leave_id)])
             
             if not leave_details.empty:
                 leave_username = leave_details.iloc[0]['username']
-                leave_type = leave_details.iloc[0]['leave_type']
+                leave_type = leave_details.iloc[0]['leavetype']
+                start_date = parse(str(leave_details.iloc[0]['startdate']))
+                end_date = parse(str(leave_details.iloc[0]['enddate']))
+                leave_days = (end_date - start_date).days + 1
+                description = leave_details.iloc[0]['description']
                 
                 # Send email notification
                 user_email = get_user_email(leave_username)
@@ -4032,26 +4040,31 @@ def reject_manager_leave_request():
                     subject = f"Leave Request Rejected - {leave_username}"
                     text_content = f"""Dear {leave_username},
 
-        Your leave request has been rejected by your Manager.
+Your leave request has been rejected by your Manager ({user}).
 
-        Details:
-        - Leave Type: {leave_type}
-        - Rejection Reason: {rejection_reason}
-        - Rejected by: {user}
+Details:
+- Leave Type: {leave_type}
+- Duration: {leave_days} days
+- Start Date: {start_date.strftime('%Y-%m-%d')}
+- End Date: {end_date.strftime('%Y-%m-%d')}
+- Reason: {description}
+- Rejection Reason: {rejection_reason}
+- Rejected by: {user}
 
-        Please contact your Manager for clarification or resubmit your request with corrections.
-        https://nexus.chervicaon.com
-        This is an automated notification from the Timesheet & Leave Management System."""
+Please contact your Manager for clarification or resubmit your request with corrections.
+https://nexus.chervicaon.com
+This is an automated notification from the Timesheet & Leave Management System."""
                     
                     send_email(user_email, subject, text_content)  
-            flash(f" Leave rejected. Reason: {rejection_reason}")
+            flash(f"Leave rejected. Reason: {rejection_reason}")
         else:
-            flash(" Failed to reject leave or leave not found.")
+            flash("Failed to reject leave or leave not found.")
     
     except Exception as e:
-        flash(f" Error rejecting leave: {str(e)}")
+        flash(f"Error rejecting leave: {str(e)}")
     
     return redirect(url_for('dashboard'))
+
 
 @app.route('/api/budget_refresh')
 def budget_refresh():
