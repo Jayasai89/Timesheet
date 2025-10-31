@@ -3738,7 +3738,7 @@ def approve_manager_timesheet():
     placeholders = ",".join(["?"] * len(manager_team))
     
     try:
-        # FIXED: Use correct column names from database schema
+        # FIXED: Use EXACT column names from your database schema
         query_params = [int(timesheet_id)] + list(manager_team)
         timesheet_details = run_query(f"""
             SELECT t.username, t.project_name, t.work_date, t.hours, t.work_desc 
@@ -3754,7 +3754,7 @@ def approve_manager_timesheet():
             hours = timesheet_details.iloc[0]['hours']
             work_desc = timesheet_details.iloc[0]['work_desc']
             
-            # FIXED: Use correct column names in UPDATE
+            # FIXED: Use correct column names and parameter order
             update_params = [user, int(timesheet_id)] + list(manager_team)
             ok = run_exec(f"""
                 UPDATE timesheets 
@@ -3828,7 +3828,7 @@ def reject_manager_timesheet():
     placeholders = ",".join(["?"] * len(manager_team))
     
     try:
-        # FIXED: Use correct column names
+        # FIXED: Use correct column names and parameter order
         update_params = [user, rejection_reason, int(timesheet_id)] + list(manager_team)
         ok = run_exec(f"""
             UPDATE timesheets 
@@ -3881,6 +3881,7 @@ This is an automated notification from the Timesheet Leave Management System."""
         flash(f"Error rejecting timesheet: {str(e)}")
     
     return redirect(url_for('dashboard'))
+
 
 @app.route('/approve_manager_leave_request', methods=['POST'])
 def approve_manager_leave_request():
