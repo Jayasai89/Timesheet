@@ -3919,7 +3919,7 @@ def approve_manager_leave_request():
             SELECT username, leavetype, startdate, enddate, description 
             FROM leaves 
             WHERE id = ? AND username IN ({placeholders}) AND rmstatus = 'Pending'
-        """, [int(leave_id)] + tuple(manager_team))
+        """, [int(leave_id)] + list(manager_team))
         
         if not leave_details.empty:
             # PROPERLY extract variables from query result
@@ -3938,7 +3938,7 @@ def approve_manager_leave_request():
                 UPDATE leaves 
                 SET rmstatus = 'Approved', rmapprover = ?, rmrejectionreason = NULL 
                 WHERE id = ? AND username IN ({placeholders}) AND rmstatus = 'Pending'
-            """, [user, int(leave_id)] + tuple(manager_team))
+            """, [user, int(leave_id)] + list(manager_team))
             
             if ok:
                 flash(f'Leave approved successfully for {leave_username} ({leave_days} days).')
@@ -4012,7 +4012,7 @@ def reject_manager_leave_request():
             UPDATE leaves 
             SET rm_status = 'Rejected', rm_approver = ?, rm_rejection_reason = ?
             WHERE id = ? AND username IN ({placeholders}) AND rm_status = 'Pending'
-        """, (user, rejection_reason, int(leave_id)) + tuple(manager_team))
+        """, (user, rejection_reason, int(leave_id)) + list(manager_team))
         
         if ok:
             # Get leave details for email
