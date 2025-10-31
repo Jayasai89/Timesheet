@@ -3719,7 +3719,6 @@ def approve_manager_timesheet():
     
     user = session['username']
     
-    # Check if user has manager privileges
     if not has_role(user, MANAGER_ROLES):
         flash("Access denied. Manager privileges required.")
         return redirect(url_for('dashboard'))
@@ -3730,7 +3729,7 @@ def approve_manager_timesheet():
         flash("Timesheet ID is required.")
         return redirect(url_for('dashboard'))
     
-    # Get manager's team (works for ANY manager)
+    # Get manager's team
     manager_team = get_all_reports_recursive(user)
     if not manager_team:
         flash("No team members found for approval.")
@@ -3739,32 +3738,34 @@ def approve_manager_timesheet():
     placeholders = ",".join(["?"] * len(manager_team))
     
     try:
-        # First, get the timesheet details
+        # FIXED: Use correct column names from database schema
+        query_params = [int(timesheet_id)] + list(manager_team)
         timesheet_details = run_query(f"""
-            SELECT t.username, t.projectname, t.workdate, t.hours, t.workdesc 
+            SELECT t.username, t.project_name, t.work_date, t.hours, t.work_desc 
             FROM timesheets t 
-            WHERE t.id = ? AND t.username IN ({placeholders}) AND t.rmstatus = 'Pending'
-        """, [int(timesheet_id)] + list(manager_team))
+            WHERE t.id = ? AND t.username IN ({placeholders}) AND t.rm_status = 'Pending'
+        """, query_params)
         
         if not timesheet_details.empty:
-            # PROPERLY extract variables from query result
+            # Extract variables from query result
             employee_username = timesheet_details.iloc[0]['username']
-            project_name = timesheet_details.iloc[0]['projectname']
-            work_date = timesheet_details.iloc[0]['workdate']
+            project_name = timesheet_details.iloc[0]['project_name']
+            work_date = timesheet_details.iloc[0]['work_date']
             hours = timesheet_details.iloc[0]['hours']
-            work_desc = timesheet_details.iloc[0]['workdesc']
+            work_desc = timesheet_details.iloc[0]['work_desc']
             
-            # Now update the timesheet
+            # FIXED: Use correct column names in UPDATE
+            update_params = [user, int(timesheet_id)] + list(manager_team)
             ok = run_exec(f"""
                 UPDATE timesheets 
-                SET rmstatus = 'Approved', rmapprover = ?, rmrejectionreason = NULL 
-                WHERE id = ? AND username IN ({placeholders}) AND rmstatus = 'Pending'
-            """, [user, int(timesheet_id)] + tuple(manager_team))
+                SET rm_status = 'Approved', rm_approver = ?, rm_rejection_reason = NULL 
+                WHERE id = ? AND username IN ({placeholders}) AND rm_status = 'Pending'
+            """, update_params)
             
             if ok:
-                flash('Timesheet approved successfully.')
+                flash("Timesheet approved successfully.")
                 
-                # Send email notification - now employee_username is properly defined
+                # Send email notification
                 user_email = get_user_email(employee_username)
                 if user_email:
                     subject = f"Timesheet Approved by Manager - {employee_username}"
@@ -3784,14 +3785,13 @@ https://nexus.chervicaon.com
 This is an automated notification from the Timesheet Leave Management System."""
                     
                     send_email(user_email, subject, text_content)
-
-            
-            
+            else:
+                flash("Failed to approve timesheet.")
         else:
-            flash(" Failed to approve timesheet or timesheet not found.")
+            flash("Timesheet not found in your team or already processed.")
     
     except Exception as e:
-        flash(f" Error approving timesheet: {str(e)}")
+        flash(f"Error approving timesheet: {str(e)}")
     
     return redirect(url_for('dashboard'))
 
@@ -3804,7 +3804,6 @@ def reject_manager_timesheet():
     
     user = session['username']
     
-    # Check if user has manager privileges
     if not has_role(user, MANAGER_ROLES):
         flash("Access denied. Manager privileges required.")
         return redirect(url_for('dashboard'))
@@ -3817,7 +3816,7 @@ def reject_manager_timesheet():
         return redirect(url_for('dashboard'))
     
     if not rejection_reason:
-        flash(" Please provide a reason for rejection.")
+        flash("Please provide a reason for rejection.")
         return redirect(url_for('dashboard'))
     
     # Get manager's team
@@ -3829,32 +3828,30 @@ def reject_manager_timesheet():
     placeholders = ",".join(["?"] * len(manager_team))
     
     try:
-        # First, get the timesheet details
-        timesheet_details = run_query(f"""
-            SELECT t.username, t.projectname, t.workdate, t.hours, t.workdesc 
-            FROM timesheets t 
-            WHERE t.id = ? AND t.username IN ({placeholders}) AND t.rmstatus = 'Pending'
-        """, [int(timesheet_id)] + list(manager_team))
+        # FIXED: Use correct column names
+        update_params = [user, rejection_reason, int(timesheet_id)] + list(manager_team)
+        ok = run_exec(f"""
+            UPDATE timesheets 
+            SET rm_status = 'Rejected', rm_approver = ?, rm_rejection_reason = ?
+            WHERE id = ? AND username IN ({placeholders}) AND rm_status = 'Pending'
+        """, update_params)
         
-        if not timesheet_details.empty:
-            # PROPERLY extract variables from query result
-            employee_username = timesheet_details.iloc[0]['username']
-            project_name = timesheet_details.iloc[0]['projectname']
-            work_date = timesheet_details.iloc[0]['workdate']
-            hours = timesheet_details.iloc[0]['hours']
-            work_desc = timesheet_details.iloc[0]['workdesc']
+        if ok:
+            # Get timesheet details for email
+            timesheet_details = run_query("""
+                SELECT username, project_name, work_date, hours, work_desc 
+                FROM timesheets
+                WHERE id = ? AND rm_status = 'Rejected'
+            """, [int(timesheet_id)])
             
-            # Now update the timesheet
-            ok = run_exec(f"""
-                UPDATE timesheets 
-                SET rmstatus = 'Rejected', rmapprover = ?, rmrejectionreason = ? 
-                WHERE id = ? AND username IN ({placeholders}) AND rmstatus = 'Pending'
-            """, [user, rejection_reason, int(timesheet_id)] + tuple(manager_team))
-            
-            if ok:
-                flash(f'Timesheet rejected. Reason: {rejection_reason}')
+            if not timesheet_details.empty:
+                employee_username = timesheet_details.iloc[0]['username']
+                project_name = timesheet_details.iloc[0]['project_name']
+                work_date = timesheet_details.iloc[0]['work_date']
+                hours = timesheet_details.iloc[0]['hours']
+                work_desc = timesheet_details.iloc[0]['work_desc']
                 
-                # Send email notification - now employee_username is properly defined
+                # Send email notification
                 user_email = get_user_email(employee_username)
                 if user_email:
                     subject = f"Timesheet Rejected by Manager - {employee_username}"
@@ -3875,15 +3872,16 @@ https://nexus.chervicaon.com
 This is an automated notification from the Timesheet Leave Management System."""
                     
                     send_email(user_email, subject, text_content)
-
-
+            
+            flash(f"Timesheet rejected. Reason: {rejection_reason}")
         else:
-            flash(" Failed to reject timesheet or timesheet not found.")
+            flash("Failed to reject timesheet or timesheet not found.")
     
     except Exception as e:
-        flash(f" Error rejecting timesheet: {str(e)}")
+        flash(f"Error rejecting timesheet: {str(e)}")
     
     return redirect(url_for('dashboard'))
+
 @app.route('/approve_manager_leave_request', methods=['POST'])
 def approve_manager_leave_request():
     """Approve leave for manager's direct reports - ROLE BASED"""
