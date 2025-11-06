@@ -7306,17 +7306,13 @@ def fix_expense_update():
     if 'username' not in session:
         return redirect(url_for('login_sso'))
     
-    # MORE FLEXIBLE ROLE CHECK - Allow multiple roles
-    allowed_roles = 'Hr & Finance Controller':
-    user_role = session.get('role', '')
-    
-    if user_role not in allowed_roles:
-        flash(f'Access denied. Your role ({user_role}) does not have expense editing privileges. Required: {", ".join(allowed_roles)}')
+    if session['role'] != ''Hr & Finance Controller':
+        flash('Access denied. HR Finance Controller privileges required.')
         return redirect(url_for('dashboard'))
     
     user = session['username']
     
-    # Rest of your expense update code...
+    # Get form data
     expense_id = request.form.get('expenseid')
     project_name = request.form.get('project')
     category = request.form.get('category') 
@@ -7324,8 +7320,13 @@ def fix_expense_update():
     expense_date = request.form.get('expdate')
     description = request.form.get('desc')
     
-    print(f"EXPENSE UPDATE DEBUG - User: {user}, Role: {user_role}")
-    print(f"ID: {expense_id}, Project: {project_name}, Amount: {amount}")
+    print(f"EXPENSE UPDATE DEBUG:")
+    print(f"ID: {expense_id}")
+    print(f"Project: {project_name}")
+    print(f"Category: {category}")
+    print(f"Amount: {amount}")
+    print(f"Date: {expense_date}")
+    print(f"Description: {description}")
     
     # Validate required fields
     if not all([expense_id, project_name, category, amount, expense_date, description]):
@@ -7336,6 +7337,19 @@ def fix_expense_update():
         # Convert and validate amount
         amount_float = float(amount)
         expense_id_int = int(expense_id)
+        
+        # Check if expense exists and get current data
+        check_query = """
+        SELECT id, spent_by, project_name, category, amount, description, date 
+        FROM expenses 
+        WHERE id = ?
+        """
+        
+        existing_expense = run_query(check_query, (expense_id_int,))
+        
+        if existing_expense.empty:
+            flash('Expense not found.')
+            return redirect(url_for('dashboard'))
         
         # Update the expense
         update_query = """
@@ -7371,7 +7385,6 @@ def fix_expense_update():
         print(f"Exception in expense update: {e}")
     
     return redirect(url_for('dashboard'))
-
 
 
 @app.route('/delete_expense_action', methods=['POST'])
