@@ -7302,87 +7302,104 @@ def view_project_expenses(project_name):
         return redirect(url_for('dashboard'))
 @app.route('/fix_expense_update', methods=['POST'])
 def fix_expense_update():
-    """Update expense with proper validation and error handling"""
+    """Update expense with flexible validation"""
     if 'username' not in session:
         return redirect(url_for('login_sso'))
     
-    if session['role'] != ''Hr & Finance Controller':
-        flash('Access denied. HR Finance Controller privileges required.')
+    # Allow multiple roles to edit expenses
+    allowed_roles = 'Hr & Finance Controller'
+    user_role = session.get('role', '')
+    
+    if user_role not in allowed_roles:
+        flash(f'Access denied. Your role ({user_role}) cannot edit expenses.')
         return redirect(url_for('dashboard'))
     
     user = session['username']
     
-    # Get form data
-    expense_id = request.form.get('expenseid')
-    project_name = request.form.get('project')
-    category = request.form.get('category') 
-    amount = request.form.get('amount')
-    expense_date = request.form.get('expdate')
-    description = request.form.get('desc')
+    # Get form data safely
+    expense_id = request.form.get('expenseid', '').strip()
+    project_name = request.form.get('project', '').strip()
+    category = request.form.get('category', '').strip()
+    amount = request.form.get('amount', '').strip()
+    expense_date = request.form.get('expdate', '').strip()
+    description = request.form.get('desc', '').strip()
     
-    print(f"EXPENSE UPDATE DEBUG:")
-    print(f"ID: {expense_id}")
-    print(f"Project: {project_name}")
-    print(f"Category: {category}")
-    print(f"Amount: {amount}")
-    print(f"Date: {expense_date}")
-    print(f"Description: {description}")
+    print(f"=== EXPENSE UPDATE DEBUG ===")
+    print(f"User: {user}, Role: {user_role}")
+    print(f"Expense ID: '{expense_id}'")
+    print(f"Project: '{project_name}'")
+    print(f"Category: '{category}'")
+    print(f"Amount: '{amount}'")
+    print(f"Date: '{expense_date}'")
+    print(f"Description: '{description}'")
     
-    # Validate required fields
-    if not all([expense_id, project_name, category, amount, expense_date, description]):
-        flash('All fields are required for expense update.')
+    # Only validate expense ID
+    if not expense_id:
+        flash('Expense ID is missing.')
         return redirect(url_for('dashboard'))
     
     try:
-        # Convert and validate amount
-        amount_float = float(amount)
         expense_id_int = int(expense_id)
         
-        # Check if expense exists and get current data
-        check_query = """
-        SELECT id, spent_by, project_name, category, amount, description, date 
-        FROM expenses 
-        WHERE id = ?
-        """
-        
-        existing_expense = run_query(check_query, (expense_id_int,))
+        # Get existing expense data
+        existing_expense = run_query(
+            "SELECT id, spent_by, project_name, category, amount, description, date FROM expenses WHERE id = ?", 
+            (expense_id_int,)
+        )
         
         if existing_expense.empty:
             flash('Expense not found.')
             return redirect(url_for('dashboard'))
         
-        # Update the expense
-        update_query = """
-        UPDATE expenses 
-        SET project_name = ?, 
-            category = ?, 
-            amount = ?, 
-            date = ?, 
-            description = ?
-        WHERE id = ?
-        """
+        # Get current values
+        current_row = existing_expense.iloc[0]
         
-        success = run_exec(update_query, 
-                          project_name, 
-                          category, 
-                          amount_float, 
-                          expense_date, 
-                          description, 
-                          expense_id_int)
+        # Build update fields dynamically
+        update_fields = []
+        update_values = []
         
-        if success:
-            flash(f'Expense updated successfully! Amount: ₹{amount_float:,.2f}')
-            print("SUCCESS: Expense updated in database")
+        if project_name:
+            update_fields.append("project_name = ?")
+            update_values.append(project_name)
+        
+        if category:
+            update_fields.append("category = ?") 
+            update_values.append(category)
+            
+        if amount:
+            update_fields.append("amount = ?")
+            update_values.append(float(amount))
+            
+        if expense_date:
+            update_fields.append("date = ?")
+            update_values.append(expense_date)
+            
+        if description:
+            update_fields.append("description = ?")
+            update_values.append(description)
+        
+        # Only update if there are changes
+        if update_fields:
+            update_query = f"UPDATE expenses SET {', '.join(update_fields)} WHERE id = ?"
+            update_values.append(expense_id_int)
+            
+            success = run_exec(update_query, *update_values)
+            
+            if success:
+                flash('✅ Expense updated successfully!')
+                print("SUCCESS: Expense updated")
+            else:
+                flash('❌ Failed to update expense.')
+                print("ERROR: Database update failed")
         else:
-            flash('Failed to update expense in database.')
-            print("ERROR: Database update failed")
+            flash('ℹ️ No changes made to expense.')
             
     except ValueError as ve:
-        flash('Invalid amount format. Please enter a valid number.')
+        flash('❌ Invalid amount format.')
         print(f"ValueError: {ve}")
     except Exception as e:
-        flash(f'Error updating expense: {str(e)}')
-        print(f"Exception in expense update: {e}")
+        flash(f'❌ Error: {str(e)}')
+        print(f"Exception: {e}")
     
     return redirect(url_for('dashboard'))
 
