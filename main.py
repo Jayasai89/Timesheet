@@ -7358,15 +7358,11 @@ def update_expense_new():
             
     except Exception as e:
         print(f"ERROR in update_expense_new: {str(e)}")
-        # Import traceback here to avoid import errors
         import traceback
         print(f"TRACEBACK: {traceback.format_exc()}")
         flash(f'Error updating expense: {str(e)}')
     
     return redirect(url_for('hr_finance_controller'))
-
-
-
 
 
 
