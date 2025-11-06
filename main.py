@@ -7283,15 +7283,56 @@ def view_project_expenses(project_name):
         return redirect(url_for('dashboard'))
 # Add these missing expense management routes:
 
-@app.route('/delete_expense_action', methods=['POST'])
-def delete_expense_action():
-    """Delete expense action (alternative name for delete_expense)"""
-    return delete_expense()
-
 @app.route('/edit_expense_action', methods=['POST'])
 def edit_expense_action():
-    """Edit expense action (alternative name for update_expense)"""
-    return update_expense()
+    """Edit expense - HR Finance Controller"""
+    if 'username' not in session or session['role'] != 'Hr & Finance Controller':
+        flash("Access denied. HR & Finance Controller privileges required.")
+        return redirect(url_for('dashboard'))
+    
+    expense_id = request.form.get('expense_id')
+    project = request.form.get('project')
+    category = request.form.get('category')
+    amount = request.form.get('amount')
+    exp_date = request.form.get('exp_date')
+    desc = request.form.get('desc')
+    
+    try:
+        ok = run_exec("""
+            UPDATE expenses 
+            SET project_name = ?, category = ?, amount = ?, date = ?, description = ?
+            WHERE id = ?
+        """, (project, category, float(amount), exp_date, desc, expense_id))
+        
+        if ok:
+            flash(f"Expense #{expense_id} updated successfully.")
+        else:
+            flash("Failed to update expense.")
+    except Exception as e:
+        flash(f"Error updating expense: {str(e)}")
+    
+    return redirect(url_for('dashboard'))
+
+@app.route('/delete_expense_action', methods=['POST'])
+def delete_expense_action():
+    """Delete expense - HR Finance Controller"""
+    if 'username' not in session or session['role'] != 'Hr & Finance Controller':
+        flash("Access denied. HR & Finance Controller privileges required.")
+        return redirect(url_for('dashboard'))
+    
+    expense_id = request.form.get('expense_id')
+    
+    try:
+        ok = run_exec("DELETE FROM expenses WHERE id = ?", (expense_id,))
+        if ok:
+            flash("Expense deleted successfully.")
+        else:
+            flash("Failed to delete expense.")
+    except Exception as e:
+        flash(f"Error deleting expense: {str(e)}")
+    
+    return redirect(url_for('dashboard'))
+
 
 @app.route('/submit_expense_action', methods=['POST'])
 def submit_expense_action():
