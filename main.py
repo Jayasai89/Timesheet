@@ -6730,71 +6730,55 @@ def edit_expense_form(expense_id):
 
 
 
-@app.route('/update_expense_new', methods=['POST'])
-def update_expense_new():
-    print("=== UPDATE EXPENSE ROUTE CALLED ===")
+@app.route('/update_expense', methods=['POST'])
+def update_expense():
+    """Update expense with new data"""
+    if 'username' not in session:
+        return redirect(url_for('login_sso'))
     
-    # Check session
-    if 'username' not in session or session['role'] != 'Hr Finance Controller':
-        flash('Access denied.')
-        return redirect(url_for('hr_finance_controller'))
+    user = session['username']
+    expense_id = request.form.get('expense_id')
+    project_name = request.form.get('project_name')
+    category = request.form.get('category')
+    amount = request.form.get('amount')
+    expense_date = request.form.get('expense_date')
+    description = request.form.get('description')
+    
+    if not all([expense_id, project_name, category, amount, expense_date, description]):
+        flash("All fields are required for expense update.")
+        return redirect(url_for('edit_expense_form', expense_id=expense_id))
     
     try:
-        # Get form data
-        expense_id = request.form.get('expenseid')
-        project = request.form.get('project')
-        category = request.form.get('category')
-        amount = request.form.get('amount')
-        exp_date = request.form.get('expdate')
-        desc = request.form.get('desc')
+        # Check if expense belongs to user
+        check_df = run_query("""
+            SELECT spent_by FROM expenses 
+            WHERE id = ? AND spent_by = ?
+        """, (int(expense_id), user))
         
-        print(f"Form data: ID={expense_id}, Project={project}, Category={category}, Amount={amount}")
+        if check_df.empty:
+            flash("Expense not found or you don't have permission to edit it.")
+            return redirect(url_for('dashboard'))
         
-        # Validate required fields
-        if not expense_id:
-            flash('Expense ID is required.')
-            return redirect(url_for('hr_finance_controller'))
+        # Update the expense
+        ok = run_exec("""
+            UPDATE expenses 
+            SET project_name = ?, category = ?, amount = ?, date = ?, description = ?
+            WHERE id = ? AND spent_by = ?
+        """, (project_name, category, float(amount), expense_date, description, int(expense_id), user))
         
-        # Handle project_name - CRITICAL FIX for foreign key constraint
-        if project == 'non-project' or not project or project.strip() == '':
-            project_value = None  # Set to NULL to avoid foreign key constraint
-            print("Setting project_name to NULL (non-project expense)")
+        if ok:
+            flash("Expense updated successfully.")
         else:
-            # Verify project exists in projects table to avoid foreign key violation
-            project_check = run_query("SELECT project_name FROM projects WHERE project_name = ?", (project,))
-            if project_check.empty:
-                print(f"Project '{project}' not found, setting to NULL")
-                project_value = None
-                flash(f'Project "{project}" not found. Set to non-project.', 'warning')
-            else:
-                project_value = project
-                print(f"Valid project found: {project_value}")
-        
-        # Update expenses table with exact column names from your schema
-        print(f"Executing UPDATE on expenses table...")
-        result = run_exec(
-            """UPDATE expenses 
-               SET project_name = ?, category = ?, amount = ?, date = ?, description = ? 
-               WHERE id = ?""",
-            (project_value, category, float(amount), exp_date, desc, int(expense_id))
-        )
-        
-        if result:
-            flash('Expense updated successfully!')
-            print("✅ Update successful")
-        else:
-            flash('Failed to update expense.')
-            print("❌ Update failed")
-            
+            flash("Failed to update expense.")
+    
+    except ValueError:
+        flash("Invalid amount format.")
+        return redirect(url_for('edit_expense_form', expense_id=expense_id))
     except Exception as e:
-        print(f"ERROR in update_expense_new: {str(e)}")
-        # Import traceback here to avoid import errors
-        import traceback
-        print(f"TRACEBACK: {traceback.format_exc()}")
-        flash(f'Error updating expense: {str(e)}')
+        flash(f"Error updating expense: {str(e)}")
+        return redirect(url_for('edit_expense_form', expense_id=expense_id))
     
-    return redirect(url_for('hr_finance_controller'))
-    
+    return redirect(url_for('dashboard'))
 @app.route('/delete_expense', methods=['POST'])
 def delete_expense():
     """Delete an expense"""
@@ -7338,40 +7322,53 @@ def update_expense_new():
         exp_date = request.form.get('expdate')
         desc = request.form.get('desc')
         
-        print(f"Form data received: ID={expense_id}, Project={project}, Category={category}")
+        print(f"Form data: ID={expense_id}, Project={project}, Category={category}, Amount={amount}")
         
         # Validate required fields
         if not expense_id:
             flash('Expense ID is required.')
             return redirect(url_for('hr_finance_controller'))
         
-        # Handle project - set to NULL if non-project
+        # Handle project_name - CRITICAL FIX for foreign key constraint
         if project == 'non-project' or not project or project.strip() == '':
-            project_value = None
-            print("Setting project to NULL")
+            project_value = None  # Set to NULL to avoid foreign key constraint
+            print("Setting project_name to NULL (non-project expense)")
         else:
-            project_value = project
-            print(f"Using project: {project_value}")
+            # Verify project exists in projects table to avoid foreign key violation
+            project_check = run_query("SELECT project_name FROM projects WHERE project_name = ?", (project,))
+            if project_check.empty:
+                print(f"Project '{project}' not found, setting to NULL")
+                project_value = None
+                flash(f'Project "{project}" not found. Set to non-project.', 'warning')
+            else:
+                project_value = project
+                print(f"Valid project found: {project_value}")
         
-        # Update expense
-        print("Executing SQL update...")
+        # Update expenses table with exact column names from your schema
+        print(f"Executing UPDATE on expenses table...")
         result = run_exec(
-            "UPDATE expenses SET project_name = ?, category = ?, amount = ?, date = ?, description = ? WHERE id = ?",
-            (project_value, category, float(amount), exp_date, desc, expense_id)
+            """UPDATE expenses 
+               SET project_name = ?, category = ?, amount = ?, date = ?, description = ? 
+               WHERE id = ?""",
+            (project_value, category, float(amount), exp_date, desc, int(expense_id))
         )
         
         if result:
             flash('Expense updated successfully!')
-            print("Update successful")
+            print("✅ Update successful")
         else:
             flash('Failed to update expense.')
-            print("Update failed")
+            print("❌ Update failed")
             
     except Exception as e:
         print(f"ERROR in update_expense_new: {str(e)}")
+        # Import traceback here to avoid import errors
+        import traceback
+        print(f"TRACEBACK: {traceback.format_exc()}")
         flash(f'Error updating expense: {str(e)}')
     
     return redirect(url_for('hr_finance_controller'))
+
 
 @app.route('/delete_expense_action', methods=['POST'])
 def delete_expense_action():
