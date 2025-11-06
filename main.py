@@ -5409,7 +5409,7 @@ def hr_assign_work_action():
 # HR Finance Expense Recording Route
 @app.route('/hr_record_expense_action', methods=['POST'])
 def hr_record_expense_action():
-    """HR records expense - UPDATED WITH DOCUMENT UPLOAD"""
+    """HR records expense - UPDATED WITH DOCUMENT UPLOAD + OTHER CATEGORY SUPPORT"""
     if 'username' not in session or session['role'] != 'Hr & Finance Controller':
         flash("Access denied. HR & Finance Controller privileges required.")
         return redirect(url_for('dashboard'))
@@ -5417,9 +5417,17 @@ def hr_record_expense_action():
     user = session['username']
     project = request.form.get('project')
     category = request.form.get('category')
+    other_category = request.form.get('other_category', '').strip()  # NEW LINE
     amount = request.form.get('amount')
     exp_date = request.form.get('exp_date')
     desc = request.form.get('desc')
+    
+    # NEW: Handle "Other" category with custom input
+    if category == 'Other' and other_category:
+        category = other_category  # Use the custom category name
+    elif category == 'Other' and not other_category:
+        flash("Please specify the other category when selecting 'Other'.")
+        return redirect(url_for('dashboard'))
     
     if not project or not category or not amount or not desc:
         flash("Please fill in all required fields.")
@@ -5440,15 +5448,17 @@ def hr_record_expense_action():
         """, (project, category, float(amount), exp_date, desc, user, document_path))
         
         if ok:
-            flash("Expense recorded successfully.")
+            # NEW: Custom success message for other categories
+            if other_category and request.form.get('category') == 'Other':
+                flash(f"Expense recorded successfully with custom category '{other_category}'.")
+            else:
+                flash("Expense recorded successfully.")
         else:
             flash("Failed to record expense.")
     except Exception as e:
         flash(f"Error recording expense: {str(e)}")
     
     return redirect(url_for('dashboard'))
-
-
 # Employee Edit/Delete Routes
 # --------------------
 @app.route('/edit_timesheet_form/<int:timesheet_id>')
