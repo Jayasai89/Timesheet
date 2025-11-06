@@ -8,7 +8,7 @@ from werkzeug.utils import secure_filename
 import pyodbc
 import pandas as pd
 from datetime import date, datetime, time
-from typing import List, Tuple, Optional
+from typing import List, Tuple, Optionalu
 from dateutil.parser import parse
 import requests
 from requests_oauthlib import OAuth2Session
@@ -6786,6 +6786,7 @@ def update_expense_new():
             
     except Exception as e:
         print(f"ERROR in update_expense_new: {str(e)}")
+        # Import traceback here to avoid import errors
         import traceback
         print(f"TRACEBACK: {traceback.format_exc()}")
         flash(f'Error updating expense: {str(e)}')
