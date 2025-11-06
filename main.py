@@ -7303,10 +7303,9 @@ def view_project_expenses(project_name):
         flash(f" Error viewing project expenses: {str(e)}")
         return redirect(url_for('dashboard'))
 # Add these missing expense management routes:
-
 @app.route('/edit_expense_action', methods=['POST'])
 def edit_expense_action():
-    """Edit expense - HR Finance Controller - FIXED WITH VALIDATION"""
+    """Edit expense - HR Finance Controller - FIXED WITH VALIDATION AND CORRECT COLUMN NAMES"""
     if 'username' not in session or session['role'] != 'Hr & Finance Controller':
         flash("Access denied. HR Finance Controller privileges required.")
         return redirect(url_for('dashboard'))
@@ -7340,7 +7339,7 @@ def edit_expense_action():
             flash("Expense not found.")
             return redirect(url_for('dashboard'))
         
-        # ✅ STEP 4: Update expense with CORRECT column names
+        # ✅ STEP 4: Update expense with CORRECT column names (project_name not projectname)
         ok = run_exec("""
             UPDATE expenses 
             SET project_name = ?, category = ?, amount = ?, date = ?, description = ?
@@ -7357,6 +7356,7 @@ def edit_expense_action():
         flash(f"Error updating expense: {str(e)}")
     
     return redirect(url_for('dashboard'))
+
 
 
 @app.route('/delete_expense_action', methods=['POST'])
