@@ -1459,6 +1459,9 @@ def view_hr_finance(user):
         """)
         
         print(f"✅ HR Finance: Loaded {len(expenses)} total company expenses")
+    except Exception as e:
+            print(f"❌ Error loading expenses: {e}")
+            expenses = pd.DataFrame()
     # STEP 1: Get total budget
     try:
         total_budget_df = run_query("SELECT total_budget FROM company_budget WHERE id = 1")
