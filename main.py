@@ -7306,9 +7306,9 @@ def view_project_expenses(project_name):
 
 @app.route('/edit_expense_action', methods=['POST'])
 def edit_expense_action():
-    """Edit expense - HR Finance Controller"""
+    """Edit expense - HR Finance Controller - FIXED WITH VALIDATION"""
     if 'username' not in session or session['role'] != 'Hr & Finance Controller':
-        flash("Access denied. HR & Finance Controller privileges required.")
+        flash("Access denied. HR Finance Controller privileges required.")
         return redirect(url_for('dashboard'))
     
     expense_id = request.form.get('expense_id')
@@ -7318,7 +7318,29 @@ def edit_expense_action():
     exp_date = request.form.get('exp_date')
     desc = request.form.get('desc')
     
+    if not all([expense_id, project, category, amount, exp_date, desc]):
+        flash("All fields are required for expense update.")
+        return redirect(url_for('dashboard'))
+    
     try:
+        # ✅ STEP 1: Handle "TIME SHEET" and empty projects
+        if project == "TIME SHEET" or not project or project.strip() == "":
+            project = "non-project"
+        
+        # ✅ STEP 2: Validate project exists (if not "non-project")
+        if project != "non-project":
+            project_check = run_query("SELECT projectname FROM projects WHERE projectname = ?", (project,))
+            if project_check.empty:
+                flash(f"Error: Project '{project}' does not exist. Using 'non-project' instead.")
+                project = "non-project"
+        
+        # ✅ STEP 3: Check if expense exists
+        expense_check = run_query("SELECT id FROM expenses WHERE id = ?", (expense_id,))
+        if expense_check.empty:
+            flash("Expense not found.")
+            return redirect(url_for('dashboard'))
+        
+        # ✅ STEP 4: Update expense with CORRECT column names
         ok = run_exec("""
             UPDATE expenses 
             SET project_name = ?, category = ?, amount = ?, date = ?, description = ?
@@ -7326,13 +7348,16 @@ def edit_expense_action():
         """, (project, category, float(amount), exp_date, desc, expense_id))
         
         if ok:
-            flash(f"Expense #{expense_id} updated successfully.")
+            flash(f"Expense #{expense_id} updated successfully to project '{project}'.")
         else:
             flash("Failed to update expense.")
+            
     except Exception as e:
+        print(f"❌ Edit expense error: {e}")
         flash(f"Error updating expense: {str(e)}")
     
     return redirect(url_for('dashboard'))
+
 
 @app.route('/delete_expense_action', methods=['POST'])
 def delete_expense_action():
