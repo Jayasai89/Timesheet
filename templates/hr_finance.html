@@ -2109,38 +2109,57 @@
 function editExpense(id, project, category, amount, date, description) {
     console.log('Editing expense:', id, project, category, amount, date, description);
     
-    // Populate the modal fields
+    // Populate the modal fields with CORRECT IDs
     document.getElementById('editExpenseId').value = id;
     
-    // Fix the project select - use the correct ID
+    // Fix the project select - use the correct selector
     const projectSelect = document.querySelector('#editExpenseModal select[name="project"]');
-    
-    // First, try to select the current project exactly as it is
-    let projectSet = false;
-    // Check if the current project exists in the dropdown options
-    for (let i = 0; i < projectSelect.options.length; i++) {
-        if (projectSelect.options[i].value === project) {
-            projectSelect.value = project;
-            projectSet = true;
-            break;
+    if (projectSelect) {
+        // First, try to select the current project exactly as it is
+        let projectSet = false;
+        for (let i = 0; i < projectSelect.options.length; i++) {
+            if (projectSelect.options[i].value === project) {
+                projectSelect.value = project;
+                projectSet = true;
+                break;
+            }
+        }
+        
+        // If the current project doesn't exist in dropdown, default to non-project
+        if (!projectSet) {
+            console.log(`Project "${project}" not found in dropdown, defaulting to non-project`);
+            projectSelect.value = 'non-project';
         }
     }
     
-    // If the current project doesn't exist in dropdown, default to non-project
-    if (!projectSet) {
-        console.log(`Project "${project}" not found in dropdown, defaulting to non-project`);
-        projectSelect.value = 'non-project';
+    // Use the CORRECT element IDs from your modal
+    const categorySelect = document.getElementById('editExpenseCategory');
+    if (categorySelect) {
+        categorySelect.value = category || 'Travel';
     }
     
-    // Set other fields normally
-    document.getElementById('editExpenseCategory').value = category || 'Other';
-    document.getElementById('editExpenseAmount').value = amount || 0;
-    document.getElementById('editExpenseDate').value = date;
-    document.getElementById('editExpenseDescription').value = description;
+    const amountInput = document.getElementById('editExpenseAmount');
+    if (amountInput) {
+        amountInput.value = amount || 0;
+    }
+    
+    const dateInput = document.getElementById('editExpenseDate');
+    if (dateInput) {
+        dateInput.value = date;
+    }
+    
+    const descInput = document.getElementById('editExpenseDescription');
+    if (descInput) {
+        descInput.value = description;
+    }
     
     // Show the modal
-    document.getElementById('editExpenseModal').classList.remove('hidden');
+    const modal = document.getElementById('editExpenseModal');
+    if (modal) {
+        modal.classList.remove('hidden');
+    }
 }
+
 
 
 
