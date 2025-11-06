@@ -7300,7 +7300,6 @@ def view_project_expenses(project_name):
     except Exception as e:
         flash(f" Error viewing project expenses: {str(e)}")
         return redirect(url_for('dashboard'))
-# Add these missing expense management routes:
 @app.route('/update_expense_new', methods=['POST'])
 def update_expense_new():
     print("=== UPDATE EXPENSE ROUTE CALLED ===")
@@ -7365,6 +7364,7 @@ def update_expense_new():
         flash(f'Error updating expense: {str(e)}')
     
     return redirect(url_for('hr_finance_controller'))
+
 
 
 
