@@ -7368,6 +7368,7 @@ def update_expense_new():
 
 
 
+
 @app.route('/delete_expense_action', methods=['POST'])
 def delete_expense_action():
     """Delete expense - HR Finance Controller"""
