@@ -7303,57 +7303,55 @@ def view_project_expenses(project_name):
         flash(f" Error viewing project expenses: {str(e)}")
         return redirect(url_for('dashboard'))
 # Add these missing expense management routes:
-@app.route('/edit_expense_action', methods=['POST'])
-def edit_expense_action():
-    # Edit expense - HR Finance Controller - FIXED WITH FOREIGN KEY HANDLING
+@app.route('/update_expense_new', methods=['POST'])
+def update_expense_new():
+    print("=== UPDATE EXPENSE ROUTE CALLED ===")
+    
+    # Check session
     if 'username' not in session or session['role'] != 'Hr Finance Controller':
-        flash('Access denied. HR Finance Controller privileges required.')
-        return redirect(url_for('hr_finance_controller'))
-    
-    expense_id = request.form.get('expenseid')
-    project = request.form.get('project')
-    category = request.form.get('category')
-    amount = request.form.get('amount')
-    exp_date = request.form.get('expdate')
-    desc = request.form.get('desc')
-    
-    if not all([expense_id, category, amount, exp_date, desc]):
-        flash('All fields are required for expense update.')
+        flash('Access denied.')
         return redirect(url_for('hr_finance_controller'))
     
     try:
-        # Handle the foreign key constraint issue
-        # If project is 'non-project' or empty, set it to NULL in database
-        if not project or project == 'non-project' or project.strip() == '':
-            project_name = None  # This will be stored as NULL in database
-            print(f"Setting project to NULL for expense {expense_id}")
+        # Get form data
+        expense_id = request.form.get('expenseid')
+        project = request.form.get('project')
+        category = request.form.get('category')
+        amount = request.form.get('amount')
+        exp_date = request.form.get('expdate')
+        desc = request.form.get('desc')
+        
+        print(f"Form data received: ID={expense_id}, Project={project}, Category={category}")
+        
+        # Validate required fields
+        if not expense_id:
+            flash('Expense ID is required.')
+            return redirect(url_for('hr_finance_controller'))
+        
+        # Handle project - set to NULL if non-project
+        if project == 'non-project' or not project or project.strip() == '':
+            project_value = None
+            print("Setting project to NULL")
         else:
-            # Verify the project actually exists in projects table
-            project_check = run_query("SELECT project_name FROM projects WHERE project_name = ?", (project,))
-            if project_check.empty:
-                flash(f'Selected project "{project}" does not exist. Setting to non-project.', 'warning')
-                project_name = None
-                print(f"Project {project} not found, setting to NULL")
-            else:
-                project_name = project
-                print(f"Project {project} found, using it")
+            project_value = project
+            print(f"Using project: {project_value}")
         
-        # Update the expense with proper NULL handling
-        print(f"Updating expense {expense_id}: project_name={project_name}, category={category}, amount={amount}")
+        # Update expense
+        print("Executing SQL update...")
+        result = run_exec(
+            "UPDATE expenses SET project_name = ?, category = ?, amount = ?, date = ?, description = ? WHERE id = ?",
+            (project_value, category, float(amount), exp_date, desc, expense_id)
+        )
         
-        ok = run_exec("UPDATE expenses SET project_name = ?, category = ?, amount = ?, date = ?, description = ? WHERE id = ?", 
-                     (project_name, category, float(amount), exp_date, desc, expense_id))
-        
-        if ok:
-            if project_name is None:
-                flash(f'Expense {expense_id} updated successfully (set to non-project).')
-            else:
-                flash(f'Expense {expense_id} updated successfully to project {project_name}.')
+        if result:
+            flash('Expense updated successfully!')
+            print("Update successful")
         else:
             flash('Failed to update expense.')
+            print("Update failed")
             
     except Exception as e:
-        print(f"Edit expense error: {e}")
+        print(f"ERROR in update_expense_new: {str(e)}")
         flash(f'Error updating expense: {str(e)}')
     
     return redirect(url_for('hr_finance_controller'))
