@@ -7322,8 +7322,7 @@ def edit_expense_action():
         return redirect(url_for('hr_finance_controller'))
     
     try:
-        # CRITICAL FIX: Handle the foreign key constraint issue
-        # If project is 'non-project' or empty, set it to NULL in database
+        # Handle the foreign key constraint issue
         if not project or project == 'non-project' or project.strip() == '':
             project_name = None  # This will be stored as NULL in database
             print(f"Setting project to NULL for expense {expense_id}")
@@ -7359,7 +7358,6 @@ def edit_expense_action():
         flash(f'Error updating expense: {str(e)}')
     
     return redirect(url_for('hr_finance_controller'))
-
 
 @app.route('/delete_expense_action', methods=['POST'])
 def delete_expense_action():
