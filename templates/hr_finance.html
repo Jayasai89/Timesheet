@@ -917,7 +917,7 @@
                         <!-- ✅ IMPORTANT: non-project should be FIRST option -->
                         <option value="non-project">📝 Non-Project</option>
                         {% for project in allprojects %}
-                        <option value="{{ project.projectname }}">🚀 {{ project.projectname }}</option>
+                        <option value="{{ project.project_name }}">🚀 {{ project.project_name }}</option>
                         {% endfor %}
                     </select>
                     <p class="text-xs text-gray-500">Current project is pre-selected. You can change to any available project.</p>
