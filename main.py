@@ -7317,25 +7317,30 @@ def edit_expense_action():
     exp_date = request.form.get('expdate')
     desc = request.form.get('desc')
     
-    if not all([expense_id, project, category, amount, exp_date, desc]):
+    if not all([expense_id, category, amount, exp_date, desc]):
         flash('All fields are required for expense update.')
         return redirect(url_for('hr_finance_controller'))
     
     try:
-        # Handle the foreign key constraint issue
-        # If project is 'non-project', set it to NULL in database
-        if project == 'non-project' or project == '' or project is None:
+        # CRITICAL FIX: Handle the foreign key constraint issue
+        # If project is 'non-project' or empty, set it to NULL in database
+        if not project or project == 'non-project' or project.strip() == '':
             project_name = None  # This will be stored as NULL in database
+            print(f"Setting project to NULL for expense {expense_id}")
         else:
             # Verify the project actually exists in projects table
             project_check = run_query("SELECT project_name FROM projects WHERE project_name = ?", (project,))
             if project_check.empty:
-                flash('Selected project does not exist. Setting to non-project.', 'warning')
+                flash(f'Selected project "{project}" does not exist. Setting to non-project.', 'warning')
                 project_name = None
+                print(f"Project {project} not found, setting to NULL")
             else:
                 project_name = project
+                print(f"Project {project} found, using it")
         
         # Update the expense with proper NULL handling
+        print(f"Updating expense {expense_id}: project_name={project_name}, category={category}, amount={amount}")
+        
         ok = run_exec("""UPDATE expenses 
                          SET project_name = ?, category = ?, amount = ?, date = ?, description = ? 
                          WHERE id = ?""", 
