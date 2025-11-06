@@ -8,7 +8,7 @@ from werkzeug.utils import secure_filename
 import pyodbc
 import pandas as pd
 from datetime import date, datetime, time
-from typing import List, Tuple, Optionalu
+from typing import List, Tuple, Optional
 from dateutil.parser import parse
 import requests
 from requests_oauthlib import OAuth2Session
