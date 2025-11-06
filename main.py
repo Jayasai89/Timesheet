@@ -6727,9 +6727,6 @@ def edit_expense_form(expense_id):
         user=user,
         role=session['role']
     )
-
-
-
 @app.route('/update_expense', methods=['POST'])
 def update_expense():
     """Update expense with new data"""
@@ -7368,6 +7365,7 @@ def update_expense_new():
         flash(f'Error updating expense: {str(e)}')
     
     return redirect(url_for('hr_finance_controller'))
+
 
 
 @app.route('/delete_expense_action', methods=['POST'])
