@@ -7300,9 +7300,14 @@ def view_project_expenses(project_name):
     except Exception as e:
         flash(f" Error viewing project expenses: {str(e)}")
         return redirect(url_for('dashboard'))
-@app.route('/update_expense_new', methods=['POST'])
-def update_expense_new():
-    print("=== UPDATE EXPENSE ROUTE CALLED ===")
+@app.route('/fix_expense_update', methods=['POST'])
+def fix_expense_update():
+    print("=== FIX EXPENSE UPDATE ROUTE CALLED ===")
+    
+    # Check session
+    if 'username' not in session or session['role'] != 'Hr Finance Controller':
+        flash('Access denied.')
+        return redirect(url_for('hr_finance_controller'))
     
     try:
         # Get form data
@@ -7313,27 +7318,35 @@ def update_expense_new():
         exp_date = request.form.get('expdate')
         desc = request.form.get('desc')
         
-        print(f"Form data received: ID={expense_id}, Project={project}")
+        print(f"Form data: ID={expense_id}, Project={project}, Category={category}")
         
-        # Simple update without validation for testing
-        if project == 'non-project':
-            project = None
-            
-        result = run_exec("UPDATE expenses SET project_name = ?, category = ?, amount = ?, date = ?, description = ? WHERE id = ?",
-                         (project, category, float(amount), exp_date, desc, expense_id))
+        # Basic validation
+        if not expense_id:
+            flash('Expense ID is required.')
+            return redirect(url_for('hr_finance_controller'))
+        
+        # Handle project - set to NULL if non-project
+        if project == 'non-project' or not project or project.strip() == '':
+            project_value = None
+        else:
+            project_value = project
+        
+        # Simple update
+        result = run_exec(
+            "UPDATE expenses SET project_name = ?, category = ?, amount = ?, date = ?, description = ? WHERE id = ?",
+            (project_value, category, float(amount), exp_date, desc, int(expense_id))
+        )
         
         if result:
             flash('Expense updated successfully!')
         else:
-            flash('Failed to update expense')
+            flash('Failed to update expense.')
             
     except Exception as e:
         print(f"ERROR: {str(e)}")
-        flash('Error updating expense')
+        flash('Error updating expense.')
     
     return redirect(url_for('hr_finance_controller'))
-
-
 
 
 @app.route('/delete_expense_action', methods=['POST'])
