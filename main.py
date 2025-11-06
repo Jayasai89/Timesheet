@@ -7306,7 +7306,7 @@ def fix_expense_update():
     if 'username' not in session:
         return redirect(url_for('login_sso'))
     
-    if session['role'] != 'Hr Finance Controller':
+    if session['role'] != 'Hr & Finance Controller':
         flash('Access denied. HR Finance Controller privileges required.')
         return redirect(url_for('dashboard'))
     
