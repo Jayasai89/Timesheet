@@ -7302,7 +7302,7 @@ def view_project_expenses(project_name):
         return redirect(url_for('dashboard'))
 @app.route('/fix_expense_update', methods=['POST'])
 def fix_expense_update():
-    """Update expense - CORRECTED run_exec usage"""
+    """Update expense - CORRECTED run_exec usage with proper tuple"""
     if 'username' not in session:
         return redirect(url_for('login_sso'))
     
@@ -7342,7 +7342,7 @@ def fix_expense_update():
         final_date = expense_date if expense_date else current_row['date']
         final_desc = description if description else current_row['description']
         
-        # CORRECTED: Use tuple for parameters
+        # FIXED: Pass parameters as a single tuple (the key fix!)
         success = run_exec("""
             UPDATE expenses 
             SET project_name = ?, category = ?, amount = ?, date = ?, description = ? 
