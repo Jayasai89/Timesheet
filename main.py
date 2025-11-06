@@ -7302,57 +7302,60 @@ def view_project_expenses(project_name):
         return redirect(url_for('dashboard'))
 @app.route('/fix_expense_update', methods=['POST'])
 def fix_expense_update():
-    """Direct expense update - NO validation, NO required fields"""
+    """Update expense - CORRECTED run_exec usage"""
     if 'username' not in session:
         return redirect(url_for('login_sso'))
     
-    # Get ALL form data
+    # Get all form data
     expense_id = request.form.get('expenseid', '')
-    project_name = request.form.get('project', '')
-    category = request.form.get('category', '')
-    amount = request.form.get('amount', '')
-    expense_date = request.form.get('expdate', '')
-    description = request.form.get('desc', '')
+    project_name = request.form.get('project', '').strip()
+    category = request.form.get('category', '').strip()
+    amount = request.form.get('amount', '').strip()
+    expense_date = request.form.get('expdate', '').strip()
+    description = request.form.get('desc', '').strip()
     
-    print(f"Direct Update - ID: {expense_id}")
+    print(f"=== EXPENSE UPDATE ===")
+    print(f"ID: {expense_id}")
+    print(f"Project: {project_name}")
+    print(f"Category: {category}")
+    print(f"Amount: {amount}")
     
-    # If no expense ID, can't update anything
     if not expense_id:
-        flash('No expense selected')
+        flash('No expense ID received')
         return redirect(url_for('dashboard'))
     
     try:
         expense_id_int = int(expense_id)
         
-        # Get current values from database
-        current_data = run_query("SELECT project_name, category, amount, date, description FROM expenses WHERE id = ?", (expense_id_int,))
-        
-        if current_data.empty:
+        # Get existing expense
+        existing = run_query("SELECT * FROM expenses WHERE id = ?", (expense_id_int,))
+        if existing.empty:
             flash('Expense not found')
             return redirect(url_for('dashboard'))
         
-        # Get current row
-        row = current_data.iloc[0]
+        current_row = existing.iloc[0]
         
-        # Use new value if provided, otherwise keep old value
-        final_project = project_name if project_name else row['project_name']
-        final_category = category if category else row['category']
-        final_amount = float(amount) if amount else float(row['amount'])
-        final_date = expense_date if expense_date else row['date']
-        final_desc = description if description else row['description']
+        # Use new value if provided, otherwise keep existing
+        final_project = project_name if project_name else current_row['project_name']
+        final_category = category if category else current_row['category']
+        final_amount = float(amount) if amount else float(current_row['amount'])
+        final_date = expense_date if expense_date else current_row['date']
+        final_desc = description if description else current_row['description']
         
-        # DIRECT UPDATE - Replace everything
-        success = run_exec(
-            "UPDATE expenses SET project_name = ?, category = ?, amount = ?, date = ?, description = ? WHERE id = ?",
-            final_project, final_category, final_amount, final_date, final_desc, expense_id_int
-        )
+        # CORRECTED: Use tuple for parameters
+        success = run_exec("""
+            UPDATE expenses 
+            SET project_name = ?, category = ?, amount = ?, date = ?, description = ? 
+            WHERE id = ?
+        """, (final_project, final_category, final_amount, final_date, final_desc, expense_id_int))
         
         if success:
-            flash('Expense updated!')
+            flash('✅ Expense updated successfully!')
         else:
-            flash('Update failed')
+            flash('❌ Failed to update expense')
             
     except Exception as e:
+        print(f"Update error: {e}")
         flash(f'Error: {str(e)}')
     
     return redirect(url_for('dashboard'))
