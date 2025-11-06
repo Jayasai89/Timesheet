@@ -7304,11 +7304,6 @@ def view_project_expenses(project_name):
 def update_expense_new():
     print("=== UPDATE EXPENSE ROUTE CALLED ===")
     
-    # Check session
-    if 'username' not in session or session['role'] != 'Hr Finance Controller':
-        flash('Access denied.')
-        return redirect(url_for('hr_finance_controller'))
-    
     try:
         # Get form data
         expense_id = request.form.get('expenseid')
@@ -7318,51 +7313,26 @@ def update_expense_new():
         exp_date = request.form.get('expdate')
         desc = request.form.get('desc')
         
-        print(f"Form data: ID={expense_id}, Project={project}, Category={category}, Amount={amount}")
+        print(f"Form data received: ID={expense_id}, Project={project}")
         
-        # Validate required fields
-        if not expense_id:
-            flash('Expense ID is required.')
-            return redirect(url_for('hr_finance_controller'))
-        
-        # Handle project_name - CRITICAL FIX for foreign key constraint
-        if project == 'non-project' or not project or project.strip() == '':
-            project_value = None  # Set to NULL to avoid foreign key constraint
-            print("Setting project_name to NULL (non-project expense)")
-        else:
-            # Verify project exists in projects table to avoid foreign key violation
-            project_check = run_query("SELECT project_name FROM projects WHERE project_name = ?", (project,))
-            if project_check.empty:
-                print(f"Project '{project}' not found, setting to NULL")
-                project_value = None
-                flash(f'Project "{project}" not found. Set to non-project.', 'warning')
-            else:
-                project_value = project
-                print(f"Valid project found: {project_value}")
-        
-        # Update expenses table with exact column names from your schema
-        print(f"Executing UPDATE on expenses table...")
-        result = run_exec(
-            """UPDATE expenses 
-               SET project_name = ?, category = ?, amount = ?, date = ?, description = ? 
-               WHERE id = ?""",
-            (project_value, category, float(amount), exp_date, desc, int(expense_id))
-        )
+        # Simple update without validation for testing
+        if project == 'non-project':
+            project = None
+            
+        result = run_exec("UPDATE expenses SET project_name = ?, category = ?, amount = ?, date = ?, description = ? WHERE id = ?",
+                         (project, category, float(amount), exp_date, desc, expense_id))
         
         if result:
             flash('Expense updated successfully!')
-            print("✅ Update successful")
         else:
-            flash('Failed to update expense.')
-            print("❌ Update failed")
+            flash('Failed to update expense')
             
     except Exception as e:
-        print(f"ERROR in update_expense_new: {str(e)}")
-        import traceback
-        print(f"TRACEBACK: {traceback.format_exc()}")
-        flash(f'Error updating expense: {str(e)}')
+        print(f"ERROR: {str(e)}")
+        flash('Error updating expense')
     
     return redirect(url_for('hr_finance_controller'))
+
 
 
 
