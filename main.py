@@ -1442,7 +1442,23 @@ def view_manager(user):
 # --------------------
 def view_hr_finance(user):
     """HR & Finance dashboard view with SEPARATED project and payroll/asset tracking"""
-    
+    try:
+        # ========== GET ALL COMPANY EXPENSES ==========
+        expenses = run_query("""
+        SELECT 
+            id, 
+            spent_by, 
+            project_name, 
+            category, 
+            COALESCE(CAST(amount AS DECIMAL(18,2)), 0) as amount, 
+            description, 
+            date, 
+            document_path
+        FROM expenses 
+        ORDER BY date DESC, id DESC
+        """)
+        
+        print(f"✅ HR Finance: Loaded {len(expenses)} total company expenses")
     # STEP 1: Get total budget
     try:
         total_budget_df = run_query("SELECT total_budget FROM company_budget WHERE id = 1")
@@ -1760,6 +1776,8 @@ def view_hr_finance(user):
         remaining_allocation=float(remaining_allocation),
         current_payroll=float(current_payroll),
         asset_allocated=float(asset_allocated),
+        expenses=expenses.to_dict('records') if not expenses.empty else [],
+        expensesummary=expenses.to_dict('records') if not expenses.empty else [],
         
         # Data for tables (ONLY real projects)
         budget_summary=budget_summary.to_dict('records') if not budget_summary.empty else [],
