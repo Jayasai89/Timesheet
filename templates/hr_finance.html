@@ -2110,59 +2110,79 @@
 // ==================== EXPENSE EDIT & DELETE FUNCTIONALITY ====================
 
 // ✅ FIXED Edit expense function - Shows ACTUAL project first, allows changing to any project
+// FIXED Edit expense function - Properly sets all fields including ID
 function editExpense(id, project, category, amount, date, description) {
-    console.log('Editing expense:', id, project, category, amount, date, description);
+    console.log('=== EDITING EXPENSE ===');
+    console.log('ID:', id);
+    console.log('Project:', project);
+    console.log('Category:', category);
+    console.log('Amount:', amount);
+    console.log('Date:', date);
+    console.log('Description:', description);
     
-    // Populate the modal fields with CORRECT IDs
-    document.getElementById('editExpenseId').value = id;
+    // CRITICAL: Set the expense ID in the hidden field
+    const expenseIdField = document.getElementById('editExpenseId');
+    if (expenseIdField) {
+        expenseIdField.value = id;
+        console.log('✅ Expense ID set to:', id);
+    } else {
+        console.error('❌ editExpenseId field not found!');
+        alert('Error: Expense ID field not found in form.');
+        return;
+    }
     
-    // Fix the project select - use the correct selector
-    const projectSelect = document.querySelector('#editExpenseModal select[name="project"]');
+    // Set project dropdown
+    const projectSelect = document.querySelector('select[name="project"]');
     if (projectSelect) {
-        // First, try to select the current project exactly as it is
-        let projectSet = false;
+        // Try to find and select the current project
+        let found = false;
         for (let i = 0; i < projectSelect.options.length; i++) {
             if (projectSelect.options[i].value === project) {
                 projectSelect.value = project;
-                projectSet = true;
+                found = true;
                 break;
             }
         }
-        
-        // If the current project doesn't exist in dropdown, default to non-project
-        if (!projectSet) {
-            console.log(`Project "${project}" not found in dropdown, defaulting to non-project`);
+        if (!found) {
+            console.log('Project not found in dropdown, using non-project');
             projectSelect.value = 'non-project';
         }
     }
     
-    // Use the CORRECT element IDs from your modal
+    // Set category dropdown
     const categorySelect = document.getElementById('editExpenseCategory');
     if (categorySelect) {
         categorySelect.value = category || 'Travel';
     }
     
+    // Set amount field
     const amountInput = document.getElementById('editExpenseAmount');
     if (amountInput) {
-        amountInput.value = amount || 0;
+        amountInput.value = amount || '';
     }
     
+    // Set date field
     const dateInput = document.getElementById('editExpenseDate');
     if (dateInput) {
-        dateInput.value = date;
+        dateInput.value = date || '';
     }
     
+    // Set description field
     const descInput = document.getElementById('editExpenseDescription');
     if (descInput) {
-        descInput.value = description;
+        descInput.value = description || '';
     }
     
     // Show the modal
     const modal = document.getElementById('editExpenseModal');
     if (modal) {
         modal.classList.remove('hidden');
+        console.log('✅ Modal opened successfully');
+    } else {
+        alert('Error: Edit modal not found!');
     }
 }
+
 
 
 
