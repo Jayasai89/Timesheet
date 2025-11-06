@@ -890,106 +890,92 @@
 </div>
 <!-- ✅ ENHANCED Edit Expense Modal -->
 <!-- ✅ FIXED Edit Expense Modal - Shows ALL projects -->
-<div id="editExpenseModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
-    <div class="bg-white rounded-xl shadow-2xl p-8 max-w-3xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-        <!-- Header -->
-        <div class="flex justify-between items-center mb-6 pb-4 border-b border-gray-200">
-            <div>
-                <h3 class="text-2xl font-bold text-gray-800 flex items-center">
-                    <i class="fas fa-edit text-blue-600 mr-3"></i>Edit Expense
-                </h3>
-                <p class="text-gray-600 text-sm mt-1">Update expense details and project allocation</p>
-            </div>
-            <button onclick="closeEditExpenseModal()" class="text-gray-400 hover:text-gray-600 transition-colors">
-                <i class="fas fa-times text-xl"></i>
-            </button>
-        </div>
-        
-        <form method="post" action="{{ url_for('fix_expense_update') }}">
-
-
-
-
-            <input type="hidden" id="editExpenseId" name="expense_id">
-            
-            <!-- Project & Category Row -->
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div class="space-y-2">
-                   <label class="block text-sm font-medium text-gray-700 mb-2">Project</label>
-                                        <select name="project" class="form-select w-full rounded-lg border-gray-300">
-                                            <option value="(non-project)">(non-project)</option>
-                                            {% for project in all_projects %}
-                                                <option value="{{ project.project_name }}">{{ project.project_name }}</option>
-                                            {% endfor %}
-                                        </select>
-                                    </div>
-                                    
-                                    <div>
-                
-                <div class="space-y-2">
-                    <label class="block text-sm font-semibold text-gray-700">
-                        <i class="fas fa-tag mr-2 text-green-600"></i>Category
-                    </label>
-                    <select id="editExpenseCategory" name="category" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all">
-                        <option value="Travel">✈️ Travel</option>
-                        <option value="Equipment">🖥️ Equipment</option>
-                        <option value="Software">💻 Software</option>
-                        <option value="Training">📚 Training</option>
-                        <option value="Resources">📋 Resources</option>
-                        <option value="For email">📧 For Email</option>
-                        <option value="Github">🐙 Github</option>
-                        <option value="Api">🔌 API</option>
-                        <option value="Other">🔧 Other</option>
-                    </select>
+<!-- Edit Expense Modal - CORRECTED VERSION -->
+<div id="editExpenseModal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50">
+    <div class="flex items-center justify-center min-h-screen p-4">
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-lg">
+            <div class="p-6">
+                <div class="flex items-center justify-between mb-6">
+                    <h2 class="text-xl font-bold text-gray-800">
+                        <i class="fas fa-edit mr-2 text-blue-600"></i>Edit Expense
+                    </h2>
+                    <button onclick="closeEditModal()" class="text-gray-500 hover:text-gray-700">
+                        <i class="fas fa-times text-xl"></i>
+                    </button>
                 </div>
-            </div>
-            
-            <!-- Amount & Date Row -->
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div class="space-y-2">
-                    <label class="block text-sm font-semibold text-gray-700">
-                        <i class="fas fa-rupee-sign mr-2 text-yellow-600"></i>Amount
-                    </label>
-                    <div class="relative">
-                        <span class="absolute left-3 top-3 text-gray-500">₹</span>
-                        <input type="number" id="editExpenseAmount" name="amount" step="0.01" required 
-                               class="w-full pl-8 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                               placeholder="0.00">
+
+                <!-- FORM - This is the critical part -->
+                <form id="editExpenseForm" method="post" action="{{ url_for('fix_expense_update') }}" class="space-y-4">
+                    <!-- CRITICAL: Hidden expense ID field -->
+                    <input type="hidden" id="editExpenseId" name="expenseid" value="" required>
+                    
+                    <!-- Project Selection -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Project</label>
+                        <select name="project" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                            <option value="">Keep current project</option>
+                            <option value="non-project">non-project</option>
+                            <option value="TIME SHEET">TIME SHEET</option>
+                            <option value="CAS Operation">CAS Operation</option>
+                            {% for project in allprojects %}
+                            <option value="{{ project.projectname }}">{{ project.projectname }}</option>
+                            {% endfor %}
+                        </select>
                     </div>
-                </div>
-                
-                <div class="space-y-2">
-                    <label class="block text-sm font-semibold text-gray-700">
-                        <i class="fas fa-calendar mr-2 text-purple-600"></i>Date
-                    </label>
-                    <input type="date" id="editExpenseDate" name="exp_date" 
-                           class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all">
-                </div>
+
+                    <!-- Category Selection -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Category</label>
+                        <select id="editExpenseCategory" name="category" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                            <option value="">Keep current category</option>
+                            <option value="Travel">Travel</option>
+                            <option value="Equipment">Equipment</option>
+                            <option value="Software">Software</option>
+                            <option value="Training">Training</option>
+                            <option value="Resources">Resources</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    </div>
+
+                    <!-- Amount Input -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Amount</label>
+                        <input type="number" id="editExpenseAmount" name="amount" step="0.01" 
+                               class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" 
+                               placeholder="Keep current amount">
+                    </div>
+
+                    <!-- Date Input -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Date</label>
+                        <input type="date" id="editExpenseDate" name="expdate" 
+                               class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                    </div>
+
+                    <!-- Description Input -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Description</label>
+                        <textarea id="editExpenseDescription" name="desc" rows="3" 
+                                  class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 resize-none" 
+                                  placeholder="Keep current description"></textarea>
+                    </div>
+
+                    <!-- Buttons -->
+                    <div class="flex space-x-4 pt-4">
+                        <button type="submit" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors">
+                            <i class="fas fa-save mr-2"></i>Update Expense
+                        </button>
+                        <button type="button" onclick="closeEditModal()" 
+                                class="flex-1 bg-gray-500 hover:bg-gray-600 text-white font-semibold py-3 px-6 rounded-lg transition-colors">
+                            <i class="fas fa-times mr-2"></i>Cancel
+                        </button>
+                    </div>
+                </form>
             </div>
-            
-            <!-- Description -->
-            <div class="space-y-2">
-                <label class="block text-sm font-semibold text-gray-700">
-                    <i class="fas fa-file-alt mr-2 text-indigo-600"></i>Description
-                </label>
-                <textarea id="editExpenseDescription" name="desc" rows="4" required 
-                          class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all resize-none"
-                          placeholder="Enter expense description..."></textarea>
-            </div>
-            
-            <!-- Action Buttons -->
-            <div class="flex space-x-4 pt-6 border-t border-gray-200">
-                <button type="submit" class="flex-1 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold py-3 px-6 rounded-lg transition-all transform hover:scale-105 shadow-lg">
-                    <i class="fas fa-save mr-2"></i>Update Expense
-                </button>
-                <button type="button" onclick="closeEditExpenseModal()" 
-                        class="flex-1 bg-gradient-to-r from-gray-400 to-gray-500 hover:from-gray-500 hover:to-gray-600 text-white font-semibold py-3 px-6 rounded-lg transition-all transform hover:scale-105">
-                    <i class="fas fa-times mr-2"></i>Cancel
-                </button>
-            </div>
-        </form>
+        </div>
     </div>
 </div>
+
 
 
 
@@ -2112,87 +2098,71 @@
 
 // ✅ FIXED Edit expense function - Shows ACTUAL project first, allows changing to any project
 // FIXED Edit expense function - Properly sets all fields including ID
+// Updated editExpense function
 function editExpense(id, project, category, amount, date, description) {
     console.log('=== EDITING EXPENSE ===');
     console.log('ID:', id);
-    console.log('Project:', project);
-    console.log('Category:', category);
-    console.log('Amount:', amount);
-    console.log('Date:', date);
-    console.log('Description:', description);
     
-    // CRITICAL: Set the expense ID in the hidden field
+    // Set the expense ID in the hidden field
     const expenseIdField = document.getElementById('editExpenseId');
     if (expenseIdField) {
         expenseIdField.value = id;
         console.log('✅ Expense ID set to:', id);
     } else {
         console.error('❌ editExpenseId field not found!');
-        alert('Error: Expense ID field not found in form.');
+        alert('Error: Form field not found!');
         return;
     }
     
-    // Set project dropdown
+    // Set all form fields
     const projectSelect = document.querySelector('select[name="project"]');
-    if (projectSelect) {
-        // Try to find and select the current project
-        let found = false;
-        for (let i = 0; i < projectSelect.options.length; i++) {
-            if (projectSelect.options[i].value === project) {
-                projectSelect.value = project;
-                found = true;
-                break;
-            }
-        }
-        if (!found) {
-            console.log('Project not found in dropdown, using non-project');
-            projectSelect.value = 'non-project';
-        }
-    }
+    if (projectSelect) projectSelect.value = project || '';
     
-    // Set category dropdown
     const categorySelect = document.getElementById('editExpenseCategory');
-    if (categorySelect) {
-        categorySelect.value = category || 'Travel';
-    }
+    if (categorySelect) categorySelect.value = category || '';
     
-    // Set amount field
     const amountInput = document.getElementById('editExpenseAmount');
-    if (amountInput) {
-        amountInput.value = amount || '';
-    }
+    if (amountInput) amountInput.value = amount || '';
     
-    // Set date field
     const dateInput = document.getElementById('editExpenseDate');
-    if (dateInput) {
-        dateInput.value = date || '';
-    }
+    if (dateInput) dateInput.value = date || '';
     
-    // Set description field
     const descInput = document.getElementById('editExpenseDescription');
-    if (descInput) {
-        descInput.value = description || '';
-    }
+    if (descInput) descInput.value = description || '';
     
     // Show the modal
     const modal = document.getElementById('editExpenseModal');
     if (modal) {
         modal.classList.remove('hidden');
         console.log('✅ Modal opened successfully');
-    } else {
-        alert('Error: Edit modal not found!');
     }
 }
 
-
-
-
-
-
-// Close edit expense modal
-function closeEditExpenseModal() {
-    document.getElementById('editExpenseModal').classList.add('hidden');
+// Function to close the modal
+function closeEditModal() {
+    const modal = document.getElementById('editExpenseModal');
+    if (modal) {
+        modal.classList.add('hidden');
+    }
 }
+
+// Optional: Add form validation before submit
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('editExpenseForm');
+    if (form) {
+        form.addEventListener('submit', function(e) {
+            const expenseId = document.getElementById('editExpenseId').value;
+            console.log('Form submitting with expense ID:', expenseId);
+            
+            if (!expenseId) {
+                e.preventDefault();
+                alert('Error: No expense ID found. Please try again.');
+                return false;
+            }
+        });
+    }
+});
+
 
 // Delete expense function
 function deleteExpense(expenseId, description) {
