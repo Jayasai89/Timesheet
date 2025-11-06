@@ -906,11 +906,12 @@
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-2">Project</label>
                     <select id="editExpenseProject" name="project" class="form-select w-full rounded-lg border-gray-300">
-                        <option value="non-project">non-project</option>
-                        {% for project in allprojects %}
-                            <option value="{{ project.projectname }}">{{ project.projectname }}</option>
-                        {% endfor %}
-                    </select>
+    <option value="non-project">non-project</option>
+    {% for project in allprojects %}
+    <option value="{{ project.projectname }}">{{ project.projectname }}</option>
+    {% endfor %}
+</select>
+
                 </div>
                 
                 <div>
@@ -2079,19 +2080,34 @@
 
 // ==================== EXPENSE EDIT & DELETE FUNCTIONALITY ====================
 
-// Edit expense function
+// ✅ FIXED Edit expense function with proper project handling
 function editExpense(id, project, category, amount, date, description) {
     // Populate the modal fields
     document.getElementById('editExpenseId').value = id;
-    document.getElementById('editExpenseProject').value = project || 'non-project';
-    document.getElementById('editExpenseCategory').value = category;
-    document.getElementById('editExpenseAmount').value = amount;
+    
+    // ✅ Handle TIME SHEET and empty projects
+    const projectSelect = document.getElementById('editExpenseProject');
+    if (!project || project === 'TIME SHEET' || project.trim() === '') {
+        projectSelect.value = 'non-project';
+    } else {
+        // Check if project exists in dropdown options
+        const projectExists = Array.from(projectSelect.options).some(option => option.value === project);
+        if (projectExists) {
+            projectSelect.value = project;
+        } else {
+            projectSelect.value = 'non-project';
+        }
+    }
+    
+    document.getElementById('editExpenseCategory').value = category || 'Other';
+    document.getElementById('editExpenseAmount').value = amount || 0;
     document.getElementById('editExpenseDate').value = date;
-    document.getElementById('editExpenseDescription').value = description;
+    document.getElementById('editExpenseDescription').value = description || '';
     
     // Show the modal
     document.getElementById('editExpenseModal').classList.remove('hidden');
 }
+
 
 // Close edit expense modal
 function closeEditExpenseModal() {
