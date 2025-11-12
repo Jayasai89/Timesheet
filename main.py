@@ -2549,7 +2549,7 @@ def view_intern(user):
                     ed.joining_date, ed.employment_type, ed.blood_group, ed.mobile_number,
                     ed.emergency_contact, ed.id_card, ed.id_card_provided, ed.photo_url,
                     ed.linkedin_url, ed.laptop_provided, ed.email_provided, ed.asset_details,
-                    ed.adhaar_number, ed.pan_number, ed.duration, ed.employmentid,
+                    ed.documents_folder_path, ed.duration, ed.employmentid,
                     r.rm, r.manager
                 FROM users u
                 LEFT JOIN employee_details ed ON u.username = ed.username  
@@ -2703,7 +2703,7 @@ def view_admin_manager(user):
                ed.joining_date, ed.employment_type, ed.blood_group, ed.mobile_number,
                ed.emergency_contact, ed.id_card, ed.id_card_provided, ed.photo_url,
                ed.linkedin_url, ed.laptop_provided, ed.email_provided, ed.asset_details,
-               ed.adhaar_number, ed.pan_number, ed.duration,ed.employmentid,
+               ed.documents_folder_path, ed.duration,ed.employmentid,
                r.rm, r.manager
         FROM users u
         LEFT JOIN employee_details ed ON u.username = ed.username
@@ -6004,8 +6004,23 @@ def cancel_leave_action():
     return redirect(url_for('dashboard'))
 @app.route('/add_employee_action', methods=['POST'])
 def add_employee_action():
+    # ✅ CRITICAL DEBUG - ADD THIS FIRST
+    print("=" * 80)
+    print("🔍 FORM DATA RECEIVED:")
+    print("=" * 80)
+    for key, value in request.form.items():
+        if len(value) > 100:
+            print(f"  {key}: {value[:100]}... (truncated)")
+        else:
+            print(f"  {key}: '{value}'")
+    print("=" * 80)
+    print(f"📁 FILES: {list(request.files.keys())}")
+    print("=" * 80)
+    
+    # Your existing code continues here...
     if 'username' not in session:
         return redirect(url_for('login_sso'))
+
     
     user = session['username']
     user_role = session.get('role', '')  # ✅ RENAMED to avoid conflict
@@ -6051,7 +6066,7 @@ def add_employee_action():
     blood_group = request.form.get('blood_group')
    
     # CORRECTED: Get employment ID
-    employmentid = request.form.get('employment_id', '').strip().upper()  # ✅ Fixed form field name
+    employmentid = request.form.get('employmentid', '').strip().upper() # ✅ Fixed form field name
     print(f"DEBUG: Employment ID received: '{employmentid}'")
    
     # Contact info
@@ -6065,8 +6080,7 @@ def add_employee_action():
     asset_details = request.form.get('asset_details')
    
     # Documents
-    adhaar_number = request.form.get('adhaar_number')
-    pan_number = request.form.get('pan_number')
+    
     linkedin_url = request.form.get('linkedin_url')
     photo_url = request.form.get('photo_url')
    
@@ -6123,6 +6137,38 @@ def add_employee_action():
     # Convert salary values
     monthly_salary = float(monthly_salary) if monthly_salary else None
     yearly_salary = float(yearly_salary) if yearly_salary else (monthly_salary * 12 if monthly_salary else None)
+
+
+    uploaded_documents = []
+    employee_documents_folder = None
+    
+    if 'employee_documents' in request.files:
+        files = request.files.getlist('employee_documents')
+        
+        if files and files[0].filename:  # Check if files were actually uploaded
+            # Create employee documents folder
+            employee_username = request.form.get('username', '').strip()
+            employee_documents_folder = os.path.join(app.config['UPLOAD_FOLDER'], 'employee_documents', employee_username)
+            os.makedirs(employee_documents_folder, exist_ok=True)
+            
+            for file in files:
+                if file and file.filename:
+                    # Secure filename
+                    filename = secure_filename(file.filename)
+                    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+                    unique_filename = f"{timestamp}_{filename}"
+                    
+                    # Save file
+                    filepath = os.path.join(employee_documents_folder, unique_filename)
+                    file.save(filepath)
+                    uploaded_documents.append(unique_filename)
+                    
+                    print(f"✅ Uploaded document: {unique_filename}")
+    
+    # Store document folder path in database
+    documents_path = f"employee_documents/{employee_username}" if uploaded_documents else None
+    
+
    
     try:
         # Insert into users table (✅ use employee_role, not role)
@@ -6136,11 +6182,11 @@ def add_employee_action():
             INSERT INTO [timesheet_db].[dbo].[employee_details] (
                 username, name, role, joining_date, employment_type, blood_group,
                 mobile_number, emergency_contact, laptop_provided, id_card_provided,
-                email_provided, adhaar_number, pan_number, duration, employmentid
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                email_provided,   duration, employmentid,documents_folder_path
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (username, name, employee_role, joining_date, employment_type, blood_group,
               mobile_number, emergency_contact, laptop_provided, id_card_provided,
-              email_provided, adhaar_number, pan_number, duration, employmentid))
+              email_provided, duration, employmentid,documents_path))
                
         # Set up reporting relationship
         if reporting_manager:
@@ -6215,6 +6261,71 @@ This is an automated notification from the Timesheet & Leave Management System."
         print(f"Add employee error: {e}")
    
     return redirect(url_for('dashboard'))
+@app.route('/get_employee_documents_list')
+def get_employee_documents_list():
+    """Get list of documents for an employee"""
+    if 'username' not in session:
+        return jsonify({'success': False, 'error': 'Unauthorized'}), 401
+    
+    username = request.args.get('username', '').strip()
+    
+    try:
+        result = run_query("""
+            SELECT documents_folder_path FROM employee_details WHERE username = ?
+        """, (username,))
+        
+        documents = []
+        
+        if not result.empty and result.iloc[0]['documents_folder_path']:
+            folder_path = os.path.join(
+                app.config['UPLOAD_FOLDER'], 
+                result.iloc[0]['documents_folder_path']
+            )
+            
+            if os.path.exists(folder_path):
+                for filename in os.listdir(folder_path):
+                    filepath = os.path.join(folder_path, filename)
+                    if os.path.isfile(filepath):
+                        file_size = os.path.getsize(filepath) / 1024 / 1024
+                        documents.append({
+                            'filename': filename,
+                            'size': f"{file_size:.2f} MB",
+                            'download_url': url_for('download_employee_document', username=username, filename=filename)
+                        })
+        
+        return jsonify({'success': True, 'documents': documents})
+    
+    except Exception as e:
+        print(f"Error getting documents: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/download_employee_document/<username>/<filename>')
+def download_employee_document(username, filename):
+    """Download employee document"""
+    if 'username' not in session:
+        return redirect(url_for('login_sso'))
+    
+    try:
+        result = run_query("""
+            SELECT documents_folder_path FROM employee_details WHERE username = ?
+        """, (username,))
+        
+        if not result.empty and result.iloc[0]['documents_folder_path']:
+            documents_folder = os.path.join(
+                app.config['UPLOAD_FOLDER'], 
+                result.iloc[0]['documents_folder_path']
+            )
+            return send_from_directory(documents_folder, filename, as_attachment=True)
+        
+        return "Document not found", 404
+    
+    except Exception as e:
+        print(f"Error downloading document: {e}")
+        return f"Error: {str(e)}", 500
+
+
+
 
 
 @app.route('/request_asset_with_document', methods=['POST'])
@@ -9684,7 +9795,7 @@ def admin_view_employee_history(username):
         employee = run_query("""
             SELECT u.username, u.name, u.role, u.email, u.monthly_salary, u.yearly_salary, u.status,
                    ed.joining_date, ed.employment_type, ed.mobile_number, ed.emergency_contact,
-                   ed.blood_group, ed.adhaar_number, ed.pan_number
+                   ed.blood_group, ed.documents_folder_path
             FROM users u
             LEFT JOIN employee_details ed ON u.username = ed.username
             WHERE u.username = ?
@@ -10500,7 +10611,7 @@ def view_employee_admin(username):
         employee = run_query("""
             SELECT u.username, u.name, u.role, u.email, u.monthly_salary, u.yearly_salary, u.status,
                    ed.joining_date, ed.employment_type, ed.mobile_number, ed.emergency_contact,
-                   ed.blood_group, ed.adhaar_number, ed.pan_number, ed.laptop_provided, 
+                   ed.blood_group, ed.documents_folder_path, ed.laptop_provided, 
                    ed.id_card_provided, ed.email_provided, ed.asset_details
             FROM users u
             LEFT JOIN employee_details ed ON u.username = ed.username
@@ -10650,7 +10761,6 @@ def import_employees_admin():
     flash(" Employee import functionality initiated. File processing would be implemented here.")
     return redirect(url_for('dashboard'))
 
-    
 @app.route('/edit_employee_admin', methods=['POST'])
 def edit_employee_admin():
     """Edit employee details (Admin/HR Intern with Finance & HR Intern employment type)"""
@@ -10682,8 +10792,6 @@ def edit_employee_admin():
     if not has_access:
         flash("❌ Access denied. Employee management privileges required.")
         return redirect(url_for('dashboard'))
-
-
     
     employee_username = request.form.get('employee_username')
     if not employee_username:
@@ -10691,13 +10799,13 @@ def edit_employee_admin():
         return redirect(url_for('dashboard'))
     
     try:
-        # ENHANCED: Get current employee details INCLUDING employmentid
+        # Get current employee details
         current_details = run_query("""
             SELECT u.name, u.email, u.role, u.password, u.monthly_salary, u.yearly_salary, u.status,
                    ed.joining_date, ed.employment_type, ed.blood_group, ed.mobile_number,
                    ed.emergency_contact, ed.id_card, ed.id_card_provided, ed.photo_url,
                    ed.linkedin_url, ed.laptop_provided, ed.email_provided, ed.asset_details,
-                   ed.adhaar_number, ed.pan_number, ed.duration, ed.employmentid,
+                   ed.documents_folder_path, ed.duration, ed.employmentid,
                    r.rm, r.manager
             FROM users u
             LEFT JOIN employee_details ed ON u.username = ed.username
@@ -10722,8 +10830,6 @@ def edit_employee_admin():
         employment_type = request.form.get('employment_type', '').strip() or current.get('employment_type', 'Full-Time')
         blood_group = request.form.get('blood_group', '').strip() or current.get('blood_group')
         duration = request.form.get('duration', '').strip() or current.get('duration')
-        
-        # ENHANCED: Get employmentid from form (MISSING FROM VERSION 2)
         employmentid = request.form.get('employmentid', '').strip().upper() or current.get('employmentid')
         
         # Contact information
@@ -10737,11 +10843,10 @@ def edit_employee_admin():
         id_card = request.form.get('id_card', '').strip() or current.get('id_card')
         asset_details = request.form.get('asset_details', '').strip() or current.get('asset_details')
         
-        # Documents
-        adhaar_number = request.form.get('adhaar_number', '').strip() or current.get('adhaar_number')
-        pan_number = request.form.get('pan_number', '').strip() or current.get('pan_number')
+        # Documents - REMOVED adhaar_number and pan_number
         linkedin_url = request.form.get('linkedin_url', '').strip() or current.get('linkedin_url')
         photo_url = request.form.get('photo_url', '').strip() or current.get('photo_url')
+        documents_folder_path = current.get('documents_folder_path')  # Keep existing path
         
         # Salary information
         monthly_salary = None
@@ -10771,7 +10876,34 @@ def edit_employee_admin():
             file.save(os.path.join(app.config['UPLOAD_FOLDER'], photo_filename))
             photo_url = f"/uploads/{photo_filename}"
         
-        # ENHANCED: Employment ID validation (MISSING FROM VERSION 2)
+        # Handle additional document uploads
+        if 'employee_documents' in request.files:
+            files = request.files.getlist('employee_documents')
+            
+            if files and files[0].filename:
+                # Get or create employee documents folder
+                employee_documents_folder = os.path.join(
+                    app.config['UPLOAD_FOLDER'], 
+                    'employee_documents', 
+                    employee_username
+                )
+                os.makedirs(employee_documents_folder, exist_ok=True)
+                
+                for file in files:
+                    if file and file.filename:
+                        filename = secure_filename(file.filename)
+                        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+                        unique_filename = f"{timestamp}_{filename}"
+                        
+                        filepath = os.path.join(employee_documents_folder, unique_filename)
+                        file.save(filepath)
+                        
+                        print(f"✅ Added document: {unique_filename} for {employee_username}")
+                
+                # Update database with folder path if not already set
+                documents_folder_path = f"employee_documents/{employee_username}"
+        
+        # Employment ID validation
         print(f"DEBUG: Updating employee {employee_username} with employmentid: '{employmentid}'")
         if employmentid and employmentid != current.get('employmentid'):
             existing_emp_id = run_query("""
@@ -10795,33 +10927,33 @@ def edit_employee_admin():
         employee_details_exists = run_query("SELECT username FROM employee_details WHERE username = ?", (employee_username,))
         
         if employee_details_exists.empty:
-            # ENHANCED: Insert new record WITH employmentid (MISSING FROM VERSION 2)
+            # ✅ CORRECTED INSERT - 17 columns, 17 values
             ok2 = run_exec("""
-                INSERT INTO [timesheet_db].[dbo]. [employee_details] (
-                    username, name, role, joining_date, employment_type, blood_group,
+                INSERT INTO [timesheet_db].[dbo].[employee_details] (
+                    username, name, joining_date, employment_type, blood_group,
                     mobile_number, emergency_contact, id_card, id_card_provided, photo_url,
                     linkedin_url, laptop_provided, email_provided, asset_details,
-                    adhaar_number, pan_number, duration, employmentid
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (employee_username, name, role, joining_date, employment_type, blood_group,
+                    documents_folder_path, duration, employmentid
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (employee_username, name, joining_date, employment_type, blood_group,
                   mobile_number, emergency_contact, id_card, id_card_provided, photo_url,
                   linkedin_url, laptop_provided, email_provided, asset_details,
-                  adhaar_number, pan_number, duration, employmentid))
+                  documents_folder_path, duration, employmentid))
         else:
-            # ENHANCED: Update existing record WITH employmentid (MISSING FROM VERSION 2)
+            # ✅ CORRECTED UPDATE - parameters in correct order
             ok2 = run_exec("""
                 UPDATE employee_details 
-                SET name = ?, role = ?, joining_date = ?, employment_type = ?, blood_group = ?,
+                SET name = ?, joining_date = ?, employment_type = ?, blood_group = ?,
                     mobile_number = ?, emergency_contact = ?, id_card = ?, id_card_provided = ?, 
                     photo_url = ?, linkedin_url = ?, laptop_provided = ?, email_provided = ?, 
-                    asset_details = ?, adhaar_number = ?, pan_number = ?, duration = ?, employmentid = ?
+                    asset_details = ?, documents_folder_path = ?, duration = ?, employmentid = ?
                 WHERE username = ?
-            """, (name, role, joining_date, employment_type, blood_group,
+            """, (name, joining_date, employment_type, blood_group,
                   mobile_number, emergency_contact, id_card, id_card_provided, photo_url,
                   linkedin_url, laptop_provided, email_provided, asset_details,
-                  adhaar_number, pan_number, duration, employmentid, employee_username))
+                  documents_folder_path, duration, employmentid, employee_username))
         
-        # ADDED FROM VERSION 2: Update reporting structure (MISSING FROM VERSION 1)
+        # Update reporting structure
         if new_reporting_manager:
             report_exists = run_query("SELECT username FROM report WHERE username = ?", (employee_username,))
             if report_exists.empty:
@@ -10836,7 +10968,7 @@ def edit_employee_admin():
                     WHERE username = ?
                 """, (new_reporting_manager, new_reporting_manager, employee_username))
         
-        # ADDED FROM VERSION 2: Update leave balances (MISSING FROM VERSION 1)
+        # Update leave balances
         leave_balance_exists = run_query("SELECT username FROM leave_balances WHERE username = ?", (employee_username,))
         if leave_balance_exists.empty:
             ok4 = run_exec("""
@@ -10852,21 +10984,21 @@ def edit_employee_admin():
                 WHERE username = ?
             """, (int(total_leaves), int(sick_total), int(paid_total), int(casual_total), employee_username))
         
-        # ENHANCED: Success/Failure check including all operations
+        # Success message
         if ok1 and ok2:
-            flash(f' Employee "{name}" ({employee_username}) updated successfully with Employment ID: {employmentid}')
+            flash(f'✅ Employee "{name}" ({employee_username}) updated successfully with Employment ID: {employmentid}')
         else:
-            flash(' Failed to update some employee details. Please try again.')
+            flash('❌ Failed to update some employee details. Please try again.')
             
     except Exception as e:
-        # ENHANCED: Better error handling for Employment ID conflicts
         if 'UQ_employee_details_employmentid' in str(e):
-            flash(f' Employment ID "{employmentid}" is already in use. Please choose a different Employment ID.')
+            flash(f'❌ Employment ID "{employmentid}" is already in use. Please choose a different Employment ID.')
         else:
-            flash(f' Error updating employee: {str(e)}')
+            flash(f'❌ Error updating employee: {str(e)}')
         print(f"Edit employee error: {e}")
     
     return redirect(url_for('dashboard'))
+
 
 
 
@@ -10934,7 +11066,7 @@ def get_employee_details_json():
         employee = run_query("""
             SELECT u.username, u.name, u.role, u.email, u.monthly_salary, u.yearly_salary, u.status, u.password,
                    ed.joining_date, ed.employment_type, ed.mobile_number, ed.emergency_contact,
-                   ed.blood_group, ed.adhaar_number, ed.pan_number, ed.laptop_provided, 
+                   ed.blood_group, ed.documents_folder_path, ed.laptop_provided, 
                    ed.id_card_provided, ed.email_provided, ed.asset_details, ed.id_card,
                    ed.photo_url, ed.linkedin_url, ed.duration, ed.employmentid,
                    r.rm, r.manager,
