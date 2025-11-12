@@ -857,10 +857,11 @@
                         <td class="px-4 py-4 whitespace-nowrap text-sm font-medium">
                             <div class="flex space-x-2">
                                 <!-- Edit Button -->
-                               <button onclick="editExpense('{{ expense.id }}', '{{ expense.projectname }}', '{{ expense.category }}', '{{ expense.amount }}', '{{ expense.date }}', '{{ expense.description }}')" 
+  <button onclick="editExpense('{{ expense.id }}', '{{ expense.projectname }}', '{{ expense.category }}', '{{ expense.amount }}', '{{ expense.date }}', '{{ expense.description }}', '{{ expense.documentpath }}')" 
         class="text-blue-600 hover:text-blue-800 text-xs px-2 py-1 bg-blue-50 rounded-md">
     <i class="fas fa-edit mr-1"></i>Edit
 </button>
+
 
                                 
                                 <!-- Delete Button -->
@@ -888,81 +889,139 @@
         {% endif %}
     </div>
 </div>
-<!-- ✅ ENHANCED Edit Expense Modal -->
-<!-- ✅ FIXED Edit Expense Modal - Shows ALL projects -->
-<!-- Edit Expense Modal - CORRECTED VERSION -->
-<div id="editExpenseModal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50">
-    <div class="flex items-center justify-center min-h-screen p-4">
-        <div class="bg-white rounded-xl shadow-2xl w-full max-w-lg">
-            <div class="p-6">
-                <div class="flex items-center justify-between mb-6">
+    </div>
+
+<!-- Edit Expense Modal - COMPLETE VERSION -->
+<div id="editExpenseModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 overflow-y-auto">
+    <div class="flex items-start justify-center min-h-screen p-4 py-8">
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-lg my-8">
+            
+            <!-- Header - Fixed -->
+            <div class="px-6 py-4 border-b border-gray-200 bg-white rounded-t-xl">
+                <div class="flex items-center justify-between">
                     <h2 class="text-xl font-bold text-gray-800">
                         <i class="fas fa-edit mr-2 text-blue-600"></i>Edit Expense
                     </h2>
-                    <button onclick="closeEditModal()" class="text-gray-500 hover:text-gray-700">
-                        <i class="fas fa-times text-xl"></i>
+                    <button onclick="closeEditModal()" type="button" class="text-gray-500 hover:text-gray-700 text-2xl">
+                        <i class="fas fa-times"></i>
                     </button>
                 </div>
+            </div>
 
-                <!-- FORM - This is the critical part -->
-                <form id="editExpenseForm" method="post" action="{{ url_for('fix_expense_update') }}" class="space-y-4">
-                    <!-- CRITICAL: Hidden expense ID field -->
-                    <input type="hidden" id="editExpenseId" name="expenseid" value="" required>
+            <!-- Form Content - Scrollable -->
+            <form id="editExpenseForm" method="post" action="{{ url_for('fix_expense_update') }}" enctype="multipart/form-data">
+                <div class="px-6 py-4 space-y-4 max-h-[60vh] overflow-y-auto">
                     
-                    <!-- Project Selection -->
+                    <!-- Hidden Fields -->
+                    <input type="hidden" id="editExpenseId" name="expenseid" required>
+                    <input type="hidden" id="deleteDocument" name="delete_document" value="false">
+                    
+                    <!-- Current Document Display with View & Delete -->
+                    <div id="currentDocumentDisplay" class="hidden p-4 bg-blue-50 border-l-4 border-blue-500 rounded-r-lg">
+                        <div class="flex items-start justify-between gap-3">
+                            <div class="flex-1 min-w-0">
+                                <div class="flex items-center mb-2">
+                                    <i class="fas fa-file-alt text-blue-600 text-lg mr-2"></i>
+                                    <span class="text-sm font-bold text-blue-800">Current Document</span>
+                                </div>
+                                <span id="currentDocumentName" class="text-sm text-gray-700 font-medium block break-all"></span>
+                            </div>
+                            <div class="flex flex-col gap-2">
+                                <a id="currentDocumentLink" href="#" target="_blank" 
+                                   class="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded-lg transition-colors whitespace-nowrap text-center">
+                                    <i class="fas fa-eye mr-1"></i>View
+                                </a>
+                                <button type="button" onclick="deleteExpenseDocument()" 
+                                        class="px-3 py-2 bg-red-600 hover:bg-red-700 text-white text-xs font-medium rounded-lg transition-colors whitespace-nowrap">
+                                    <i class="fas fa-trash mr-1"></i>Delete
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Project Dropdown -->
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Project</label>
-                        <select name="project" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
-                            <option value="">Keep current project</option>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">
+                            <i class="fas fa-project-diagram mr-1 text-gray-500"></i>Project
+                        </label>
+                        <select name="project" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                            <option value="">Keep current</option>
                             <option value="non-project">non-project</option>
-                            <option value="TIME SHEET">TIME SHEET</option>
-                            <option value="CAS Operation">CAS Operation</option>
                             {% for project in allprojects %}
                             <option value="{{ project.projectname }}">{{ project.projectname }}</option>
                             {% endfor %}
                         </select>
                     </div>
 
-                    <!-- Category Selection -->
+                    <!-- Category Dropdown -->
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Category</label>
-                        <select id="editExpenseCategory" name="category" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
-                            <option value="">Keep current category</option>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">
+                            <i class="fas fa-tags mr-1 text-gray-500"></i>Category
+                        </label>
+                        <select id="editExpenseCategory" name="category" 
+                                class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                            <option value="">Keep current</option>
                             <option value="Travel">Travel</option>
                             <option value="Equipment">Equipment</option>
                             <option value="Software">Software</option>
                             <option value="Training">Training</option>
                             <option value="Resources">Resources</option>
+                            <option value="For email">For email</option>
+                            <option value="Github">Github</option>
+                            <option value="Api">Api</option>
                             <option value="Other">Other</option>
                         </select>
                     </div>
 
                     <!-- Amount Input -->
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Amount</label>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">
+                            <i class="fas fa-rupee-sign mr-1 text-gray-500"></i>Amount
+                        </label>
                         <input type="number" id="editExpenseAmount" name="amount" step="0.01" 
-                               class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" 
-                               placeholder="Keep current amount">
+                               class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
+                               placeholder="Enter amount">
                     </div>
 
                     <!-- Date Input -->
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Date</label>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">
+                            <i class="fas fa-calendar mr-1 text-gray-500"></i>Date
+                        </label>
                         <input type="date" id="editExpenseDate" name="expdate" 
-                               class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                               class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
                     </div>
 
-                    <!-- Description Input -->
+                    <!-- Description Textarea -->
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Description</label>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">
+                            <i class="fas fa-align-left mr-1 text-gray-500"></i>Description
+                        </label>
                         <textarea id="editExpenseDescription" name="desc" rows="3" 
-                                  class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 resize-none" 
-                                  placeholder="Keep current description"></textarea>
+                                  class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none" 
+                                  placeholder="Enter description"></textarea>
                     </div>
 
-                    <!-- Buttons -->
-                    <div class="flex space-x-4 pt-4">
-                        <button type="submit" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors">
+                    <!-- Upload New Document -->
+                    <div class="pt-3 border-t border-gray-200">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">
+                            <i class="fas fa-paperclip mr-1 text-gray-500"></i>Upload New Document (Optional)
+                        </label>
+                        <input type="file" name="expensedocument" id="editExpenseDocumentInput"
+                               accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx" 
+                               class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
+                        <p class="text-xs text-gray-500 mt-2">
+                            <i class="fas fa-info-circle mr-1"></i>Supported: PDF, JPG, PNG, Word, Excel. Max 10MB. Upload new file to replace existing.
+                        </p>
+                    </div>
+
+                </div>
+
+                <!-- Footer Buttons - Always Visible -->
+                <div class="px-6 py-4 border-t border-gray-200 bg-gray-50 rounded-b-xl">
+                    <div class="flex space-x-3">
+                        <button type="submit" 
+                                class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors shadow-md hover:shadow-lg">
                             <i class="fas fa-save mr-2"></i>Update Expense
                         </button>
                         <button type="button" onclick="closeEditModal()" 
@@ -970,13 +1029,14 @@
                             <i class="fas fa-times mr-2"></i>Cancel
                         </button>
                     </div>
-                </form>
-            </div>
+                </div>
+            </form>
         </div>
     </div>
-    </div>
-                    </div>
-    </div>
+</div>
+
+            </div>
+
 
 
 
@@ -2099,49 +2159,70 @@
 <!-- JavaScript for Complete Dashboard Functionality -->
 <script>
 
-// ==================== EXPENSE EDIT & DELETE FUNCTIONALITY ====================
 
-// ✅ FIXED Edit expense function - Shows ACTUAL project first, allows changing to any project
-// FIXED Edit expense function - Properly sets all fields including ID
-// Updated editExpense function
-function editExpense(id, project, category, amount, date, description) {
-    console.log('=== EDITING EXPENSE ===');
-    console.log('ID:', id);
+// Edit Expense Function
+function editExpense(id, project, category, amount, date, description, documentPath) {
+    console.log('EDITING EXPENSE:', id, 'Document:', documentPath);
     
-    // Set the expense ID in the hidden field
-    const expenseIdField = document.getElementById('editExpenseId');
-    if (expenseIdField) {
-        expenseIdField.value = id;
-        console.log('✅ Expense ID set to:', id);
+    // Set form fields
+    document.getElementById('editExpenseId').value = id;
+    document.querySelector('select[name="project"]').value = project || '';
+    document.getElementById('editExpenseCategory').value = category || '';
+    document.getElementById('editExpenseAmount').value = amount || '';
+    document.getElementById('editExpenseDate').value = date || '';
+    document.getElementById('editExpenseDescription').value = description || '';
+    
+    // Reset delete document flag
+    document.getElementById('deleteDocument').value = 'false';
+    
+    // Show/hide current document
+    const docDisplay = document.getElementById('currentDocumentDisplay');
+    const docName = document.getElementById('currentDocumentName');
+    const docLink = document.getElementById('currentDocumentLink');
+    
+    if (documentPath && documentPath !== 'None' && documentPath !== 'null' && documentPath.trim() !== '') {
+        const filename = documentPath.split('/').pop() || 'Document';
+        docName.textContent = filename;
+        docLink.href = `/view_expense_document?expenseid=${id}`;
+        docDisplay.classList.remove('hidden');
+        console.log('Document shown:', filename);
     } else {
-        console.error('❌ editExpenseId field not found!');
-        alert('Error: Form field not found!');
-        return;
+        docDisplay.classList.add('hidden');
+        console.log('No document to show');
     }
     
-    // Set all form fields
-    const projectSelect = document.querySelector('select[name="project"]');
-    if (projectSelect) projectSelect.value = project || '';
-    
-    const categorySelect = document.getElementById('editExpenseCategory');
-    if (categorySelect) categorySelect.value = category || '';
-    
-    const amountInput = document.getElementById('editExpenseAmount');
-    if (amountInput) amountInput.value = amount || '';
-    
-    const dateInput = document.getElementById('editExpenseDate');
-    if (dateInput) dateInput.value = date || '';
-    
-    const descInput = document.getElementById('editExpenseDescription');
-    if (descInput) descInput.value = description || '';
-    
-    // Show the modal
-    const modal = document.getElementById('editExpenseModal');
-    if (modal) {
-        modal.classList.remove('hidden');
-        console.log('✅ Modal opened successfully');
+    // Show modal
+    document.getElementById('editExpenseModal').classList.remove('hidden');
+}
+
+// Close Modal Function
+function closeEditModal() {
+    document.getElementById('editExpenseModal').classList.add('hidden');
+    // Reset form
+    document.getElementById('editExpenseForm').reset();
+    document.getElementById('deleteDocument').value = 'false';
+    document.getElementById('currentDocumentDisplay').classList.add('hidden');
+}
+
+// Delete Document Function
+function deleteExpenseDocument() {
+    if (confirm('⚠️ Are you sure you want to delete this document?\n\nThis action cannot be undone. The document will be permanently removed when you update the expense.')) {
+        // Set hidden field to indicate document should be deleted
+        document.getElementById('deleteDocument').value = 'true';
+        
+        // Hide the current document display
+        document.getElementById('currentDocumentDisplay').classList.add('hidden');
+        
+        // Show success message
+        alert('✅ Document marked for deletion. Click "Update Expense" to confirm.');
     }
 }
+
+
+
+
+
+
 
 // Function to close the modal
 function closeEditModal() {
