@@ -98,6 +98,19 @@
             <button class="tab-button py-4 px-1 border-b-2 font-medium text-sm text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300" data-tab="history">
                 <i class="fas fa-history mr-2"></i>Complete History
             </button>
+{% if is_finance_hr_intern %}
+    <!-- Add Employee Tab - Only for Finance & HR Intern -->
+    <button class="tab-button py-4 px-1 border-b-2 font-medium text-sm text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300" data-tab="add-employee">
+        <i class="fas fa-user-plus mr-2"></i>Add Employee
+    </button>
+    
+    <!-- All Employees Tab - Only for Finance & HR Intern -->
+    <button class="tab-button py-4 px-1 border-b-2 font-medium text-sm text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300" data-tab="all-employees">
+        <i class="fas fa-users mr-2"></i>All Employees
+    </button>
+{% endif %}
+
+
         </nav>
     </div>
 
@@ -493,7 +506,623 @@
     </div>
 </div>
 
+<!-- Add Employee Tab - Only for Finance & HR Intern -->
+{% if is_finance_hr_intern %}
+<div id="add-employee" class="tab-content hidden">
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200">
+        <div class="px-6 py-4 border-b border-gray-200">
+            <h2 class="text-lg font-semibold text-gray-800">
+                <i class="fas fa-user-plus text-blue-600 mr-2"></i>Add New Employee - Complete Registration
+            </h2>
+        </div>
+        <div class="p-6">
+            <form method="post" action="{{ url_for('add_employee_action') }}" enctype="multipart/form-data" class="space-y-6">
+                <!-- Basic Information -->
+                <div class="bg-gray-50 p-4 rounded-lg">
+                    <h3 class="text-md font-semibold text-gray-800 mb-4">
+                        <i class="fas fa-user text-blue-600 mr-2"></i>Basic Information
+                    </h3>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Username</label>
+                            <input type="text" name="username" required class="form-input w-full rounded-lg border-gray-300" placeholder="Enter unique username">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Full Name</label>
+                            <input type="text" name="name" required class="form-input w-full rounded-lg border-gray-300" placeholder="Enter full name">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Email</label>
+                            <input type="email" name="email" required class="form-input w-full rounded-lg border-gray-300" placeholder="Enter email address">
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Password</label>
+                            <input type="password" name="password" required class="form-input w-full rounded-lg border-gray-300" placeholder="Enter password">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Role</label>
+                            <select name="role" required class="form-select w-full rounded-lg border-gray-300">
+                                <option value="">Select Role</option>
+                                <option value="Intern">Intern</option>
+                                <option value="Employee">Employee</option>
+                                <option value="Rm">RM</option>
+                                <option value="Manager">Manager</option>
+                                <option value="Lead">Lead</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Reporting Manager</label>
+                            <select name="reporting_manager" class="form-select w-full rounded-lg border-gray-300">
+                                <option value="">Select Manager</option>
+                                {% for manager in all_managers %}
+                                <option value="{{ manager.username }}">{{ manager.name }} ({{ manager.username }})</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                </div>
 
+                <!-- Employment Details -->
+                <div class="bg-gray-50 p-4 rounded-lg">
+                    <h3 class="text-md font-semibold text-gray-800 mb-4">
+                        <i class="fas fa-briefcase text-green-600 mr-2"></i>Employment Details
+                    </h3>
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Joining Date</label>
+                            <input type="date" name="joining_date" required class="form-input w-full rounded-lg border-gray-300">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Employment Type</label>
+                            <input type="text" name="employment_type" class="form-input w-full rounded-lg border-gray-300" placeholder="Enter employment type" list="employment-types">
+                            <datalist id="employment-types">
+                                <option value="Full-time">
+                                <option value="Contractual">
+                                <option value="Freelancer">
+                                <option value="Intern">
+                                <option value="Finance & HR Intern">
+                            </datalist>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Blood Group</label>
+                            <select name="blood_group" class="form-select w-full rounded-lg border-gray-300">
+                                <option value="">Select Blood Group</option>
+                                <option value="A+">A+</option>
+                                <option value="A-">A-</option>
+                                <option value="B+">B+</option>
+                                <option value="B-">B-</option>
+                                <option value="AB+">AB+</option>
+                                <option value="AB-">AB-</option>
+                                <option value="O+">O+</option>
+                                <option value="O-">O-</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Employment ID</label>
+                            <input type="text" name="employment_id" required class="form-input w-full rounded-lg border-gray-300" placeholder="e.g., CASINB14" maxlength="9" minlength="6">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Contact Information -->
+                <div class="bg-gray-50 p-4 rounded-lg">
+                    <h3 class="text-md font-semibold text-gray-800 mb-4">
+                        <i class="fas fa-phone text-purple-600 mr-2"></i>Contact Information
+                    </h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Mobile Number</label>
+                            <input type="tel" name="mobile_number" required class="form-input w-full rounded-lg border-gray-300" placeholder="Enter mobile number">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Emergency Contact</label>
+                            <input type="tel" name="emergency_contact" class="form-input w-full rounded-lg border-gray-300" placeholder="Emergency contact number">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Asset Issuance -->
+                <div class="bg-gray-50 p-4 rounded-lg">
+                    <h3 class="text-md font-semibold text-gray-800 mb-4">
+                        <i class="fas fa-laptop text-indigo-600 mr-2"></i>Asset Issuance
+                    </h3>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div class="flex items-center">
+                            <input type="checkbox" id="laptop_provided" name="laptop_provided" class="rounded border-gray-300 text-blue-600">
+                            <label for="laptop_provided" class="ml-2 text-sm text-gray-700">Laptop Provided</label>
+                        </div>
+                        <div class="flex items-center">
+                            <input type="checkbox" id="id_card_provided" name="id_card_provided" class="rounded border-gray-300 text-blue-600">
+                            <label for="id_card_provided" class="ml-2 text-sm text-gray-700">ID Card Provided</label>
+                        </div>
+                        <div class="flex items-center">
+                            <input type="checkbox" id="email_provided" name="email_provided" class="rounded border-gray-300 text-blue-600">
+                            <label for="email_provided" class="ml-2 text-sm text-gray-700">Email Access Provided</label>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">ID Card Details</label>
+                            <input type="text" name="id_card" class="form-input w-full rounded-lg border-gray-300" placeholder="ID Card number or details">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Asset Details</label>
+                            <textarea name="asset_details" rows="3" class="form-textarea w-full rounded-lg border-gray-300" placeholder="Additional asset details"></textarea>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Documents & Identification -->
+                <div class="bg-gray-50 p-4 rounded-lg">
+                    <h3 class="text-md font-semibold text-gray-800 mb-4">
+                        <i class="fas fa-id-card text-red-600 mr-2"></i>Documents & Identification
+                    </h3>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Aadhaar Number</label>
+                            <input type="text" name="adhaar_number" class="form-input w-full rounded-lg border-gray-300" placeholder="Enter Aadhaar number" maxlength="12">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">PAN Number</label>
+                            <input type="text" name="pan_number" class="form-input w-full rounded-lg border-gray-300" placeholder="Enter PAN number" maxlength="10">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">LinkedIn URL</label>
+                            <input type="url" name="linkedin_url" class="form-input w-full rounded-lg border-gray-300" placeholder="https://linkedin.com/in/username">
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Upload Photo</label>
+                            <input type="file" name="photo" accept="image/*" class="form-input w-full rounded-lg border-gray-300">
+                            <p class="text-xs text-gray-500 mt-1">Upload employee photo (JPG, PNG, max 5MB)</p>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Photo URL (Alternative)</label>
+                            <input type="url" name="photo_url" class="form-input w-full rounded-lg border-gray-300" placeholder="https://example.com/photo.jpg">
+                            <p class="text-xs text-gray-500 mt-1">Or provide photo URL</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Leave Balance Configuration -->
+                <div class="bg-gray-50 p-4 rounded-lg">
+                    <h3 class="text-md font-semibold text-gray-800 mb-4">
+                        <i class="fas fa-calendar-alt text-orange-600 mr-2"></i>Leave Balance Configuration
+                    </h3>
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Total Leaves</label>
+                            <input type="number" name="total_leaves" value="36" class="form-input w-full rounded-lg border-gray-300">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Sick Leaves</label>
+                            <input type="number" name="sick_total" value="12" class="form-input w-full rounded-lg border-gray-300">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Paid Leaves</label>
+                            <input type="number" name="paid_total" value="18" class="form-input w-full rounded-lg border-gray-300">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Casual Leaves</label>
+                            <input type="number" name="casual_total" value="6" class="form-input w-full rounded-lg border-gray-300">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Submit Buttons -->
+                <div class="flex justify-end space-x-4">
+                    <button type="reset" class="px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">
+                        <i class="fas fa-undo mr-2"></i>Reset Form
+                    </button>
+                    <button type="submit" class="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors">
+                        <i class="fas fa-user-plus mr-2"></i>Add Employee
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- All Employees Tab - Only for Finance & HR Intern -->
+<div id="all-employees" class="tab-content hidden">
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200">
+        <div class="px-6 py-4 border-b border-gray-200">
+            <h2 class="text-lg font-semibold text-gray-800">
+                <i class="fas fa-users text-green-600 mr-2"></i>All Employees ({{ all_employees|length }})
+            </h2>
+        </div>
+        <div class="p-6">
+            {% if all_employees %}
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200 table-hover">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Employee</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Employment</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contact</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Assets</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Employment ID</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200">
+                        {% for employee in all_employees %}
+                        <tr class="hover:bg-gray-50 transition-colors">
+                            <td class="px-4 py-4 whitespace-nowrap">
+                                <div class="flex items-center">
+                                    <div class="flex-shrink-0 h-10 w-10">
+                                        {% if employee.photo_url %}
+                                        <img class="h-10 w-10 rounded-full object-cover" src="{{ employee.photo_url }}" alt="{{ employee.name }}">
+                                        {% else %}
+                                        <div class="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center">
+                                            <span class="text-sm font-medium text-blue-600">{{ employee.name[0]|upper if employee.name else employee.username[0]|upper }}</span>
+                                        </div>
+                                        {% endif %}
+                                    </div>
+                                    <div class="ml-4">
+                                        <div class="text-sm font-medium text-gray-900">{{ employee.name or employee.username }}</div>
+                                        <div class="text-sm text-gray-500">{{ employee.username }}</div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td class="px-4 py-4 whitespace-nowrap">
+                                <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full 
+                                {% if employee.role == 'Manager' %}bg-blue-100 text-blue-800
+                                {% elif employee.role == 'Admin Manager' %}bg-red-100 text-red-800
+                                {% elif employee.role == 'Rm' %}bg-green-100 text-green-800
+                                {% elif employee.role == 'Employee' %}bg-gray-100 text-gray-800
+                                {% elif employee.role == 'Intern' %}bg-yellow-100 text-yellow-800
+                                {% else %}bg-purple-100 text-purple-800{% endif %}">
+                                    {{ employee.role }}
+                                </span>
+                            </td>
+                            <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+                                <div>{{ employee.employment_type or 'N/A' }}</div>
+                                <div class="text-xs text-gray-500">{{ employee.joining_date or 'N/A' }}</div>
+                            </td>
+                            <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+                                <div>{{ employee.mobile_number or 'N/A' }}</div>
+                                <div class="text-xs text-gray-500">{{ employee.email or 'N/A' }}</div>
+                            </td>
+                            <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+                                <div class="flex space-x-1">
+                                    {% if employee.laptop_provided %}
+                                    <span class="inline-flex px-1 py-1 text-xs bg-blue-100 text-blue-800 rounded">💻</span>
+                                    {% endif %}
+                                    {% if employee.id_card_provided %}
+                                    <span class="inline-flex px-1 py-1 text-xs bg-green-100 text-green-800 rounded">🆔</span>
+                                    {% endif %}
+                                    {% if employee.email_provided %}
+                                    <span class="inline-flex px-1 py-1 text-xs bg-purple-100 text-purple-800 rounded">📧</span>
+                                    {% endif %}
+                                </div>
+                            </td>
+                            <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+    <span class="font-mono bg-gray-100 px-2 py-1 rounded text-xs">
+        {{ employee.employmentid or 'N/A' }}
+    </span>
+</td>
+
+                            <td class="px-4 py-4 whitespace-nowrap text-sm font-medium space-x-1">
+                                <button class="text-blue-600 hover:text-blue-800 text-xs px-2 py-1 border border-blue-200 rounded hover:bg-blue-50 transition-colors" 
+                                        onclick="editEmployee('{{ employee.username }}', '{{ employee.name or '' }}', '{{ employee.email or '' }}', '{{ employee.role or '' }}', '{{ employee.mobile_number or '' }}')">
+                                    <i class="fas fa-edit mr-1"></i>Edit
+                                </button>
+                                <button class="text-green-600 hover:text-green-800 text-xs px-2 py-1 border border-green-200 rounded hover:bg-green-50 transition-colors" 
+                                        onclick="viewEmployeeDetails('{{ employee.username }}')">
+                                    <i class="fas fa-eye mr-1"></i>View
+                                </button>
+                                <button class="text-red-600 hover:text-red-800 text-xs px-2 py-1 border border-red-200 rounded hover:bg-red-50 transition-colors" 
+                                        onclick="deleteEmployee('{{ employee.username }}')">
+                                    <i class="fas fa-user-times mr-1"></i>Delete
+                                </button>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="text-center py-8">
+                <i class="fas fa-users text-4xl text-gray-300 mb-4"></i>
+                <p class="text-gray-500">No employees found</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+
+{% endif %}
+<!-- View Employee Modal -->
+<div id="employeeModal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+    <div class="relative top-20 mx-auto p-5 border w-11/12 md:w-3/4 shadow-lg rounded-md bg-white">
+        <div class="flex justify-between items-center pb-3">
+            <h3 class="text-xl font-semibold text-gray-900">Employee Details</h3>
+            <button onclick="closeModal()" class="text-gray-400 hover:text-gray-600">
+                <i class="fas fa-times text-2xl"></i>
+            </button>
+        </div>
+        <div id="employee-details-content" class="mt-4"></div>
+    </div>
+</div>
+
+<!-- Edit Employee Modal - COMPLETE VERSION -->
+<div id="editEmployeeModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden z-50" onclick="closeEditModalOnBackdrop(event)">
+    <div class="flex items-center justify-center min-h-screen p-4">
+        <div class="bg-white rounded-lg shadow-xl transform transition-all w-full max-w-6xl max-h-[90vh] flex flex-col" onclick="event.stopPropagation()">
+            <form method="post" action="{{ url_for('edit_employee_admin') }}" enctype="multipart/form-data" class="flex flex-col h-full" id="editEmployeeForm">
+                <!-- Modal Header - Fixed -->
+                <div class="px-6 py-4 border-b border-gray-200 flex-shrink-0 bg-white">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center">
+                            <div class="flex-shrink-0 flex items-center justify-center h-10 w-10 rounded-full bg-green-100">
+                                <i class="fas fa-edit text-green-600"></i>
+                            </div>
+                            <h3 class="ml-3 text-lg font-medium text-gray-900">Edit Employee - Complete Details</h3>
+                        </div>
+                        <button type="button" onclick="closeEditModal()" class="text-gray-400 hover:text-gray-600 text-xl" tabindex="-1">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Modal Body - SCROLLABLE with proper constraints -->
+                <div class="flex-1 overflow-y-auto px-6 py-4 modal-scroll" style="max-height: calc(90vh - 140px);">
+                    <div class="space-y-6">
+                        <input type="hidden" name="employee_username" id="edit_employee_username">
+                        
+                        <!-- Basic Information -->
+                        <div class="bg-gray-50 p-4 rounded-lg">
+                            <h4 class="text-md font-semibold text-gray-800 mb-4 flex items-center">
+                                <i class="fas fa-user text-blue-600 mr-2"></i>Basic Information
+                            </h4>
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Full Name</label>
+                                    <input type="text" name="name" id="edit_name" class="form-input w-full rounded-lg border-gray-300" placeholder="Leave empty to keep current">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Email</label>
+                                    <input type="email" name="email" id="edit_email" class="form-input w-full rounded-lg border-gray-300" placeholder="Leave empty to keep current">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Role</label>
+                                    <select name="role" id="edit_role" class="form-select w-full rounded-lg border-gray-300">
+                                        <option value="">Keep Current Role</option>
+                                        <option value="Admin Manager">Admin Manager</option>
+                                        <option value="Manager">Manager</option>
+                                        <option value="Rm">RM</option>
+                                        <option value="Employee">Employee</option>
+                                        <option value="Intern">Intern</option>
+                                        <option value="Lead">Lead</option>
+                                        <option value="Product Owner">Product Owner</option>
+                                        <option value="BDE Manager">BDE Manager</option>
+                                        <option value="Lead Staffing Specialist">Lead Staffing Specialist</option>
+                                        <option value="SAP Consultant">SAP Consultant</option>
+                                        <option value="Contractor">Contractor</option>
+                                        <option value="Hr & Finance Controller">HR & Finance Controller</option>
+                                        <option value="Finance Manager">Finance Manager</option>
+                                        <option value="Hr & Finance Controller">Jr HR Executive</option>
+                                        <option value="Finance Manager">HR Intern</option>
+                                        <option value="Finance Manager">Freelancer</option>
+
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">New Password</label>
+                                    <input type="password" name="password" id="edit_password" class="form-input w-full rounded-lg border-gray-300" placeholder="Leave empty to keep current password">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Reporting Manager</label>
+                                    <select name="reporting_manager" id="edit_reporting_manager" class="form-select w-full rounded-lg border-gray-300">
+                                        <option value="">Keep Current Manager</option>
+                                        {% for manager in all_managers %}
+                                        <option value="{{ manager.username }}">{{ manager.name }} ({{ manager.username }})</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Employment Details -->
+                        <div class="bg-gray-50 p-4 rounded-lg">
+                            <h4 class="text-md font-semibold text-gray-800 mb-4 flex items-center">
+                                <i class="fas fa-briefcase text-green-600 mr-2"></i>Employment Details
+                            </h4>
+                            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Joining Date</label>
+                                    <input type="date" name="joining_date" id="edit_joining_date" class="form-input w-full rounded-lg border-gray-300">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Employment Type</label>
+                                    <input type="text" 
+                                           name="employment_type" 
+                                           id="edit_employment_type" 
+                                           class="form-input w-full rounded-lg border-gray-300" 
+                                           placeholder="Enter employment type"
+                                           list="employment-types-edit"
+                                           onchange="toggleDurationFieldForEdit(this)">
+                                    <datalist id="employment-types-edit">
+                                        <option value="Fulltime">
+                                        <option value="Contractual">
+                                        <option value="Freelancer">
+                                        <option value="Intern">
+                                        <option value="Remote">
+                                        <option value="Hybrid">
+                                        <option value="Part-time">
+                                        <option value="Consultant">
+                                    </datalist>
+                                </div>
+                                <div id="edit_duration_field">
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Duration (months)</label>
+                                    <input type="number" name="duration" id="edit_duration" class="form-input w-full rounded-lg border-gray-300" placeholder="Contract duration">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Blood Group</label>
+                                    <select name="blood_group" id="edit_blood_group" class="form-select w-full rounded-lg border-gray-300">
+                                        <option value="">Keep Current</option>
+                                        <option value="A+">A+</option>
+                                        <option value="A-">A-</option>
+                                        <option value="B+">B+</option>
+                                        <option value="B-">B-</option>
+                                        <option value="AB+">AB+</option>
+                                        <option value="AB-">AB-</option>
+                                        <option value="O+">O+</option>
+                                        <option value="O-">O-</option>
+                                    </select>
+                                </div>
+                                <!-- In the edit employee form -->
+<!-- Employment ID field - EDIT FORM (OPTIONAL) -->
+<div>
+    <label class="block text-sm font-medium text-gray-700 mb-2">Employment ID</label>
+    <input type="text" name="employmentid" id="editemploymentid" 
+           class="form-input w-full rounded-lg border-gray-300" 
+           placeholder="e.g., CASINB14, CAS0B37, CASINB"
+           maxlength="9" 
+           minlength="6"
+           pattern="[A-Za-z0-9]{6,9}"
+           style="text-transform: uppercase;"
+           oninput="this.value = this.value.toUpperCase();">
+    <p class="text-xs text-gray-500 mt-1">Must be 6-9 characters with letters and numbers (leave blank to keep current)</p>
+</div>
+
+
+
+                            </div>
+                        </div>
+
+                        <!-- Contact Information -->
+                        <div class="bg-gray-50 p-4 rounded-lg">
+                            <h4 class="text-md font-semibold text-gray-800 mb-4 flex items-center">
+                                <i class="fas fa-phone text-purple-600 mr-2"></i>Contact Information
+                            </h4>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Mobile Number</label>
+                                    <input type="tel" name="mobile_number" id="edit_mobile_number" class="form-input w-full rounded-lg border-gray-300" placeholder="Enter mobile number">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Emergency Contact</label>
+                                    <input type="tel" name="emergency_contact" id="edit_emergency_contact" class="form-input w-full rounded-lg border-gray-300" placeholder="Emergency contact number">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Asset Information -->
+                        <div class="bg-gray-50 p-4 rounded-lg">
+                            <h4 class="text-md font-semibold text-gray-800 mb-4 flex items-center">
+                                <i class="fas fa-laptop text-indigo-600 mr-2"></i>Asset Information
+                            </h4>
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div class="flex items-center">
+                                    <input type="checkbox" id="edit_laptop_provided" name="laptop_provided" class="rounded border-gray-300 text-blue-600">
+                                    <label for="edit_laptop_provided" class="ml-2 text-sm text-gray-700">Laptop Provided</label>
+                                </div>
+                                <div class="flex items-center">
+                                    <input type="checkbox" id="edit_id_card_provided" name="id_card_provided" class="rounded border-gray-300 text-blue-600">
+                                    <label for="edit_id_card_provided" class="ml-2 text-sm text-gray-700">ID Card Provided</label>
+                                </div>
+                                <div class="flex items-center">
+                                    <input type="checkbox" id="edit_email_provided" name="email_provided" class="rounded border-gray-300 text-blue-600">
+                                    <label for="edit_email_provided" class="ml-2 text-sm text-gray-700">Email Access Provided</label>
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">ID Card Details</label>
+                                    <input type="text" name="id_card" id="edit_id_card" class="form-input w-full rounded-lg border-gray-300" placeholder="ID Card number or details">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Asset Details</label>
+                                    <textarea name="asset_details" id="edit_asset_details" rows="2" class="form-textarea w-full rounded-lg border-gray-300" placeholder="Additional asset details"></textarea>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Documents & Identification -->
+                        <div class="bg-gray-50 p-4 rounded-lg">
+                            <h4 class="text-md font-semibold text-gray-800 mb-4 flex items-center">
+                                <i class="fas fa-id-card text-red-600 mr-2"></i>Documents & Identification
+                            </h4>
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Aadhaar Number</label>
+                                    <input type="text" name="adhaar_number" id="edit_adhaar_number" class="form-input w-full rounded-lg border-gray-300" placeholder="Enter Aadhaar number" maxlength="12">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">PAN Number</label>
+                                    <input type="text" name="pan_number" id="edit_pan_number" class="form-input w-full rounded-lg border-gray-300" placeholder="Enter PAN number" maxlength="10">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">LinkedIn URL</label>
+                                    <input type="url" name="linkedin_url" id="edit_linkedin_url" class="form-input w-full rounded-lg border-gray-300" placeholder="https://linkedin.com/in/username">
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Upload New Photo</label>
+                                    <input type="file" name="photo" id="edit_photo" accept="image/*" class="form-input w-full rounded-lg border-gray-300">
+                                    <p class="text-xs text-gray-500 mt-1">Upload new employee photo (JPG, PNG, max 5MB)</p>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Photo URL (Alternative)</label>
+                                    <input type="url" name="photo_url" id="edit_photo_url" class="form-input w-full rounded-lg border-gray-300" placeholder="https://example.com/photo.jpg">
+                                    <p class="text-xs text-gray-500 mt-1">Or provide photo URL</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Leave Balance Configuration -->
+                        <div class="bg-gray-50 p-4 rounded-lg">
+                            <h4 class="text-md font-semibold text-gray-800 mb-4 flex items-center">
+                                <i class="fas fa-calendar-alt text-orange-600 mr-2"></i>Leave Balance Configuration
+                            </h4>
+                            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Total Leaves</label>
+                                    <input type="number" name="total_leaves" id="edit_total_leaves" class="form-input w-full rounded-lg border-gray-300" placeholder="Default: 36">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Sick Leaves</label>
+                                    <input type="number" name="sick_total" id="edit_sick_total" class="form-input w-full rounded-lg border-gray-300" placeholder="Default: 12">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Paid Leaves</label>
+                                    <input type="number" name="paid_total" id="edit_paid_total" class="form-input w-full rounded-lg border-gray-300" placeholder="Default: 18">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Casual Leaves</label>
+                                    <input type="number" name="casual_total" id="edit_casual_total" class="form-input w-full rounded-lg border-gray-300" placeholder="Default: 6">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Modal Footer - FIXED POSITION -->
+                <div class="px-6 py-4 border-t border-gray-200 bg-white flex justify-end space-x-3 flex-shrink-0">
+                    <button type="button" 
+                            onclick="closeEditModal()" 
+                            class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-colors">
+                        <i class="fas fa-times mr-2"></i>Cancel
+                    </button>
+                    <button type="submit" 
+                            class="px-6 py-2 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors">
+                        <i class="fas fa-save mr-2"></i>Update Employee
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
         <!-- Complete History Tab -->
         <div id="history" class="tab-content hidden">
             <div class="space-y-6">
@@ -877,6 +1506,7 @@
         </div>
     </div>
 </div>
+
 <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
 <script>
 // Tab functionality
@@ -919,6 +1549,233 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 });
+
+
+// Enhanced Edit Employee Function
+function editEmployee(username, name, email, role, mobile) {
+    // Set basic fields only
+    document.getElementById('edit_employee_username').value = username;
+    document.getElementById('edit_name').value = name || '';
+    document.getElementById('edit_email').value = email || '';
+    document.getElementById('edit_role').value = role || '';
+    
+    document.getElementById('edit_mobile_number').value = mobile || '';
+    
+    // Fetch complete employee details to populate all fields
+    fetch(`{{ url_for('get_employee_details_json') }}?username=${username}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const employee = data.employee;
+                
+                // Populate all comprehensive fields with current values
+                document.getElementById('edit_joining_date').value = employee.joining_date || '';
+                document.getElementById('edit_employment_type').value = employee.employment_type || '';
+                document.getElementById('edit_duration').value = employee.duration || '';
+                document.getElementById('edit_blood_group').value = employee.blood_group || '';
+                // Add this line in your editEmployee function
+                document.getElementById('edit_employmentid').value = employee.employmentid || '';
+
+                document.getElementById('edit_emergency_contact').value = employee.emergency_contact || '';
+                document.getElementById('edit_reporting_manager').value = employee.reporting_manager || '';
+                
+
+
+                
+                // Asset information
+                document.getElementById('edit_laptop_provided').checked = employee.laptop_provided || false;
+                document.getElementById('edit_id_card_provided').checked = employee.id_card_provided || false;
+                document.getElementById('edit_email_provided').checked = employee.email_provided || false;
+                document.getElementById('edit_id_card').value = employee.id_card || '';
+                document.getElementById('edit_asset_details').value = employee.asset_details || '';
+                
+                // Documents & Identification
+                document.getElementById('edit_adhaar_number').value = employee.adhaar_number || '';
+                document.getElementById('edit_pan_number').value = employee.pan_number || '';
+                document.getElementById('edit_linkedin_url').value = employee.linkedin_url || '';
+                document.getElementById('edit_photo_url').value = employee.photo_url || '';
+                
+                // Leave balance fields
+                document.getElementById('edit_total_leaves').value = employee.total_leaves || '';
+                document.getElementById('edit_sick_total').value = employee.sick_total || '';
+                document.getElementById('edit_paid_total').value = employee.paid_total || '';
+                document.getElementById('edit_casual_total').value = employee.casual_total || '';
+                
+                console.log('All employee fields populated successfully');
+            } else {
+                console.error('Failed to fetch employee details:', data.message);
+            }
+        })
+        .catch(error => {
+            console.error('Error fetching employee details:', error);
+        });
+    
+    document.getElementById('editEmployeeModal').classList.remove('hidden');
+}
+
+function closeEditModal() {
+    document.getElementById('editEmployeeModal').classList.add('hidden');
+}
+
+function closeEditModalOnBackdrop(event) {
+    if (event.target === event.currentTarget) {
+        closeEditModal();
+    }
+}
+
+// View Employee Details Function - WITH RM INFO
+function viewEmployeeDetails(username) {
+    fetch(`{{ url_for('get_employee_details_json') }}?username=${username}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const employee = data.employee;
+                const detailsHtml = `
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <!-- Personal Information -->
+                        <div class="bg-gray-50 p-4 rounded-lg">
+                            <h4 class="font-semibold text-gray-800 mb-3">
+                                <i class="fas fa-user text-blue-600 mr-2"></i>Personal Information
+                            </h4>
+                            <div class="space-y-2 text-sm">
+                                <div><strong>Username:</strong> ${employee.username}</div>
+                                <div><strong>Full Name:</strong> ${employee.name || 'N/A'}</div>
+                                <div><strong>Email:</strong> ${employee.email || 'N/A'}</div>
+                                <div><strong>Role:</strong> ${employee.role || 'N/A'}</div>
+                                <div><strong>Employment ID:</strong> <span class="font-mono bg-gray-100 px-2 py-1 rounded text-xs">${employee.employmentid || 'N/A'}</span></div>
+
+                                <div><strong>Mobile:</strong> ${employee.mobile_number || 'N/A'}</div>
+                                <div><strong>Emergency Contact:</strong> ${employee.emergency_contact || 'N/A'}</div>
+                                <div><strong>Blood Group:</strong> ${employee.blood_group || 'N/A'}</div>
+                               
+
+                            </div>
+                        </div>
+                        
+                        <!-- Employment Information -->
+                        <div class="bg-gray-50 p-4 rounded-lg">
+                            <h4 class="font-semibold text-gray-800 mb-3">
+                                <i class="fas fa-briefcase text-green-600 mr-2"></i>Employment Information
+                            </h4>
+                            <div class="space-y-2 text-sm">
+                                <div><strong>Employment Type:</strong> ${employee.employment_type || 'N/A'}</div>
+                                <div><strong>Joining Date:</strong> ${employee.joining_date || 'N/A'}</div>
+                                <div><strong>Status:</strong> ${employee.status || 'N/A'}</div>
+                                <div><strong>Duration:</strong> ${employee.duration || 'N/A'}</div>
+                                
+                            </div>
+                        </div>
+                        
+                        <!-- Reporting Manager (RM) Details ONLY -->
+                        <div class="bg-blue-50 p-4 rounded-lg">
+                            <h4 class="font-semibold text-gray-800 mb-3">
+                                <i class="fas fa-user-tie text-blue-600 mr-2"></i>Reporting Manager (RM) Details
+                            </h4>
+                            <div class="space-y-2 text-sm">
+                                ${employee.rm_username ? `
+                                    <div><strong>RM Username:</strong> ${employee.rm_username}</div>
+                                    <div><strong>RM Name:</strong> ${employee.rm_name || 'N/A'}</div>
+                                    <div><strong>RM Role:</strong> ${employee.rm_role || 'N/A'}</div>
+                                    <div><strong>RM Email:</strong> ${employee.rm_email || 'N/A'}</div>
+                                ` : '<div class="text-gray-500 italic">No reporting manager (RM) assigned</div>'}
+                            </div>
+                        </div>
+                        
+                        <!-- Documents & Assets -->
+                        <div class="bg-gray-50 p-4 rounded-lg">
+                            <h4 class="font-semibold text-gray-800 mb-3">
+                                <i class="fas fa-file-alt text-purple-600 mr-2"></i>Documents & Assets
+                            </h4>
+                            <div class="space-y-2 text-sm">
+                                <div><strong>Aadhaar Number:</strong> ${employee.adhaar_number || 'N/A'}</div>
+                                <div><strong>PAN Number:</strong> ${employee.pan_number || 'N/A'}</div>
+                                <div><strong>LinkedIn:</strong> ${employee.linkedin_url ? `<a href="${employee.linkedin_url}" target="_blank" class="text-blue-600 hover:underline">${employee.linkedin_url}</a>` : 'N/A'}</div>
+                                <div><strong>ID Card:</strong> ${employee.id_card || 'N/A'}</div>
+                                <div><strong>Laptop Provided:</strong> ${employee.laptop_provided ? 'Yes' : 'No'}</div>
+                                <div><strong>ID Card Provided:</strong> ${employee.id_card_provided ? 'Yes' : 'No'}</div>
+                                <div><strong>Email Access:</strong> ${employee.email_provided ? 'Yes' : 'No'}</div>
+                            </div>
+                        </div>
+                        
+                        <!-- Leave Balance -->
+                        <div class="bg-gray-50 p-4 rounded-lg">
+                            <h4 class="font-semibold text-gray-800 mb-3">
+                                <i class="fas fa-calendar-alt text-orange-600 mr-2"></i>Leave Balance
+                            </h4>
+                            <div class="space-y-2 text-sm">
+                                <div><strong>Total Leaves:</strong> ${employee.total_leaves || 'N/A'}</div>
+                                <div><strong>Sick Leaves:</strong> ${employee.sick_total || 'N/A'}</div>
+                                <div><strong>Paid Leaves:</strong> ${employee.paid_total || 'N/A'}</div>
+                                <div><strong>Casual Leaves:</strong> ${employee.casual_total || 'N/A'}</div>
+                            </div>
+                        </div>
+                        
+                        ${employee.asset_details ? `
+                        <div class="bg-gray-50 p-4 rounded-lg md:col-span-2">
+                            <h4 class="font-semibold text-gray-800 mb-3">
+                                <i class="fas fa-laptop text-indigo-600 mr-2"></i>Asset Details
+                            </h4>
+                            <div class="text-sm">${employee.asset_details}</div>
+                        </div>
+                        ` : ''}
+                    </div>
+                    
+                    ${employee.photo_url ? `
+                    <div class="mt-4 text-center">
+                        <img src="${employee.photo_url}" alt="${employee.name || employee.username}" class="mx-auto h-32 w-32 rounded-full object-cover border-4 border-gray-200">
+                    </div>
+                    ` : ''}
+                `;
+                
+                document.getElementById('employee-details-content').innerHTML = detailsHtml;
+                document.getElementById('employeeModal').classList.remove('hidden');
+            } else {
+                alert('Failed to load employee details: ' + data.message);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Error loading employee details');
+        });
+}
+
+function closeModal() {
+    document.getElementById('employeeModal').classList.add('hidden');
+}
+
+// Delete Employee
+// Delete Employee function
+function deleteEmployee(username) {
+    if (confirm(`Are you sure you want to delete employee ${username}? This action will move them to resigned employees.`)) {
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = '/delete_employee_admin';  // FIXED - Added leading slash
+        
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = 'username';  // Correct field name
+        input.value = username;
+        
+        form.appendChild(input);
+        document.body.appendChild(form);
+        form.submit();
+    }
+}
+
+
+// Close modals
+function closeModal() {
+    document.getElementById('employeeModal').classList.add('hidden');
+}
+
+function closeEditModal() {
+    document.getElementById('editEmployeeModal').classList.add('hidden');
+}
+
+
+
+
+
 
 // Document viewing functions
 function viewDocument(leaveId) {
