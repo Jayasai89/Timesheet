@@ -262,7 +262,7 @@
 <!-- Employment ID field - CORRECTED -->
 <div>
     <label class="block text-sm font-medium text-gray-700 mb-2">Employment ID *</label>
-    <input type="text" name="employmentid" required 
+    <input type="text" name="employmentid" 
            class="form-input w-full rounded-lg border-gray-300" 
            placeholder="e.g., CASINB14, CAS0B37, CASINB"
            maxlength="9" 
@@ -325,39 +325,55 @@
                                         </div>
                                     </div>
                                 </div>
+<!-- Documents & Identification -->
+<div class="bg-gray-50 p-4 rounded-lg">
+    <h3 class="text-md font-semibold text-gray-800 mb-4">
+        <i class="fas fa-folder text-red-600 mr-2"></i>Documents & Identification
+    </h3>
+    
+    <!-- Upload Documents Folder -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">
+                <i class="fas fa-file-upload mr-1"></i>Upload Employee Documents
+            </label>
+            <input type="file" name="employee_documents" multiple 
+                   accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" 
+                   class="form-input w-full rounded-lg border-gray-300 p-2"
+                   id="employee_documents"
+                   onchange="displaySelectedFiles(this)">
+            <p class="text-xs text-gray-500 mt-2">
+                <i class="fas fa-info-circle mr-1"></i>Upload multiple documents: 
+                Aadhaar, PAN, Address Proof, etc. (PDF, JPG, PNG, DOC - Max 10MB each)
+            </p>
+            <div id="selected-files" class="mt-2 space-y-1">
+                <!-- Selected files will be displayed here -->
+            </div>
+        </div>
+        
+        <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">LinkedIn URL</label>
+            <input type="url" name="linkedinurl" class="form-input w-full rounded-lg border-gray-300" 
+                   placeholder="https://linkedin.com/in/username">
+        </div>
+    </div>
+    
+    <!-- Photo Upload -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+        <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">Upload Photo</label>
+            <input type="file" name="photo" accept="image/*" class="form-input w-full rounded-lg border-gray-300">
+            <p class="text-xs text-gray-500 mt-1">Upload employee photo (JPG, PNG, max 5MB)</p>
+        </div>
+        <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">Photo URL (Alternative)</label>
+            <input type="url" name="photourl" class="form-input w-full rounded-lg border-gray-300" 
+                   placeholder="https://example.com/photo.jpg">
+            <p class="text-xs text-gray-500 mt-1">Or provide photo URL</p>
+        </div>
+    </div>
+</div>
 
-                                <!-- Documents & Identification -->
-                                <div class="bg-gray-50 p-4 rounded-lg">
-                                    <h3 class="text-md font-semibold text-gray-800 mb-4">
-                                        <i class="fas fa-id-card text-red-600 mr-2"></i>Documents & Identification
-                                    </h3>
-                                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                        <div>
-                                            <label class="block text-sm font-medium text-gray-700 mb-2">Aadhaar Number</label>
-                                            <input type="text" name="adhaar_number" class="form-input w-full rounded-lg border-gray-300" placeholder="Enter Aadhaar number" maxlength="12">
-                                        </div>
-                                        <div>
-                                            <label class="block text-sm font-medium text-gray-700 mb-2">PAN Number</label>
-                                            <input type="text" name="pan_number" class="form-input w-full rounded-lg border-gray-300" placeholder="Enter PAN number" maxlength="10">
-                                        </div>
-                                        <div>
-                                            <label class="block text-sm font-medium text-gray-700 mb-2">LinkedIn URL</label>
-                                            <input type="url" name="linkedin_url" class="form-input w-full rounded-lg border-gray-300" placeholder="https://linkedin.com/in/username">
-                                        </div>
-                                    </div>
-                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                                        <div>
-                                            <label class="block text-sm font-medium text-gray-700 mb-2">Upload Photo</label>
-                                            <input type="file" name="photo" accept="image/*" class="form-input w-full rounded-lg border-gray-300">
-                                            <p class="text-xs text-gray-500 mt-1">Upload employee photo (JPG, PNG, max 5MB)</p>
-                                        </div>
-                                        <div>
-                                            <label class="block text-sm font-medium text-gray-700 mb-2">Photo URL (Alternative)</label>
-                                            <input type="url" name="photo_url" class="form-input w-full rounded-lg border-gray-300" placeholder="https://example.com/photo.jpg">
-                                            <p class="text-xs text-gray-500 mt-1">Or provide photo URL</p>
-                                        </div>
-                                    </div>
-                                </div>
 
                                 <!-- Leave Balance -->
                                 <div class="bg-gray-50 p-4 rounded-lg">
@@ -1897,39 +1913,88 @@
                                 </div>
                             </div>
                         </div>
+<!-- Documents & Identification -->
+<div class="bg-gray-50 p-4 rounded-lg">
+    <h4 class="text-md font-semibold text-gray-800 mb-4 flex items-center">
+        <i class="fas fa-folder text-red-600 mr-2"></i>Documents & Identification
+    </h4>
+    
+    <!-- Current Documents Display -->
+    <div class="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+        <div class="flex items-center justify-between mb-2">
+            <div class="flex items-center">
+                <i class="fas fa-folder-open text-blue-600 mr-2"></i>
+                <span class="text-sm font-medium text-gray-700">Current Documents:</span>
+                <span id="edit-current-docs-count" class="ml-2 text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
+                    0 documents
+                </span>
+            </div>
+            <button type="button" 
+                    onclick="toggleDocumentsList()"
+                    id="toggle-edit-docs-btn"
+                    class="text-blue-600 hover:text-blue-800 text-xs px-3 py-1 border border-blue-200 rounded hover:bg-blue-100 transition-colors">
+                <i class="fas fa-chevron-down mr-1" id="docs-chevron"></i>
+                <span id="docs-toggle-text">View All</span>
+            </button>
+        </div>
+        
+        <!-- ✅ THIS IS THE MISSING CONTAINER -->
+        <div id="edit-documents-list" class="mt-3 space-y-2 hidden">
+            <div id="edit-documents-container" class="max-h-60 overflow-y-auto">
+                <p class="text-center text-gray-500 py-2">Click "View All" to load documents</p>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Upload More Documents -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">
+                <i class="fas fa-file-upload mr-1"></i>Add More Documents
+            </label>
+            <input type="file" 
+                   name="employee_documents" 
+                   multiple 
+                   accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" 
+                   class="form-input w-full rounded-lg border-gray-300 p-2">
+            <p class="text-xs text-gray-500 mt-2">
+                Upload additional documents (PDF, JPG, PNG, DOC - Max 10MB each)
+            </p>
+        </div>
+        
+        <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">LinkedIn URL</label>
+            <input type="url" 
+                   name="linkedin_url" 
+                   id="edit_linkedin_url" 
+                   class="form-input w-full rounded-lg border-gray-300" 
+                   placeholder="https://linkedin.com/in/username">
+        </div>
+    </div>
+    
+    <!-- Photo Upload -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+        <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">Update Photo</label>
+            <input type="file" 
+                   name="photo" 
+                   accept="image/*" 
+                   class="form-input w-full rounded-lg border-gray-300 p-2">
+            <p class="text-xs text-gray-500 mt-1">Upload new photo (JPG, PNG, max 5MB)</p>
+        </div>
+        <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">Photo URL (Alternative)</label>
+            <input type="url" 
+                   name="photo_url" 
+                   id="edit_photo_url" 
+                   class="form-input w-full rounded-lg border-gray-300" 
+                   placeholder="https://example.com/photo.jpg">
+        </div>
+    </div>
+</div>
 
-                        <!-- Documents & Identification -->
-                        <div class="bg-gray-50 p-4 rounded-lg">
-                            <h4 class="text-md font-semibold text-gray-800 mb-4 flex items-center">
-                                <i class="fas fa-id-card text-red-600 mr-2"></i>Documents & Identification
-                            </h4>
-                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700 mb-2">Aadhaar Number</label>
-                                    <input type="text" name="adhaar_number" id="edit_adhaar_number" class="form-input w-full rounded-lg border-gray-300" placeholder="Enter Aadhaar number" maxlength="12">
-                                </div>
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700 mb-2">PAN Number</label>
-                                    <input type="text" name="pan_number" id="edit_pan_number" class="form-input w-full rounded-lg border-gray-300" placeholder="Enter PAN number" maxlength="10">
-                                </div>
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700 mb-2">LinkedIn URL</label>
-                                    <input type="url" name="linkedin_url" id="edit_linkedin_url" class="form-input w-full rounded-lg border-gray-300" placeholder="https://linkedin.com/in/username">
-                                </div>
-                            </div>
-                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700 mb-2">Upload New Photo</label>
-                                    <input type="file" name="photo" id="edit_photo" accept="image/*" class="form-input w-full rounded-lg border-gray-300">
-                                    <p class="text-xs text-gray-500 mt-1">Upload new employee photo (JPG, PNG, max 5MB)</p>
-                                </div>
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700 mb-2">Photo URL (Alternative)</label>
-                                    <input type="url" name="photo_url" id="edit_photo_url" class="form-input w-full rounded-lg border-gray-300" placeholder="https://example.com/photo.jpg">
-                                    <p class="text-xs text-gray-500 mt-1">Or provide photo URL</p>
-                                </div>
-                            </div>
-                        </div>
+<!-- Hidden field for username (for document loading) -->
+<input type="hidden" id="editemployeeusername" name="employee_username">
 
                         <!-- Leave Balance Configuration -->
                         <div class="bg-gray-50 p-4 rounded-lg">
@@ -2002,10 +2067,200 @@
         </div>
     </div>
 </div>
-
-<!-- JavaScript -->
 <script>
+// ========================================
+// DOCUMENT MANAGEMENT FUNCTIONS
+// ========================================
+
+function toggleDocumentsList() {
+    const docsList = document.getElementById('edit-documents-list');
+    const chevron = document.getElementById('docs-chevron');
+    const toggleText = document.getElementById('docs-toggle-text');
+    
+    console.log('Toggle clicked', {docsList, chevron, toggleText});
+    
+    if (!docsList) {
+        console.error('edit-documents-list not found');
+        alert('Document list container not found. Please refresh the page.');
+        return;
+    }
+    
+    if (docsList.classList.contains('hidden')) {
+        docsList.classList.remove('hidden');
+        if (chevron) {
+            chevron.classList.remove('fa-chevron-down');
+            chevron.classList.add('fa-chevron-up');
+        }
+        if (toggleText) {
+            toggleText.textContent = 'Hide';
+        }
+        
+        const usernameField = document.getElementById('editemployeeusername');
+        console.log('Username field:', usernameField, 'Value:', usernameField ? usernameField.value : 'N/A');
+        
+        if (usernameField && usernameField.value) {
+            loadEmployeeDocuments(usernameField.value);
+        } else {
+            console.error('Username field not found or empty');
+            const container = document.getElementById('edit-documents-container');
+            if (container) {
+                container.innerHTML = '<p class="text-center text-red-500 py-2 text-sm">Error: Username not found</p>';
+            }
+        }
+    } else {
+        docsList.classList.add('hidden');
+        if (chevron) {
+            chevron.classList.remove('fa-chevron-up');
+            chevron.classList.add('fa-chevron-down');
+        }
+        if (toggleText) {
+            toggleText.textContent = 'View All';
+        }
+    }
+}
+
+function loadEmployeeDocuments(username) {
+    const container = document.getElementById('edit-documents-container');
+    
+    if (!container) {
+        console.error('edit-documents-container not found');
+        alert('Documents container not found');
+        return;
+    }
+    
+    container.innerHTML = '<p class="text-center text-gray-500 py-2"><i class="fas fa-spinner fa-spin mr-2"></i>Loading...</p>';
+    
+    console.log('Fetching documents for:', username);
+    
+    fetch(`/get_employee_documents_list?username=${encodeURIComponent(username)}`)
+        .then(response => {
+            console.log('Response status:', response.status);
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            console.log('Documents data:', data);
+            
+            if (data.success) {
+                if (data.documents && data.documents.length > 0) {
+                    let html = '';
+                    data.documents.forEach(doc => {
+                        html += `
+                            <div class="flex items-center justify-between p-2 bg-white rounded border hover:bg-gray-50 transition-colors mb-2">
+                                <div class="flex items-center space-x-2">
+                                    <i class="fas fa-file-pdf text-red-500 text-sm"></i>
+                                    <div>
+                                        <p class="text-xs font-medium text-gray-800">${doc.filename}</p>
+                                        <p class="text-xs text-gray-500">${doc.size}</p>
+                                    </div>
+                                </div>
+                                <a href="${doc.download_url}" 
+                                   target="_blank"
+                                   class="text-blue-600 hover:text-blue-800 px-2 py-1 text-xs border rounded">
+                                    <i class="fas fa-download"></i>
+                                </a>
+                            </div>
+                        `;
+                    });
+                    container.innerHTML = html;
+                } else {
+                    container.innerHTML = '<p class="text-center text-gray-500 py-4 text-sm">No documents uploaded yet</p>';
+                }
+            } else {
+                container.innerHTML = `<p class="text-center text-red-500 py-2 text-sm">Error: ${data.error || 'Unknown error'}</p>`;
+            }
+        })
+        .catch(error => {
+            console.error('Error loading documents:', error);
+            container.innerHTML = `<p class="text-center text-red-500 py-2 text-sm">Error: ${error.message}</p>`;
+        });
+}
+
+// ========================================
+// FILE SELECTION DISPLAY FUNCTIONS
+// ========================================
+
+function displaySelectedFiles(input) {
+    const filesContainer = document.getElementById('selected-files');
+    if (!filesContainer) return;
+    
+    filesContainer.innerHTML = '';
+    
+    if (input.files.length > 0) {
+        const filesArray = Array.from(input.files);
+        
+        filesArray.forEach((file, index) => {
+            const fileSize = (file.size / 1024 / 1024).toFixed(2);
+            const fileDiv = document.createElement('div');
+            fileDiv.className = 'flex items-center justify-between bg-blue-50 p-2 rounded border border-blue-200';
+            fileDiv.innerHTML = `
+                <div class="flex items-center space-x-2 text-xs">
+                    <i class="fas fa-file text-blue-600"></i>
+                    <span class="text-gray-700 font-medium">${file.name}</span>
+                    <span class="text-gray-500">(${fileSize} MB)</span>
+                </div>
+                <button type="button" onclick="removeFile(${index})" class="text-red-600 hover:text-red-800">
+                    <i class="fas fa-times"></i>
+                </button>
+            `;
+            filesContainer.appendChild(fileDiv);
+        });
+    }
+}
+
+function displayEditSelectedFiles(input) {
+    const filesContainer = document.getElementById('edit-selected-files');
+    if (!filesContainer) return;
+    
+    filesContainer.innerHTML = '';
+    
+    if (input.files.length > 0) {
+        const filesArray = Array.from(input.files);
+        
+        filesArray.forEach((file, index) => {
+            const fileSize = (file.size / 1024 / 1024).toFixed(2);
+            const fileDiv = document.createElement('div');
+            fileDiv.className = 'flex items-center justify-between bg-green-50 p-2 rounded border border-green-200';
+            fileDiv.innerHTML = `
+                <div class="flex items-center space-x-2 text-xs">
+                    <i class="fas fa-file text-green-600"></i>
+                    <span class="text-gray-700 font-medium">${file.name}</span>
+                    <span class="text-gray-500">(${fileSize} MB)</span>
+                </div>
+                <button type="button" onclick="removeEditFile(${index})" class="text-red-600 hover:text-red-800">
+                    <i class="fas fa-times"></i>
+                </button>
+            `;
+            filesContainer.appendChild(fileDiv);
+        });
+    }
+}
+
+function removeFile(index) {
+    const input = document.getElementById('employee_documents');
+    if (!input) return;
+    
+    const dt = new DataTransfer();
+    const files = Array.from(input.files);
+    
+    files.forEach((file, i) => {
+        if (i !== index) {
+            dt.items.add(file);
+        }
+    });
+    
+    input.files = dt.files;
+    displaySelectedFiles(input);
+}
+
+// ========================================
+// TAB MANAGEMENT
+// ========================================
+
 document.addEventListener('DOMContentLoaded', function() {
+    // Main tabs
     const tabButtons = document.querySelectorAll('.tab-button');
     const tabContents = document.querySelectorAll('.tab-content');
     
@@ -2013,7 +2268,6 @@ document.addEventListener('DOMContentLoaded', function() {
         button.addEventListener('click', () => {
             const tabId = button.getAttribute('data-tab');
             
-            // Update button styles
             tabButtons.forEach(btn => {
                 btn.classList.remove('text-blue-600', 'border-blue-600');
                 btn.classList.add('text-gray-500', 'border-transparent');
@@ -2022,12 +2276,14 @@ document.addEventListener('DOMContentLoaded', function() {
             button.classList.add('text-blue-600', 'border-blue-600');
             button.classList.remove('text-gray-500', 'border-transparent');
             
-            // Update content visibility
             tabContents.forEach(content => {
                 content.classList.add('hidden');
             });
             
-            document.getElementById(tabId).classList.remove('hidden');
+            const targetContent = document.getElementById(tabId);
+            if (targetContent) {
+                targetContent.classList.remove('hidden');
+            }
         });
     });
 
@@ -2039,7 +2295,6 @@ document.addEventListener('DOMContentLoaded', function() {
         button.addEventListener('click', () => {
             const tabId = button.getAttribute('data-tab');
             
-            // Update button styles
             teamTabButtons.forEach(btn => {
                 btn.classList.remove('text-blue-600', 'border-blue-600');
                 btn.classList.add('text-gray-500', 'border-transparent');
@@ -2048,16 +2303,18 @@ document.addEventListener('DOMContentLoaded', function() {
             button.classList.add('text-blue-600', 'border-blue-600');
             button.classList.remove('text-gray-500', 'border-transparent');
             
-            // Update content visibility
             teamTabContents.forEach(content => {
                 content.classList.add('hidden');
             });
             
-            document.getElementById(tabId).classList.remove('hidden');
+            const targetContent = document.getElementById(tabId);
+            if (targetContent) {
+                targetContent.classList.remove('hidden');
+            }
         });
     });
 
-    // Auto-hide flash messages after 5 seconds
+    // Auto-hide flash messages
     const flashMessages = document.querySelectorAll('.flash-message');
     flashMessages.forEach(message => {
         setTimeout(() => {
@@ -2069,6 +2326,10 @@ document.addEventListener('DOMContentLoaded', function() {
         }, 5000);
     });
 });
+
+// ========================================
+// DURATION FIELD TOGGLE
+// ========================================
 
 function toggleDurationFieldForInput(inputElement) {
     const employmentType = inputElement.value.toLowerCase();
@@ -2096,36 +2357,39 @@ function toggleDurationFieldForEdit(inputElement) {
     }
 }
 
-// Enhanced Edit Employee Function
+// ========================================
+// EMPLOYEE MANAGEMENT FUNCTIONS
+// ========================================
+
 function editEmployee(username, name, email, role, mobile) {
-    // Set basic fields only
+    // Set basic fields
     document.getElementById('edit_employee_username').value = username;
     document.getElementById('edit_name').value = name || '';
     document.getElementById('edit_email').value = email || '';
     document.getElementById('edit_role').value = role || '';
-    
     document.getElementById('edit_mobile_number').value = mobile || '';
     
-    // Fetch complete employee details to populate all fields
+    // Also set the hidden field for document loading
+    const hiddenUsernameField = document.getElementById('editemployeeusername');
+    if (hiddenUsernameField) {
+        hiddenUsernameField.value = username;
+    }
+    
+    // Fetch complete employee details
     fetch(`{{ url_for('get_employee_details_json') }}?username=${username}`)
         .then(response => response.json())
         .then(data => {
             if (data.success) {
                 const employee = data.employee;
                 
-                // Populate all comprehensive fields with current values
+                // Populate all fields
                 document.getElementById('edit_joining_date').value = employee.joining_date || '';
                 document.getElementById('edit_employment_type').value = employee.employment_type || '';
                 document.getElementById('edit_duration').value = employee.duration || '';
                 document.getElementById('edit_blood_group').value = employee.blood_group || '';
-                // Add this line in your editEmployee function
                 document.getElementById('edit_employmentid').value = employee.employmentid || '';
-
                 document.getElementById('edit_emergency_contact').value = employee.emergency_contact || '';
                 document.getElementById('edit_reporting_manager').value = employee.reporting_manager || '';
-                
-
-
                 
                 // Asset information
                 document.getElementById('edit_laptop_provided').checked = employee.laptop_provided || false;
@@ -2134,13 +2398,11 @@ function editEmployee(username, name, email, role, mobile) {
                 document.getElementById('edit_id_card').value = employee.id_card || '';
                 document.getElementById('edit_asset_details').value = employee.asset_details || '';
                 
-                // Documents & Identification
-                document.getElementById('edit_adhaar_number').value = employee.adhaar_number || '';
-                document.getElementById('edit_pan_number').value = employee.pan_number || '';
+                // Documents
                 document.getElementById('edit_linkedin_url').value = employee.linkedin_url || '';
                 document.getElementById('edit_photo_url').value = employee.photo_url || '';
                 
-                // Leave balance fields
+                // Leave balance
                 document.getElementById('edit_total_leaves').value = employee.total_leaves || '';
                 document.getElementById('edit_sick_total').value = employee.sick_total || '';
                 document.getElementById('edit_paid_total').value = employee.paid_total || '';
@@ -2155,6 +2417,41 @@ function editEmployee(username, name, email, role, mobile) {
             console.error('Error fetching employee details:', error);
         });
     
+    // Load document count
+    fetch(`/get_employee_documents_count?username=${username}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const countBadge = document.getElementById('edit-current-docs-count');
+                if (countBadge) {
+                    countBadge.textContent = `${data.count} document(s)`;
+                }
+            }
+        })
+        .catch(error => {
+            console.error('Error loading document count:', error);
+            const countBadge = document.getElementById('edit-current-docs-count');
+            if (countBadge) {
+                countBadge.textContent = 'Error';
+            }
+        });
+    
+    // Reset documents list
+    const docsList = document.getElementById('edit-documents-list');
+    if (docsList) {
+        docsList.classList.add('hidden');
+    }
+    const chevron = document.getElementById('docs-chevron');
+    if (chevron) {
+        chevron.classList.remove('fa-chevron-up');
+        chevron.classList.add('fa-chevron-down');
+    }
+    const toggleText = document.getElementById('docs-toggle-text');
+    if (toggleText) {
+        toggleText.textContent = 'View All';
+    }
+    
+    // Show modal
     document.getElementById('editEmployeeModal').classList.remove('hidden');
 }
 
@@ -2168,7 +2465,6 @@ function closeEditModalOnBackdrop(event) {
     }
 }
 
-// View Employee Details Function - WITH RM INFO
 function viewEmployeeDetails(username) {
     fetch(`{{ url_for('get_employee_details_json') }}?username=${username}`)
         .then(response => response.json())
@@ -2177,7 +2473,6 @@ function viewEmployeeDetails(username) {
                 const employee = data.employee;
                 const detailsHtml = `
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <!-- Personal Information -->
                         <div class="bg-gray-50 p-4 rounded-lg">
                             <h4 class="font-semibold text-gray-800 mb-3">
                                 <i class="fas fa-user text-blue-600 mr-2"></i>Personal Information
@@ -2188,16 +2483,12 @@ function viewEmployeeDetails(username) {
                                 <div><strong>Email:</strong> ${employee.email || 'N/A'}</div>
                                 <div><strong>Role:</strong> ${employee.role || 'N/A'}</div>
                                 <div><strong>Employment ID:</strong> <span class="font-mono bg-gray-100 px-2 py-1 rounded text-xs">${employee.employmentid || 'N/A'}</span></div>
-
                                 <div><strong>Mobile:</strong> ${employee.mobile_number || 'N/A'}</div>
                                 <div><strong>Emergency Contact:</strong> ${employee.emergency_contact || 'N/A'}</div>
                                 <div><strong>Blood Group:</strong> ${employee.blood_group || 'N/A'}</div>
-                               
-
                             </div>
                         </div>
                         
-                        <!-- Employment Information -->
                         <div class="bg-gray-50 p-4 rounded-lg">
                             <h4 class="font-semibold text-gray-800 mb-3">
                                 <i class="fas fa-briefcase text-green-600 mr-2"></i>Employment Information
@@ -2207,14 +2498,12 @@ function viewEmployeeDetails(username) {
                                 <div><strong>Joining Date:</strong> ${employee.joining_date || 'N/A'}</div>
                                 <div><strong>Status:</strong> ${employee.status || 'N/A'}</div>
                                 <div><strong>Duration:</strong> ${employee.duration || 'N/A'}</div>
-                                
                             </div>
                         </div>
                         
-                        <!-- Reporting Manager (RM) Details ONLY -->
                         <div class="bg-blue-50 p-4 rounded-lg">
                             <h4 class="font-semibold text-gray-800 mb-3">
-                                <i class="fas fa-user-tie text-blue-600 mr-2"></i>Reporting Manager (RM) Details
+                                <i class="fas fa-user-tie text-blue-600 mr-2"></i>Reporting Manager
                             </h4>
                             <div class="space-y-2 text-sm">
                                 ${employee.rm_username ? `
@@ -2222,18 +2511,15 @@ function viewEmployeeDetails(username) {
                                     <div><strong>RM Name:</strong> ${employee.rm_name || 'N/A'}</div>
                                     <div><strong>RM Role:</strong> ${employee.rm_role || 'N/A'}</div>
                                     <div><strong>RM Email:</strong> ${employee.rm_email || 'N/A'}</div>
-                                ` : '<div class="text-gray-500 italic">No reporting manager (RM) assigned</div>'}
+                                ` : '<div class="text-gray-500 italic">No reporting manager assigned</div>'}
                             </div>
                         </div>
                         
-                        <!-- Documents & Assets -->
                         <div class="bg-gray-50 p-4 rounded-lg">
                             <h4 class="font-semibold text-gray-800 mb-3">
                                 <i class="fas fa-file-alt text-purple-600 mr-2"></i>Documents & Assets
                             </h4>
                             <div class="space-y-2 text-sm">
-                                <div><strong>Aadhaar Number:</strong> ${employee.adhaar_number || 'N/A'}</div>
-                                <div><strong>PAN Number:</strong> ${employee.pan_number || 'N/A'}</div>
                                 <div><strong>LinkedIn:</strong> ${employee.linkedin_url ? `<a href="${employee.linkedin_url}" target="_blank" class="text-blue-600 hover:underline">${employee.linkedin_url}</a>` : 'N/A'}</div>
                                 <div><strong>ID Card:</strong> ${employee.id_card || 'N/A'}</div>
                                 <div><strong>Laptop Provided:</strong> ${employee.laptop_provided ? 'Yes' : 'No'}</div>
@@ -2242,7 +2528,6 @@ function viewEmployeeDetails(username) {
                             </div>
                         </div>
                         
-                        <!-- Leave Balance -->
                         <div class="bg-gray-50 p-4 rounded-lg">
                             <h4 class="font-semibold text-gray-800 mb-3">
                                 <i class="fas fa-calendar-alt text-orange-600 mr-2"></i>Leave Balance
@@ -2288,7 +2573,6 @@ function closeModal() {
     document.getElementById('employeeModal').classList.add('hidden');
 }
 
-// View Resigned Employee Details Function
 function viewResignedEmployeeDetails(username) {
     fetch(`{{ url_for('get_employee_details_json') }}?username=${username}`)
         .then(response => response.json())
@@ -2304,7 +2588,6 @@ function viewResignedEmployeeDetails(username) {
                     </div>
                     
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <!-- Personal Information -->
                         <div class="bg-gray-50 p-4 rounded-lg">
                             <h4 class="font-semibold text-gray-800 mb-3">
                                 <i class="fas fa-user text-blue-600 mr-2"></i>Personal Information
@@ -2318,7 +2601,6 @@ function viewResignedEmployeeDetails(username) {
                             </div>
                         </div>
                         
-                        <!-- Employment Dates -->
                         <div class="bg-gray-50 p-4 rounded-lg">
                             <h4 class="font-semibold text-gray-800 mb-3">
                                 <i class="fas fa-calendar text-green-600 mr-2"></i>Employment Period
@@ -2349,9 +2631,8 @@ function closeResignedModal() {
     document.getElementById('resignedEmployeeModal').classList.add('hidden');
 }
 
-// Delete Employee Function
 function deleteEmployee(username) {
-    if (confirm(`Are you sure you want to delete employee: ${username}?\n\nThis action cannot be undone and will remove all employee data including work history, leave records, and personal information.`)) {
+    if (confirm(`Are you sure you want to delete employee: ${username}?\n\nThis action cannot be undone.`)) {
         const form = document.createElement('form');
         form.method = 'POST';
         form.action = '{{ url_for("delete_employee_admin") }}';
@@ -2367,7 +2648,6 @@ function deleteEmployee(username) {
     }
 }
 
-// Reject Work Function
 function rejectWork(workId) {
     const reason = prompt('Please provide a reason for rejection:');
     if (reason && reason.trim()) {
@@ -2392,7 +2672,6 @@ function rejectWork(workId) {
     }
 }
 
-// Reject Leave Function
 function rejectLeave(leaveId) {
     const reason = prompt('Please provide a reason for rejection:');
     if (reason && reason.trim()) {
@@ -2417,53 +2696,11 @@ function rejectLeave(leaveId) {
     }
 }
 
-// Form validation for employee creation
-document.addEventListener('DOMContentLoaded', function() {
-    const createEmployeeForm = document.getElementById('createEmployeeForm');
-    if (createEmployeeForm) {
-        createEmployeeForm.addEventListener('submit', function(e) {
-            const username = document.querySelector('input[name="username"]').value.trim();
-            const password = document.querySelector('input[name="password"]').value;
-            
-            if (username.length < 3) {
-                e.preventDefault();
-                alert('Username must be at least 3 characters long');
-                return;
-            }
-            
-            if (password.length < 6) {
-                e.preventDefault();
-                alert('Password must be at least 6 characters long');
-                return;
-            }
-        });
-    }
-});
-// Vacation leave warning functionality
-document.addEventListener('DOMContentLoaded', function() {
-    const leaveTypeSelect = document.querySelector('select[name="leave_type"]');
-    const vacationWarning = document.getElementById('vacation-warning');
-    
-    if (leaveTypeSelect && vacationWarning) {
-        leaveTypeSelect.addEventListener('change', function() {
-            const selectedType = this.value;
-            
-            if (selectedType === 'Vacation') {
-                vacationWarning.style.display = 'block';
-                // Add visual emphasis
-                vacationWarning.classList.add('animate-pulse');
-                setTimeout(() => {
-                    vacationWarning.classList.remove('animate-pulse');
-                }, 3000);
-            } else {
-                vacationWarning.style.display = 'none';
-            }
-        });
-    }
-});
-// Keyboard shortcuts
+// ========================================
+// KEYBOARD SHORTCUTS
+// ========================================
+
 document.addEventListener('keydown', function(e) {
-    // Ctrl/Cmd + K to focus search
     if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
         e.preventDefault();
         const searchInput = document.getElementById('employee-search');
@@ -2472,7 +2709,6 @@ document.addEventListener('keydown', function(e) {
         }
     }
     
-    // Escape to close modals
     if (e.key === 'Escape') {
         closeModal();
         closeEditModal();
@@ -2480,7 +2716,10 @@ document.addEventListener('keydown', function(e) {
     }
 });
 
-// Notification system
+// ========================================
+// NOTIFICATION SYSTEM
+// ========================================
+
 function showNotification(message, type = 'info', duration = 3000) {
     const container = document.getElementById('notification-container');
     if (!container) return;
@@ -2506,12 +2745,10 @@ function showNotification(message, type = 'info', duration = 3000) {
     
     container.appendChild(notification);
     
-    // Animate in
     setTimeout(() => {
         notification.classList.remove('translate-x-full', 'opacity-0');
     }, 100);
     
-    // Auto remove
     setTimeout(() => {
         notification.classList.add('translate-x-full', 'opacity-0');
         setTimeout(() => {
@@ -2522,6 +2759,7 @@ function showNotification(message, type = 'info', duration = 3000) {
     }, duration);
 }
 </script>
+
 
 <!-- Custom Styles for Enhanced UI -->
 <style>
