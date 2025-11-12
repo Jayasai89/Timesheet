@@ -964,9 +964,11 @@ def dashboard():
         return redirect(url_for('login_sso'))
     user = session['username']
     role = session['role']
+    
     # Check if user is an RM regardless of their primary role
     direct_reports = get_direct_reports(user)
     is_rm = len(direct_reports) > 0
+    
     # ENHANCED routing logic
     if role == 'Manager':
         return view_manager(user)
@@ -976,10 +978,27 @@ def dashboard():
         return view_lead(user)
     elif role in ('Rm', 'Employee'):
         return view_employee(user)
-    # UPDATED: Include HR Intern with regular Intern
+    # UPDATED: Check employment type for interns
+    # UPDATED: Check employment type for interns
+    # UPDATED: Check employment type for interns
     elif role in ('Intern', 'HR Intern'):
-        print(f"DEBUG: {role} {user} getting intern view")
+        # Check employment type to determine dashboard access
+        employmenttype_df = run_query(
+            "SELECT employment_type FROM employee_details WHERE username = ?",  # FIXED: employment_type (with underscore)
+            (user,)
+        )
+        
+        if not employmenttype_df.empty:
+            employment_type = str(employmenttype_df.iloc[0]['employment_type']).strip()  # FIXED: column name
+            print(f"DEBUG: {role} {user} - Employment Type: {employment_type}")
+        else:
+            print(f"DEBUG: No employment type found for {user}, defaulting to intern view")
+        
+        # All interns use the same view function (enhanced for Finance & HR Intern)
         return view_intern(user)
+
+
+
     elif role in ('Admin Manager', 'Lead Staffing Specialist'):
         return view_admin_manager(user)
     elif role == 'Lead':
@@ -1001,10 +1020,12 @@ def dashboard():
     # NEW: Handle Jr HR Executive
     elif role == 'Jr HR Executive':
         print(f"DEBUG: Jr HR Executive {user} getting employee view with HR context")
-        return view_employee(user)  # Could create special HR employee view later
+        return view_employee(user)
     else:
         flash(f"Role '{role}' not specifically mapped, showing employee view.")
         return view_employee(user)
+
+
 
 
     
@@ -2503,7 +2524,68 @@ def view_employee(user):
 # Intern View Function - COMPLETE
 # --------------------
 def view_intern(user):
-    """Intern dashboard view - FIXED to show assigned work properly"""
+    """Intern dashboard view - ENHANCED for Finance & HR Intern with employee management"""
+    
+    # NEW: Check if this intern is Finance & HR Intern
+    employmenttype_df = run_query(
+        "SELECT employment_type FROM employee_details WHERE username = ?",  # FIXED: employment_type
+        (user,)
+    )
+    
+    is_finance_hr_intern = False
+    if not employmenttype_df.empty:
+        employment_type = str(employmenttype_df.iloc[0]['employment_type']).strip()  # FIXED: column name
+        is_finance_hr_intern = (employment_type == "Finance & HR Intern")
+        print(f"DEBUG: Intern {user} - Employment Type: {employment_type}, Has HR Access: {is_finance_hr_intern}")
+    
+    # NEW: Get all employees if Finance & HR Intern
+    # NEW: Get all employees if Finance & HR Intern
+    all_employees = []
+    if is_finance_hr_intern:
+        try:
+            allemployees_df = run_query("""
+                SELECT u.username, u.password, u.role, u.email, u.monthly_salary, 
+                    u.yearly_salary, u.name, u.status,
+                    ed.joining_date, ed.employment_type, ed.blood_group, ed.mobile_number,
+                    ed.emergency_contact, ed.id_card, ed.id_card_provided, ed.photo_url,
+                    ed.linkedin_url, ed.laptop_provided, ed.email_provided, ed.asset_details,
+                    ed.adhaar_number, ed.pan_number, ed.duration, ed.employmentid,
+                    r.rm, r.manager
+                FROM users u
+                LEFT JOIN employee_details ed ON u.username = ed.username  
+                LEFT JOIN report r ON u.username = r.username
+                WHERE u.status = 'Active'
+                ORDER BY u.role, u.username
+            """)
+            all_employees = allemployees_df.to_dict('records') if not allemployees_df.empty else []
+            print(f"DEBUG: Loaded {len(all_employees)} employees for Finance & HR Intern")
+        except Exception as e:
+            print(f"Error loading employees for Finance HR Intern: {e}")
+            all_employees = []
+
+    
+    # NEW: Get all managers for assignment dropdown if Finance & HR Intern
+    all_managers = []
+    if is_finance_hr_intern:
+        try:
+            allmanagers_df = run_query("""
+                SELECT DISTINCT u.username, u.name, u.role
+                FROM (
+                    SELECT DISTINCT rm as username FROM report WHERE rm IS NOT NULL
+                    UNION
+                    SELECT username FROM users 
+                    WHERE role IN ('Manager', 'Admin Manager', 'Lead Staffing Specialist') 
+                    AND status = 'Active'
+                ) AS combined
+                JOIN users u ON combined.username = u.username
+                WHERE u.status = 'Active'
+                ORDER BY u.name
+            """)
+            all_managers = allmanagers_df.to_dict('records') if not allmanagers_df.empty else []
+        except Exception as e:
+            print(f"Error loading managers: {e}")
+    
+    # ... rest of your existing code remains the same ...
     
     # Get projects list
     projects_df = run_query("""
@@ -2556,11 +2638,13 @@ def view_intern(user):
     # Calculate remaining leaves
     remaining_leaves = _get_remaining_balances(user)
     vacation_info = get_vacation_leave_info()
+    
     # Convert DataFrames to dictionaries for template
     assigned_work = assigned_work_df.to_dict('records') if not assigned_work_df.empty else []
     work_history = work_history_df.to_dict('records') if not work_history_df.empty else []
     leaves = leaves_df.to_dict('records') if not leaves_df.empty else []
     project_options = get_assigned_projects_and_work(user)
+    
     return render_template('intern_dashboard.html',
         user=user,
         role=session['role'],
@@ -2575,8 +2659,13 @@ def view_intern(user):
         remaining_leaves=remaining_leaves,
         project_options=project_options,
         vacation_leave_info=vacation_info,
-        today=date.today().isoformat()
+        today=date.today().isoformat(),
+        # NEW: Pass employee management data for Finance & HR Intern
+        is_finance_hr_intern=is_finance_hr_intern,
+        all_employees=all_employees,
+        all_managers=all_managers,
     )
+
 # Admin Manager View Function - COMPLETE WITH FIXED DATA
 # --------------------
 def view_admin_manager(user):
@@ -5913,26 +6002,46 @@ def cancel_leave_action():
         flash(f" Error processing cancellation request: {str(e)}")
     
     return redirect(url_for('dashboard'))
-
-# Admin Manager Routes - COMPLETE
-# --------------------
 @app.route('/add_employee_action', methods=['POST'])
 def add_employee_action():
-    """Add new employee with complete details"""
     if 'username' not in session:
         return redirect(url_for('login_sso'))
-   
-    # Check admin privileges
-    if session['role'] not in ('Admin Manager', 'Lead Staffing Specialist'):
-        flash("Access denied. Admin Manager privileges required.")
+    
+    user = session['username']
+    user_role = session.get('role', '')  # ✅ RENAMED to avoid conflict
+    
+    # UPDATED: Check if user has employee management privileges
+    has_access = False
+    
+    # Admin Manager and Lead Staffing Specialist always have access
+    if user_role in ('Admin Manager', 'Lead Staffing Specialist'):
+        has_access = True
+    
+    # Check if user is Finance & HR Intern based on employment_type
+    elif user_role in ('Intern', 'HR Intern'):
+        try:
+            employmenttype_df = run_query(
+                "SELECT employment_type FROM employee_details WHERE username = ?",
+                (user,)
+            )
+            if not employmenttype_df.empty:
+                employment_type = str(employmenttype_df.iloc[0]['employment_type']).strip()
+                has_access = (employment_type == "Finance & HR Intern")
+                print(f"DEBUG: {user_role} {user} - Employment Type: {employment_type}, Access: {has_access}")
+        except Exception as e:
+            print(f"Error checking employment type: {e}")
+            has_access = False
+    
+    if not has_access:
+        flash('Access denied. Employee management privileges required.')
         return redirect(url_for('dashboard'))
-   
+    
     # Get form data
     username = request.form.get('username')
     name = request.form.get('name')
     email = request.form.get('email')
     password = request.form.get('password')
-    role = request.form.get('role')
+    employee_role = request.form.get('role')  # ✅ RENAMED to employee_role
     reporting_manager = request.form.get('reporting_manager')
    
     # Employment details
@@ -5941,8 +6050,8 @@ def add_employee_action():
     duration = request.form.get('duration')
     blood_group = request.form.get('blood_group')
    
-    # CORRECTED: Get employment ID and convert to uppercase
-    employmentid = request.form.get('employmentid', '').strip().upper()
+    # CORRECTED: Get employment ID
+    employmentid = request.form.get('employment_id', '').strip().upper()  # ✅ Fixed form field name
     print(f"DEBUG: Employment ID received: '{employmentid}'")
    
     # Contact info
@@ -5971,8 +6080,18 @@ def add_employee_action():
     paid_total = request.form.get('paid_total', 18)
     casual_total = request.form.get('casual_total', 6)
    
-    if not all([username, name, email, employmentid]):
-        flash("All required fields must be filled.")
+    # ✅ UPDATED: Check all required fields including password
+    if not all([username, name, email, password, employee_role, employmentid]):
+        missing_fields = []
+        if not username: missing_fields.append('Username')
+        if not name: missing_fields.append('Name')
+        if not email: missing_fields.append('Email')
+        if not password: missing_fields.append('Password')
+        if not employee_role: missing_fields.append('Role')
+        if not employmentid: missing_fields.append('Employment ID')
+        
+        flash(f"Missing required fields: {', '.join(missing_fields)}")
+        print(f"DEBUG: Missing fields - {missing_fields}")
         return redirect(url_for('dashboard'))
    
     # CRITICAL: Check if Employment ID already exists
@@ -5980,19 +6099,6 @@ def add_employee_action():
         SELECT username, name FROM employee_details
         WHERE employmentid = ?
     """, (employmentid,))
-   
-        # Handle file upload for photo
-    if 'photo' in request.files and request.files['photo'].filename:
-        file = request.files['photo']
-        filename = secure_filename(file.filename)
-        timestamp = int(datetime.now().timestamp())
-        photo_filename = f"{username}_{timestamp}_{filename}"
-        file.save(os.path.join(app.config['UPLOAD_FOLDER'], photo_filename))
-        photo_url = f"/uploads/{photo_filename}"
-       
-        # Convert salary values
-        monthly_salary = float(monthly_salary) if monthly_salary else None
-        yearly_salary = float(yearly_salary) if yearly_salary else (monthly_salary * 12 if monthly_salary else None)
    
     if not existing_emp_id.empty:
         existing_user = existing_emp_id.iloc[0]
@@ -6005,21 +6111,34 @@ def add_employee_action():
         flash(f'❌ Username "{username}" already exists. Please choose a different username.')
         return redirect(url_for('dashboard'))
    
+    # Handle file upload for photo
+    if 'photo' in request.files and request.files['photo'].filename:
+        file = request.files['photo']
+        filename = secure_filename(file.filename)
+        timestamp = int(datetime.now().timestamp())
+        photo_filename = f"{username}_{timestamp}_{filename}"
+        file.save(os.path.join(app.config['UPLOAD_FOLDER'], photo_filename))
+        photo_url = f"/uploads/{photo_filename}"
+       
+    # Convert salary values
+    monthly_salary = float(monthly_salary) if monthly_salary else None
+    yearly_salary = float(yearly_salary) if yearly_salary else (monthly_salary * 12 if monthly_salary else None)
+   
     try:
-        # Insert into users table
+        # Insert into users table (✅ use employee_role, not role)
         ok1 = run_exec("""
             INSERT INTO [timesheet_db].[dbo].[users] (username, name, email, role, password, monthly_salary, yearly_salary, status)
             VALUES (?, ?, ?, ?, ?, ?, ?, 'Active')
-        """, (username, name, email, role, password, monthly_salary, yearly_salary))
+        """, (username, name, email, employee_role, password, monthly_salary, yearly_salary))
        
-        # Insert into employee_details table
+        # Insert into employee_details table (✅ use employee_role, not role)
         ok2 = run_exec("""
-            INSERT INTO [timesheet_db].[dbo]. [employee_details] (
+            INSERT INTO [timesheet_db].[dbo].[employee_details] (
                 username, name, role, joining_date, employment_type, blood_group,
                 mobile_number, emergency_contact, laptop_provided, id_card_provided,
                 email_provided, adhaar_number, pan_number, duration, employmentid
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (username, name, role, joining_date, employment_type, blood_group,
+        """, (username, name, employee_role, joining_date, employment_type, blood_group,
               mobile_number, emergency_contact, laptop_provided, id_card_provided,
               email_provided, adhaar_number, pan_number, duration, employmentid))
                
@@ -6030,7 +6149,7 @@ def add_employee_action():
                 VALUES (?, ?, ?)
             """, (username, reporting_manager, reporting_manager))
  
-              # Set up leave balance
+        # Set up leave balance
         ok3 = run_exec("""
             INSERT INTO [timesheet_db].[dbo].[leave_balances] (
                 username, total_leaves, sick_total, paid_total, casual_total,
@@ -6044,23 +6163,22 @@ def add_employee_action():
                 subject = f"Welcome to the Company - {name}"
                 text_content = f"""Dear {name},
  
-    Welcome to our company! Your employee account has been created successfully.
+Welcome to our company! Your employee account has been created successfully.
  
-    Your Account Details:
-    - Username: {username}
-    - Temporary Password: {password}
-    - Role: {role}
-    - Email: {email}
+Your Account Details:
+- Username: {username}
+- Temporary Password: {password}
+- Role: {employee_role}
+- Email: {email}
  
-    Please log in to the Timesheet & Leave Management System at your earliest convenience and change your password.
-     https://nexus.chervicaon.com
-    System Access: [Your System URL]
+Please log in to the Timesheet & Leave Management System at your earliest convenience and change your password.
+https://nexus.chervicaon.com
+
+If you have any questions, please contact your reporting manager or the HR department.
  
-    If you have any questions, please contact your reporting manager or the HR department.
+Welcome aboard!
  
-    Welcome aboard!
- 
-    This is an automated notification from the Timesheet & Leave Management System."""
+This is an automated notification from the Timesheet & Leave Management System."""
                 send_email(email, subject, text_content)
  
             # Notify reporting manager if assigned
@@ -6070,33 +6188,34 @@ def add_employee_action():
                     subject = f"New Team Member Assigned - {name}"
                     text_content = f"""Dear {reporting_manager},
  
-    A new team member has been assigned to report to you.
+A new team member has been assigned to report to you.
  
-    Employee Details:
-    - Name: {name}
-    - Username: {username}
-    - Role: {role}
-    - Email: {email}
-    - Joining Date: {joining_date}
+Employee Details:
+- Name: {name}
+- Username: {username}
+- Role: {employee_role}
+- Email: {email}
+- Joining Date: {joining_date}
  
-    Please help them get settled and provide any necessary guidance.
-     https://nexus.chervicaon.com
-    This is an automated notification from the Timesheet & Leave Management System."""
+Please help them get settled and provide any necessary guidance.
+https://nexus.chervicaon.com
+
+This is an automated notification from the Timesheet & Leave Management System."""
                     send_email(rm_email, subject, text_content)
  
-            flash(f"Employee '{name}' ({username}) added successfully!")
-            flash(f' Employee "{name}" added successfully with Employment ID: {employmentid}')
+            flash(f"✅ Employee '{name}' ({username}) added successfully with Employment ID: {employmentid}!")
         else:
-            flash(' Failed to add employee.')
+            flash('❌ Failed to add employee.')
            
     except Exception as e:
         if 'UQ_employee_details_employmentid' in str(e):
-            flash(f' Employment ID "{employmentid}" is already in use. Please choose a different Employment ID.')
+            flash(f'❌ Employment ID "{employmentid}" is already in use. Please choose a different Employment ID.')
         else:
-            flash(f' Error adding employee: {str(e)}')
+            flash(f'❌ Error adding employee: {str(e)}')
         print(f"Add employee error: {e}")
    
     return redirect(url_for('dashboard'))
+
 
 @app.route('/request_asset_with_document', methods=['POST'])
 def request_asset_with_document():
@@ -7302,7 +7421,7 @@ def view_project_expenses(project_name):
         return redirect(url_for('dashboard'))
 @app.route('/fix_expense_update', methods=['POST'])
 def fix_expense_update():
-    """Update expense - CORRECTED run_exec usage with proper tuple"""
+    """Update expense - WITH DOCUMENT UPLOAD"""
     if 'username' not in session:
         return redirect(url_for('login_sso'))
     
@@ -7342,12 +7461,44 @@ def fix_expense_update():
         final_date = expense_date if expense_date else current_row['date']
         final_desc = description if description else current_row['description']
         
-        # FIXED: Pass parameters as a single tuple (the key fix!)
+        # Handle document upload
+        final_document_path = current_row['documentpath']  # Keep existing by default
+        
+        if 'expensedocument' in request.files:
+            file = request.files['expensedocument']
+            if file and file.filename:
+                # File was uploaded, save it
+                filename = secure_filename(file.filename)
+                timestamp = int(datetime.now().timestamp())
+                new_filename = f"expense_{expense_id_int}_{timestamp}_{filename}"
+                
+                # Save file
+                upload_folder = app.config.get('UPLOAD_FOLDER', 'uploads')
+                os.makedirs(upload_folder, exist_ok=True)
+                file_path = os.path.join(upload_folder, new_filename)
+                file.save(file_path)
+                
+                # Update document path
+                final_document_path = f"/uploads/{new_filename}"
+                print(f"New document saved: {final_document_path}")
+                
+                # Optional: Delete old document if exists
+                if current_row['documentpath'] and current_row['documentpath'] != 'None':
+                    try:
+                        old_file_path = current_row['documentpath'].replace('/uploads/', '')
+                        old_full_path = os.path.join(upload_folder, old_file_path)
+                        if os.path.exists(old_full_path):
+                            os.remove(old_full_path)
+                            print(f"Old document deleted: {old_full_path}")
+                    except Exception as e:
+                        print(f"Could not delete old document: {e}")
+        
+        # Update expense with document path
         success = run_exec("""
             UPDATE expenses 
-            SET project_name = ?, category = ?, amount = ?, date = ?, description = ? 
+            SET project_name = ?, category = ?, amount = ?, date = ?, description = ?, documentpath = ?
             WHERE id = ?
-        """, (final_project, final_category, final_amount, final_date, final_desc, expense_id_int))
+        """, (final_project, final_category, final_amount, final_date, final_desc, final_document_path, expense_id_int))
         
         if success:
             flash('✅ Expense updated successfully!')
@@ -7359,6 +7510,7 @@ def fix_expense_update():
         flash(f'Error: {str(e)}')
     
     return redirect(url_for('dashboard'))
+
 
 @app.route('/delete_expense_action', methods=['POST'])
 def delete_expense_action():
@@ -10325,9 +10477,23 @@ def view_employee_admin(username):
         return redirect(url_for('login_sso'))
     
     # Check admin privileges
+    # Check access - Admin Manager, Lead Staffing Specialist, OR Finance & HR Intern
+   
     if session['role'] not in ('Admin Manager', 'Lead Staffing Specialist'):
-        flash(" Access denied. Admin Manager privileges required.")
-        return redirect(url_for('dashboard'))
+        # NEW CHECK - Add Finance & HR Intern access
+        user_role = session.get('role', '')
+        if user_role == 'HR Intern':  # ← CHANGED: Only check HR Intern, not all Interns
+            emp_df = run_query("SELECT employment_type FROM employee_details WHERE username = ?", (session['username'],))
+            if not emp_df.empty and str(emp_df.iloc[0]['employment_type']).strip() == "Finance & HR Intern":
+                pass  # Allow access
+            else:
+                flash('Access denied.')
+                return redirect(url_for('dashboard'))
+        else:
+            flash('Access denied.')
+            return redirect(url_for('dashboard'))
+
+
     
     try:
         # Get complete employee details
@@ -10376,6 +10542,7 @@ def view_employee_admin(username):
     except Exception as e:
         flash(f" Error viewing employee details: {str(e)}")
         return redirect(url_for('dashboard'))
+
 
 @app.route('/clone_employee_admin', methods=['POST'])
 def clone_employee_admin():
@@ -10482,17 +10649,41 @@ def import_employees_admin():
     
     flash(" Employee import functionality initiated. File processing would be implemented here.")
     return redirect(url_for('dashboard'))
-# Add these ULTIMATE FINAL missing API/JSON routes for Admin Manager:
+
+    
 @app.route('/edit_employee_admin', methods=['POST'])
 def edit_employee_admin():
-    """Edit employee details - COMPREHENSIVE VERSION - FULLY UPDATED"""
+    """Edit employee details (Admin/HR Intern with Finance & HR Intern employment type)"""
     if 'username' not in session:
+        flash("❌ Please log in first")
         return redirect(url_for('login_sso'))
     
-    # Check admin privileges
-    if session['role'] not in ('Admin Manager', 'Lead Staffing Specialist'):
-        flash("Access denied. Admin Manager privileges required.")
+    user_role = session.get('role', '')
+    
+    # Check permissions
+    has_access = False
+    
+    if user_role in ['Admin Manager', 'Lead Staffing Specialist']:
+        has_access = True
+    elif user_role in ['Intern', 'HR Intern']:
+        try:
+            empdf = run_query("""
+                SELECT employment_type FROM employee_details WHERE username = ?
+            """, (session['username'],))
+            
+            if not empdf.empty:
+                emp_type = str(empdf.iloc[0]['employment_type']).strip()
+                has_access = (emp_type == 'Finance & HR Intern')
+                print(f"DEBUG: {user_role} ({session['username']}) - Employment Type: {emp_type}, Access: {has_access}")
+        except Exception as e:
+            print(f"Error checking employment type: {e}")
+            has_access = False
+    
+    if not has_access:
+        flash("❌ Access denied. Employee management privileges required.")
         return redirect(url_for('dashboard'))
+
+
     
     employee_username = request.form.get('employee_username')
     if not employee_username:
@@ -10701,20 +10892,42 @@ def check_user_role(required_roles):
 
 @app.route('/get_employee_details_json')
 def get_employee_details_json():
-    """Get employee details as JSON with RM information - ENHANCED with case-insensitive roles"""
+    """API endpoint to get employee details for editing"""
     if 'username' not in session:
-        return jsonify({'error': 'Unauthorized'}), 401
+        return jsonify({'success': False, 'error': 'Unauthorized'}), 401
     
-    # Check admin privileges - CASE INSENSITIVE
-    user_role = session['role'].lower().strip()
-    allowed_roles = ['admin manager', 'lead staffing specialist', 'hr & finance controller']
+    user_role = session.get('role', '')
+    print(f"DEBUG: get_employee_details_json called by {session['username']} ({user_role})")
     
-    if user_role not in allowed_roles:
-        return jsonify({'error': 'Access denied'}), 403
+    # Check permissions - Admin Manager and Lead Staffing Specialist always have access
+    if user_role not in ['Admin Manager', 'Lead Staffing Specialist']:
+        # For HR Intern, check employment_type
+        if user_role in ['Intern', 'HR Intern']:
+            try:
+                empdf = run_query("""
+                    SELECT employment_type FROM employee_details WHERE username = ?
+                """, (session['username'],))
+                
+                if not empdf.empty:
+                    emp_type = str(empdf.iloc[0]['employment_type']).strip()
+                    print(f"DEBUG: Employment type = {emp_type}")
+                    if emp_type != 'Finance & HR Intern':
+                        print("DEBUG: Access DENIED - not Hr & Finance Controller")
+                        return jsonify({'success': False, 'error': 'Access denied. Hr & Finance Controller privileges required.'}), 403
+                else:
+                    return jsonify({'success': False, 'error': 'Employment type not found'}), 403
+            except Exception as e:
+                print(f"Error checking employment type: {e}")
+                return jsonify({'success': False, 'error': str(e)}), 500
+        else:
+            return jsonify({'success': False, 'error': 'Access denied'}), 403
     
-    username = request.args.get('username')
+    username = request.args.get('username', '').strip()
+    
     if not username:
-        return jsonify({'error': 'Username parameter required'}), 400
+        return jsonify({'success': False, 'error': 'Username required'}), 400
+    
+   
     
     try:
         # CORRECTED: Added ed.employmentid to the SELECT statement
@@ -10770,6 +10983,8 @@ def get_employee_details_json():
         }), 500
     # Check admin privileges - FLEXIBLE ROLE CHECK
 
+    # Check admin privileges - FLEXIBLE ROLE CHECK
+
 
 
 @app.route('/delete_employee_admin', methods=['POST'])
@@ -10778,12 +10993,21 @@ def delete_employee_admin():
     if 'username' not in session:
         return redirect(url_for('login_sso'))
     
-    # Check admin privileges - FIXED: Use exact database role names
-    # Check admin privileges - FLEXIBLE ROLE CHECK
-    allowed_roles = ('admin manager', 'Lead staffing Specialist', 'Admin Manager', 'Lead Staffing Specialist', 'admin manager ')
-    if session['role'].strip() not in allowed_roles:
-        flash("Access denied. Admin Manager privileges required.")
-        return redirect(url_for('dashboard'))
+    
+    if session['role'] not in ('Admin Manager', 'Lead Staffing Specialist'):
+        # NEW CHECK - Add Finance & HR Intern access
+        user_role = session.get('role', '')
+        if user_role in ('Intern', 'HR Intern'):
+            emp_df = run_query("SELECT employment_type FROM employee_details WHERE username = ?", (session['username'],))
+            if not emp_df.empty and str(emp_df.iloc[0]['employment_type']).strip() == "Finance & HR Intern":
+                pass  # Allow access
+            else:
+                flash('Access denied.')
+                return redirect(url_for('dashboard'))
+        else:
+            flash('Access denied.')
+            return redirect(url_for('dashboard'))
+
 
     
     username = request.form.get('username')
