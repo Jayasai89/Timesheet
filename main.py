@@ -7532,7 +7532,7 @@ def view_project_expenses(project_name):
         return redirect(url_for('dashboard'))
 @app.route('/fix_expense_update', methods=['POST'])
 def fix_expense_update():
-    """Update expense - WITH DOCUMENT UPLOAD"""
+    """Update expense - WITH DOCUMENT UPLOAD - FIXED COLUMN NAMES"""
     if 'username' not in session:
         return redirect(url_for('login_sso'))
     
@@ -7557,7 +7557,7 @@ def fix_expense_update():
     try:
         expense_id_int = int(expense_id)
         
-        # Get existing expense
+        # FIXED: Get existing expense with CORRECT column names (with underscores)
         existing = run_query("SELECT * FROM expenses WHERE id = ?", (expense_id_int,))
         if existing.empty:
             flash('Expense not found')
@@ -7566,14 +7566,15 @@ def fix_expense_update():
         current_row = existing.iloc[0]
         
         # Use new value if provided, otherwise keep existing
+        # FIXED: Use correct column names with underscores
         final_project = project_name if project_name else current_row['project_name']
         final_category = category if category else current_row['category']
         final_amount = float(amount) if amount else float(current_row['amount'])
         final_date = expense_date if expense_date else current_row['date']
         final_desc = description if description else current_row['description']
         
-        # Handle document upload
-        final_document_path = current_row['documentpath']  # Keep existing by default
+        # FIXED: Handle document upload with correct column name 'document_path'
+        final_document_path = current_row['document_path']  # FIXED: was documentpath, now document_path
         
         if 'expensedocument' in request.files:
             file = request.files['expensedocument']
@@ -7589,25 +7590,27 @@ def fix_expense_update():
                 file_path = os.path.join(upload_folder, new_filename)
                 file.save(file_path)
                 
-                # Update document path
-                final_document_path = f"/uploads/{new_filename}"
+                # FIXED: Store just filename, not full path with /uploads/
+                final_document_path = new_filename  # FIXED: Store only filename
                 print(f"New document saved: {final_document_path}")
                 
                 # Optional: Delete old document if exists
-                if current_row['documentpath'] and current_row['documentpath'] != 'None':
+                # FIXED: Use correct column name
+                if current_row['document_path'] and current_row['document_path'] != 'None':
                     try:
-                        old_file_path = current_row['documentpath'].replace('/uploads/', '')
-                        old_full_path = os.path.join(upload_folder, old_file_path)
+                        # FIXED: Handle both full path and filename-only cases
+                        old_filename = os.path.basename(str(current_row['document_path']))
+                        old_full_path = os.path.join(upload_folder, old_filename)
                         if os.path.exists(old_full_path):
                             os.remove(old_full_path)
                             print(f"Old document deleted: {old_full_path}")
                     except Exception as e:
                         print(f"Could not delete old document: {e}")
         
-        # Update expense with document path
+        # FIXED: Update expense with CORRECT column name 'document_path' (not documentpath)
         success = run_exec("""
             UPDATE expenses 
-            SET project_name = ?, category = ?, amount = ?, date = ?, description = ?, documentpath = ?
+            SET project_name = ?, category = ?, amount = ?, date = ?, description = ?, document_path = ?
             WHERE id = ?
         """, (final_project, final_category, final_amount, final_date, final_desc, final_document_path, expense_id_int))
         
@@ -7621,6 +7624,7 @@ def fix_expense_update():
         flash(f'Error: {str(e)}')
     
     return redirect(url_for('dashboard'))
+
 
 
 @app.route('/delete_expense_action', methods=['POST'])
