@@ -29,6 +29,30 @@ from email.mime.multipart import MIMEMultipart
 from flask import jsonify  
 import json
 
+import requests
+from requests.auth import HTTPBasicAuth
+import json
+
+# Jira Configuration
+JIRA_URL = "https://sai8903.atlassian.net"  # Your Jira URL from the screenshot
+JIRA_EMAIL = "chowdarysai955@gmail.com"
+JIRA_API_TOKEN = "ATATT3xFfGF0xs0c6oAf4eKHnNXMy9IM8ytFcQOSHj7_MAbhmuOt3ZcpkieHG9FVnMVdF0qcyTAUJS5PQpAWEiJFWI2s3KJpAPjfmHcQps2lGxTNau7mONvtn7yD2YiLE2iriCkr9uoRbEX1w-se6-bncIB775c1HVcerbGBWkcz1RRwDy0x6UI=3188705F"
+JIRA_PROJECT_KEY = "TIM"  # From your screenshot
+  # From your screenshot
+JIRA_AUTH = HTTPBasicAuth(JIRA_EMAIL, JIRA_API_TOKEN)
+JIRA_HEADERS = {
+    "Accept": "application/json",
+    "Content-Type": "application/json"
+}
+
+def get_jira_auth():
+    """Get Jira authentication"""
+    return JIRA_AUTH
+
+def get_jira_headers():
+    """Get Jira headers"""
+    return JIRA_HEADERS
+
 
 # Email Configuration
 SMTP_HOST = os.getenv('SMTP_HOST', 'smtp.gmail.com')
@@ -220,6 +244,201 @@ def get_user_role(username: str) -> str:
     return None
 
 # --------------------
+def create_jira_issue(summary, description, assignee_email=None, project_key=JIRA_PROJECT_KEY):
+    """Create a new Jira issue"""
+    try:
+        url = f"{JIRA_URL}/rest/api/3/issue"
+        
+        payload = {
+            "fields": {
+                "project": {
+                    "key": project_key
+                },
+                "summary": summary,
+                "description": {
+                    "type": "doc",
+                    "version": 1,
+                    "content": [
+                        {
+                            "type": "paragraph",
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": description
+                                }
+                            ]
+                        }
+                    ]
+                },
+                "issuetype": {
+                    "name": "Task"
+                }
+            }
+        }
+        
+        # Add assignee if provided
+        if assignee_email:
+            # Get Jira account ID from email
+            account_id = get_jira_account_id(assignee_email)
+            if account_id:
+                payload["fields"]["assignee"] = {"accountId": account_id}
+        
+        response = requests.post(
+            url,
+            data=json.dumps(payload),
+            headers=JIRA_HEADERS,
+            auth=JIRA_AUTH
+        )
+        
+        if response.status_code in [200, 201]:
+            issue_data = response.json()
+            return {
+                "success": True,
+                "issue_key": issue_data["key"],
+                "issue_id": issue_data["id"]
+            }
+        else:
+            print(f"Jira API Error: {response.status_code} - {response.text}")
+            return {"success": False, "error": response.text}
+            
+    except Exception as e:
+        print(f"Error creating Jira issue: {str(e)}")
+        return {"success": False, "error": str(e)}
+
+def get_jira_account_id(email):
+    """Get Jira account ID from email"""
+    try:
+        url = f"{JIRA_URL}/rest/api/3/user/search"
+        params = {"query": email}
+        
+        response = requests.get(
+            url,
+            params=params,
+            headers=JIRA_HEADERS,
+            auth=JIRA_AUTH
+        )
+        
+        if response.status_code == 200:
+            users = response.json()
+            if users and len(users) > 0:
+                return users[0]["accountId"]
+        return None
+    except Exception as e:
+        print(f"Error getting Jira account ID: {str(e)}")
+        return None
+
+def update_jira_issue_status(issue_key, status_name):
+    """Update Jira issue status via transition"""
+    try:
+        # Get available transitions
+        transitions_url = f"{JIRA_URL}/rest/api/3/issue/{issue_key}/transitions"
+        response = requests.get(
+            transitions_url,
+            headers=JIRA_HEADERS,
+            auth=JIRA_AUTH
+        )
+        
+        if response.status_code != 200:
+            return {"success": False, "error": "Could not fetch transitions"}
+        
+        transitions = response.json()["transitions"]
+        
+        # Find the transition ID for the desired status
+        transition_id = None
+        for trans in transitions:
+            if trans["name"].lower() == status_name.lower() or trans["to"]["name"].lower() == status_name.lower():
+                transition_id = trans["id"]
+                break
+        
+        if not transition_id:
+            return {"success": False, "error": f"Transition to '{status_name}' not found"}
+        
+        # Perform the transition
+        payload = {
+            "transition": {
+                "id": transition_id
+            }
+        }
+        
+        response = requests.post(
+            transitions_url,
+            data=json.dumps(payload),
+            headers=JIRA_HEADERS,
+            auth=JIRA_AUTH
+        )
+        
+        if response.status_code == 204:
+            return {"success": True}
+        else:
+            return {"success": False, "error": response.text}
+            
+    except Exception as e:
+        print(f"Error updating Jira status: {str(e)}")
+        return {"success": False, "error": str(e)}
+
+def get_jira_issue_details(issue_key):
+    """Get Jira issue details"""
+    try:
+        url = f"{JIRA_URL}/rest/api/3/issue/{issue_key}"
+        
+        response = requests.get(
+            url,
+            headers=JIRA_HEADERS,
+            auth=JIRA_AUTH
+        )
+        
+        if response.status_code == 200:
+            issue_data = response.json()
+            fields = issue_data["fields"]
+            status = fields["status"]
+            
+            return {
+                "success": True,
+                "status_name": status["name"],
+                "status_color": status.get("statusCategory", {}).get("colorName", "gray"),
+                "summary": fields["summary"],
+                "assignee": fields.get("assignee", {}).get("displayName", "Unassigned")
+            }
+        else:
+            return {"success": False, "error": response.text}
+            
+    except Exception as e:
+        print(f"Error getting Jira issue: {str(e)}")
+        return {"success": False, "error": str(e)}
+
+def sync_jira_status_to_db(issue_key):
+    """Sync Jira status back to database"""
+    try:
+        jira_details = get_jira_issue_details(issue_key)
+        
+        if jira_details["success"]:
+            # Map Jira color to hex
+            color_map = {
+                "blue-gray": "6B7280",
+                "yellow": "F59E0B",
+                "green": "10B981",
+                "blue": "3B82F6"
+            }
+            
+            status_color = color_map.get(jira_details["status_color"], "6B7280")
+            
+            # Update database
+            run_exec("""
+                UPDATE assigned_work 
+                SET jira_status = ?, 
+                    jira_status_color = ?,
+                    last_updated = GETDATE()
+                WHERE jira_issue_key = ?
+            """, (jira_details["status_name"], status_color, issue_key))
+            
+            return {"success": True, "status": jira_details["status_name"]}
+        else:
+            return jira_details
+            
+    except Exception as e:
+        print(f"Error syncing Jira status: {str(e)}")
+        return {"success": False, "error": str(e)}
+
 # Leave balance helpers
 # --------------------
 def _apply_leave_balance(username: str, leave_type: str, days: int, sign: int = +1):
@@ -1163,6 +1382,68 @@ def view_manager(user):
     AND project_name NOT LIKE 'Asset Purchase%'
     ORDER BY created_on DESC
     """)
+    # Get WORK ASSIGNMENTS assigned by this manager
+    work_assignments_df = run_query("""
+    SELECT 
+        aw.id, aw.assigned_to, aw.task_desc, aw.project_name, 
+        aw.start_date, aw.due_date, aw.assigned_on, 
+        aw.manager_status, aw.rm_status,
+        aw.jira_issue_key, aw.jira_status, aw.jira_status_color,
+        aw.employee_status, aw.employee_progress_notes, aw.last_updated,
+        u.name as assigned_to_name,
+        'Work Assignment' as assignment_type
+    FROM assigned_work aw
+    LEFT JOIN users u ON aw.assigned_to = u.username
+    WHERE aw.assigned_by = ?
+    AND (aw.work_type = 'Task Assignment' OR aw.work_type IS NULL)
+    ORDER BY aw.assigned_on DESC, aw.due_date ASC
+""", (user,))
+
+# Get PROJECT ASSIGNMENTS assigned by this manager
+    # Get PROJECT ASSIGNMENTS assigned by this manager WITH JIRA INFO
+    # Get PROJECT ASSIGNMENTS assigned by this manager
+    # Get PROJECT ASSIGNMENTS assigned by this manager (WORKS WITH YOUR EXISTING TABLE)
+    project_assignments_df = run_query("""
+    SELECT 
+        pa.project_id as id,
+        pa.assigned_to, 
+        pa.project_name,
+        '' as project_description,
+        pa.assigned_on,
+        'Active' as status,
+        pa.assigned_on as start_date,
+        pa.assignment_end_date as end_date,
+        u.name as assigned_to_name,
+        'Project Assignment' as assignment_type
+    FROM project_assignments pa
+    LEFT JOIN users u ON pa.assigned_to = u.username
+    WHERE pa.assigned_by = ?
+    ORDER BY pa.assigned_on DESC
+""", (user,))
+
+
+
+
+# Get ALL RM ASSIGNMENTS (all team members' work) - for RM Assignments view
+    rm_assignments_df = pd.DataFrame()
+    if all_team:
+        placeholders = ",".join(["?"] * len(all_team))
+        rm_assignments_df = run_query(f"""
+        SELECT 
+            aw.id, aw.assigned_to, aw.assigned_by, aw.task_desc, 
+            aw.project_name, aw.start_date, aw.due_date, aw.assigned_on, 
+            aw.manager_status, aw.rm_status,
+            aw.jira_issue_key, aw.jira_status, aw.jira_status_color,
+            aw.employee_status, aw.employee_progress_notes, aw.last_updated,
+            u.name as assigned_to_name,
+            u2.name as assigned_by_name
+        FROM assigned_work aw
+        LEFT JOIN users u ON aw.assigned_to = u.username
+        LEFT JOIN users u2 ON aw.assigned_by = u2.username
+        WHERE aw.assigned_to IN ({placeholders})
+        ORDER BY aw.last_updated DESC, aw.assigned_on DESC
+    """, tuple(all_team))
+
 
     # Get expenses (EXCLUDING SALARY/ASSET EXPENSES)
     # In view_manager function, update expenses query:
@@ -1427,7 +1708,9 @@ def view_manager(user):
         remaining_allocation=float(remaining_company_budget),  
         current_payroll=float(current_payroll),
         asset_allocated=float(asset_allocated),
-
+        work_assignments=work_assignments_df.to_dict('records') if not work_assignments_df.empty else [],
+        project_assignments=project_assignments_df.to_dict('records') if not project_assignments_df.empty else [],
+        rm_assignments=rm_assignments_df.to_dict('records') if not rm_assignments_df.empty else [],
         my_projects=my_projects.to_dict('records') if not my_projects.empty else [],
         all_employees=all_employees.to_dict('records') if not all_employees.empty else [],
         all_projects=all_projects.to_dict('records') if not all_projects.empty else [],
@@ -1458,31 +1741,22 @@ def view_manager(user):
         leave_type=leave_type,
         leave_desc=leave_desc
     )
-
-# HR Finance View Function - COMPLETE
-# --------------------
 def view_hr_finance(user):
     """HR & Finance dashboard view with SEPARATED project and payroll/asset tracking"""
     try:
-        # ========== GET ALL COMPANY EXPENSES ==========
         expenses = run_query("""
         SELECT 
-            id, 
-            spent_by, 
-            project_name, 
-            category, 
+            id, spent_by, project_name, category, 
             COALESCE(CAST(amount AS DECIMAL(18,2)), 0) as amount, 
-            description, 
-            date, 
-            document_path
+            description, date, document_path
         FROM expenses 
         ORDER BY date DESC, id DESC
         """)
-        
         print(f"✅ HR Finance: Loaded {len(expenses)} total company expenses")
     except Exception as e:
-            print(f"❌ Error loading expenses: {e}")
-            expenses = pd.DataFrame()
+        print(f"❌ Error loading expenses: {e}")
+        expenses = pd.DataFrame()
+        
     # STEP 1: Get total budget
     try:
         total_budget_df = run_query("SELECT total_budget FROM company_budget WHERE id = 1")
@@ -1491,15 +1765,15 @@ def view_hr_finance(user):
         else:
             run_exec("""
                 IF NOT EXISTS (SELECT * FROM company_budget WHERE id = 1)
-                INSERT INTO [timesheet_db].[dbo]. [company_budget] (id, total_budget, updated_by, updated_on, reason)
+                INSERT INTO company_budget (id, total_budget, updated_by, updated_on, reason)
                 VALUES (1, 50000000, 'system', GETDATE(), 'Initial budget setup')
             """)
             total_budget = 50000000.0
     except Exception as e:
-        print(f" Budget retrieval error: {e}")
+        print(f"❌ Budget retrieval error: {e}")
         total_budget = 50000000.0
 
-    # STEP 2: Calculate ONLY PROJECT allocations (exclude salary/asset projects)
+    # STEP 2: Calculate ONLY PROJECT allocations
     try:
         project_allocated_df = run_query("""
             SELECT COALESCE(SUM(CAST(budget_amount AS DECIMAL(18,2))), 0) as allocated 
@@ -1510,16 +1784,13 @@ def view_hr_finance(user):
             AND project_name NOT LIKE 'Salary%'
             AND project_name NOT LIKE 'Asset Purchase%'
         """)
-        
         project_allocated = float(project_allocated_df['allocated'].iloc[0]) if not project_allocated_df.empty else 0.0
-        
     except Exception as e:
-        print(f" Project allocation calculation error: {e}")
+        print(f"❌ Project allocation calculation error: {e}")
         project_allocated = 0.0
 
     # STEP 3: Calculate PAYROLL & ASSET allocations separately
     try:
-        # Current payroll costs
         payroll_df = run_query("""
             SELECT COALESCE(SUM(CAST(yearly_salary AS DECIMAL(18,2))), 0) as total_payroll
             FROM users 
@@ -1527,42 +1798,33 @@ def view_hr_finance(user):
         """)
         current_payroll = float(payroll_df['total_payroll'].iloc[0]) if not payroll_df.empty else 0.0
 
-        # Asset purchases (approved asset requests)  
         asset_allocated_df = run_query("""
             SELECT COALESCE(SUM(CAST(amount AS DECIMAL(18,2))), 0) as asset_total
             FROM asset_requests 
             WHERE status = 'Approved'
         """)
         asset_allocated = float(asset_allocated_df['asset_total'].iloc[0]) if not asset_allocated_df.empty else 0.0
-
-        # Total payroll & asset allocation
         payroll_asset_allocated = current_payroll + asset_allocated
-        
     except Exception as e:
-        print(f" Payroll & Asset calculation error: {e}")
+        print(f"❌ Payroll & Asset calculation error: {e}")
         current_payroll = 0.0
         asset_allocated = 0.0
         payroll_asset_allocated = 0.0
 
-    # STEP 4: Calculate remaining budget CORRECTLY
+    # STEP 4: Calculate remaining budget
     remaining_allocation = total_budget - project_allocated - payroll_asset_allocated
     
-    print(f" HR FINANCE BUDGET CALCULATION:")
+    print(f"💰 HR FINANCE BUDGET CALCULATION:")
     print(f"   Total Budget: ₹{total_budget:,.2f}")
     print(f"   Project Allocations: ₹{project_allocated:,.2f}")
     print(f"   Payroll & Asset Allocations: ₹{payroll_asset_allocated:,.2f}")
     print(f"   Remaining Available: ₹{remaining_allocation:,.2f}")
 
-
-    
-    # CORRECTED Budget Summary query - ONLY actual projects
+    # Budget Summary
     try:
         budget_summary = run_query("""
             SELECT 
-                p.project_name, 
-                p.created_by,
-                p.cost_center,
-                p.created_on,
+                p.project_name, p.created_by, p.cost_center, p.created_on,
                 CAST(p.budget_amount AS DECIMAL(18,2)) as total_budget,
                 COALESCE(SUM(CAST(e.amount AS DECIMAL(18,2))), 0) as used_amount,
                 CAST(p.budget_amount AS DECIMAL(18,2)) - COALESCE(SUM(CAST(e.amount AS DECIMAL(18,2))), 0) as remaining
@@ -1577,7 +1839,6 @@ def view_hr_finance(user):
             ORDER BY p.created_on DESC
         """)
     except Exception as e:
-        print(f"Budget summary error: {e}")
         budget_summary = pd.DataFrame()
 
     # All Expenses
@@ -1592,7 +1853,7 @@ def view_hr_finance(user):
     except Exception as e:
         expense_summary = pd.DataFrame()
 
-    # Projects needing budget allocation (already approved)
+    # Projects needing budget
     try:
         projects_needing_budget = run_query("""
             SELECT project_id, project_name, created_by, description, created_on, end_date, cost_center
@@ -1606,7 +1867,7 @@ def view_hr_finance(user):
     except Exception as e:
         projects_needing_budget = pd.DataFrame()
 
-    # Projects pending HR approval
+    # Pending projects
     try:
         pending_projects = run_query("""
             SELECT project_id, project_name, created_by, description, created_on, end_date, cost_center
@@ -1619,7 +1880,7 @@ def view_hr_finance(user):
     except Exception as e:
         pending_projects = pd.DataFrame()
 
-    # All Projects (ONLY real projects for management view)
+    # All Projects
     try:
         all_projects = run_query("""
             SELECT project_id, project_name, created_by, cost_center, description, 
@@ -1632,7 +1893,7 @@ def view_hr_finance(user):
     except Exception as e:
         all_projects = pd.DataFrame()
 
-    # Employee Salary Information
+    # Employee Salaries
     try:
         employee_salaries = run_query("""
             SELECT username, name, role,
@@ -1642,7 +1903,6 @@ def view_hr_finance(user):
             WHERE status = 'Active'
             ORDER BY yearly_salary DESC
         """)
-        
         total_monthly_payroll = sum(float(s['monthly_salary'] or 0) for s in employee_salaries.to_dict('records'))
         total_annual_payroll = sum(float(s['yearly_salary'] or 0) for s in employee_salaries.to_dict('records'))
     except Exception as e:
@@ -1650,22 +1910,21 @@ def view_hr_finance(user):
         total_monthly_payroll = 0.0
         total_annual_payroll = 0.0
 
-    # Employee Work Records
+    # Employee Timesheets
     try:
-     employee_timesheets = run_query("""
-        SELECT TOP 1000 id, username, work_date, project_name, work_desc, hours, 
-               COALESCE(break_hours, 0) as break_hours, rm_status,
-               CASE WHEN hours > 8 THEN hours - 8 ELSE 0 END as overtime_hours,
-               MONTH(work_date) as work_month, YEAR(work_date) as work_year,
-               start_time, end_time
-        FROM timesheets
-        ORDER BY work_date DESC
-    """)
-
+        employee_timesheets = run_query("""
+            SELECT TOP 1000 id, username, work_date, project_name, work_desc, hours, 
+                   COALESCE(break_hours, 0) as break_hours, rm_status,
+                   CASE WHEN hours > 8 THEN hours - 8 ELSE 0 END as overtime_hours,
+                   MONTH(work_date) as work_month, YEAR(work_date) as work_year,
+                   start_time, end_time
+            FROM timesheets
+            ORDER BY work_date DESC
+        """)
     except Exception as e:
         employee_timesheets = pd.DataFrame()
 
-    # Employee Leave Records
+    # Employee Leaves
     try:
         employee_leaves = run_query("""
             SELECT TOP 1000 id, username, start_date, end_date, leave_type, description, rm_status,
@@ -1681,20 +1940,15 @@ def view_hr_finance(user):
     # Asset Requests
     try:
         asset_requests_raw = run_query("""
-                  SELECT id, asset_type, quantity, 
+            SELECT id, asset_type, quantity, 
                 CAST(COALESCE(amount, 0) AS DECIMAL(18,2)) as amount, 
                 for_employee, description, requested_by, requested_date, status, 
                 rejection_reason, approved_by, approved_date, document_path
             FROM asset_requests
             ORDER BY 
-                CASE 
-                    WHEN status = 'Pending' THEN 1 
-                    WHEN status = 'Approved' THEN 2 
-                    ELSE 3 
-                END,
+                CASE WHEN status = 'Pending' THEN 1 WHEN status = 'Approved' THEN 2 ELSE 3 END,
                 requested_date DESC
         """)
-        
         if not asset_requests_raw.empty:
             asset_records = asset_requests_raw.to_dict('records')
             for record in asset_records:
@@ -1705,36 +1959,22 @@ def view_hr_finance(user):
             asset_requests = pd.DataFrame(asset_records)
         else:
             asset_requests = pd.DataFrame()
-            
     except Exception as e:
-        print(f"Asset requests error: {e}")
         asset_requests = pd.DataFrame()
 
-    # Team Approvals - FIXED: Only show team members' work/leave
+    # Team Approvals
     try:
-        # Get direct reports for HR Finance Controller
         team_members = get_direct_reports(user)
-        
-        # If no direct reports found, try alternative methods to find team
         if not team_members:
-            # Try alternative method: Check report table with different column names
-            team_query = run_query("""
-                SELECT username FROM report WHERE rm = ? OR manager = ?
-            """, (user, user))
-            
+            team_query = run_query("SELECT username FROM report WHERE rm = ? OR manager = ?", (user, user))
             if not team_query.empty:
                 team_members = team_query['username'].tolist()
-                print(f"DEBUG: Alternative method found team members: {team_members}")
         
-        # Initialize empty DataFrames
         pending_team_work = pd.DataFrame()
         pending_team_leaves = pd.DataFrame()
         
-        # ONLY get pending items IF there are actual team members
         if team_members:
             placeholders = ",".join(["?"] * len(team_members))
-            
-            # Get pending work for team members ONLY
             pending_team_work = run_query(f"""
                 SELECT id, username, work_date, project_name, work_desc, hours, 
                     COALESCE(break_hours, 0) as break_hours
@@ -1743,7 +1983,6 @@ def view_hr_finance(user):
                 ORDER BY work_date ASC
             """, tuple(team_members))
             
-            # Get pending leave for team members ONLY
             pending_team_leaves = run_query(f"""
                 SELECT l.id, l.username, l.start_date, l.end_date, l.leave_type, l.description, 
                     l.rm_status, l.health_document,
@@ -1755,89 +1994,107 @@ def view_hr_finance(user):
                 WHERE l.username IN ({placeholders}) AND l.rm_status = 'Pending'
                 ORDER BY l.start_date ASC
             """, tuple(team_members))
-            print(f"DEBUG: Found {len(pending_team_work)} pending work items and {len(pending_team_leaves)} pending leave items for team: {team_members}")
-        else:
-            print(f"DEBUG: HR Finance user {user} has no team members reporting to them")
-
     except Exception as e:
-        print(f"Team approvals error: {e}")
         pending_team_work = pd.DataFrame()
         pending_team_leaves = pd.DataFrame()
         team_members = []
-    # NEW: Get all employees for work assignment
+
+    # Get employees for work assignment
     try:
-        all_employees = run_query("""
-            SELECT username, role, name FROM users 
-            WHERE status = 'Active'
-            ORDER BY username
+        all_employees_list = run_query("""
+            SELECT username, name, role FROM users 
+            WHERE status = 'Active' AND role NOT IN ('Admin', 'Super Admin')
+            ORDER BY name
         """)
+        print(f"✅ Loaded {len(all_employees_list)} employees for dropdown")
     except Exception as e:
-        all_employees = pd.DataFrame()
+        all_employees_list = pd.DataFrame()
 
-    # NEW: Get all work assignments
+    # Get work assignments
     try:
-        # Update the work_assignments query
         work_assignments = run_query("""
-            SELECT TOP 500 assigned_by, assigned_to, project_name, task_desc as work_description, 
-                start_date, due_date, manager_status as status
-            FROM assigned_work
-            ORDER BY due_date ASC, start_date ASC
+            SELECT TOP 500 
+                id, assigned_by, assigned_to, project_name, task_desc, 
+                start_date, due_date, assigned_on, manager_status, rm_status,
+                jira_issue_key, jira_status, jira_status_color,
+                employee_status, employee_progress_notes, last_updated
+            FROM assigned_work 
+            ORDER BY assigned_on DESC
         """)
-
+        print(f"✅ Loaded {len(work_assignments)} work assignments")
     except Exception as e:
         work_assignments = pd.DataFrame()
+
+    # Get projects for dropdown - FIXED
+    try:
+        projects_dropdown = run_query("""
+            SELECT DISTINCT project_name 
+            FROM projects 
+            WHERE status = 'Active'
+            AND project_name NOT LIKE 'Salary%'
+            AND project_name NOT LIKE 'Asset Purchase%'
+            ORDER BY project_name
+        """)
+        print(f"✅ Loaded {len(projects_dropdown)} projects for dropdown")
+    except Exception as e:
+        projects_dropdown = pd.DataFrame()
     
+    print(f"\n{'='*60}")
+    print(f"✅ HR FINANCE DASHBOARD DATA LOADED")
+    print(f"   • Employees: {len(all_employees_list)}")
+    print(f"   • Work Assignments: {len(work_assignments)}")
+    print(f"   • Projects: {len(projects_dropdown)}")
+    print(f"{'='*60}\n")
     
     return render_template('hr_finance.html',
         user=user,
         role=session['role'],
         today=date.today().isoformat(),
         
-        # UPDATED Financial Overview with separated allocations
+        # Financial
         total_budget=float(total_budget),
-        project_allocated=float(project_allocated),  # Only real projects
-        payroll_asset_allocated=float(payroll_asset_allocated),  # Payroll + Assets
+        project_allocated=float(project_allocated),
+        payroll_asset_allocated=float(payroll_asset_allocated),
         remaining_allocation=float(remaining_allocation),
         current_payroll=float(current_payroll),
         asset_allocated=float(asset_allocated),
         expenses=expenses.to_dict('records') if not expenses.empty else [],
         expensesummary=expenses.to_dict('records') if not expenses.empty else [],
         
-        # Data for tables (ONLY real projects)
+        # Projects
         budget_summary=budget_summary.to_dict('records') if not budget_summary.empty else [],
         expense_summary=expense_summary.to_dict('records') if not expense_summary.empty else [],
         pending_projects=pending_projects.to_dict('records') if not pending_projects.empty else [],
         all_projects=all_projects.to_dict('records') if not all_projects.empty else [],
+        projects_needing_budget=projects_needing_budget.to_dict('records') if not projects_needing_budget.empty else [],
         
-        # Payroll data
+        # Payroll
         employee_salaries=employee_salaries.to_dict('records') if not employee_salaries.empty else [],
         total_monthly_payroll=float(total_monthly_payroll),
         total_annual_payroll=float(total_annual_payroll),
         
-        # Employee records
+        # Employee Records
         employee_timesheets=employee_timesheets.to_dict('records') if not employee_timesheets.empty else [],
         employee_leaves=employee_leaves.to_dict('records') if not employee_leaves.empty else [],
-        projects_needing_budget=projects_needing_budget.to_dict('records') if not projects_needing_budget.empty else [],
         
-        # Asset requests and team approvals
+        # Assets & Team
         asset_requests=asset_requests.to_dict('records') if not asset_requests.empty else [],
         pending_team_work=pending_team_work.to_dict('records') if not pending_team_work.empty else [],
         pending_team_leaves=pending_team_leaves.to_dict('records') if not pending_team_leaves.empty else [],
         has_team=len(team_members) > 0,
         team_members=team_members,
         
-        # NEW: Work assignment data
-        all_employees=all_employees.to_dict('records') if not all_employees.empty else [],
+        # Work Assignments - FIXED
+        all_employees_list=all_employees_list.to_dict('records') if not all_employees_list.empty else [],
         work_assignments=work_assignments.to_dict('records') if not work_assignments.empty else [],
-       
+        projects_dropdown=projects_dropdown.to_dict('records') if not projects_dropdown.empty else []
     )
 
-# Lead View Function - COMPLETE
-# --------------------
+
 def view_lead(user):
-    """Lead dashboard with complete oversight of all company data - ENHANCED"""
+    """Lead dashboard with complete oversight of all company data - ENHANCED WITH JIRA"""
     
-    # STEP 1: Get total budget (same as HR Finance)
+    # STEP 1: Get total budget
     try:
         total_budget_df = run_query("SELECT total_budget FROM company_budget WHERE id = 1")
         if not total_budget_df.empty and len(total_budget_df) > 0:
@@ -1845,15 +2102,15 @@ def view_lead(user):
         else:
             run_exec("""
                 IF NOT EXISTS (SELECT * FROM company_budget WHERE id = 1)
-                INSERT INTO [timesheet_db].[dbo]. [company_budget] (id, total_budget, updated_by, updated_on, reason)
+                INSERT INTO company_budget (id, total_budget, updated_by, updated_on, reason)
                 VALUES (1, 50000000, 'system', GETDATE(), 'Initial budget setup')
             """)
             total_company_budget = 50000000.0
     except Exception as e:
-        print(f" Budget retrieval error: {e}")
+        print(f"❌ Budget retrieval error: {e}")
         total_company_budget = 50000000.0
 
-    # STEP 2: Calculate ONLY PROJECT allocations (exclude salary/asset projects)
+    # STEP 2: Calculate ONLY PROJECT allocations
     try:
         project_allocated_df = run_query("""
             SELECT COALESCE(SUM(CAST(budget_amount AS DECIMAL(18,2))), 0) as allocated 
@@ -1864,16 +2121,13 @@ def view_lead(user):
             AND project_name NOT LIKE 'Salary%'
             AND project_name NOT LIKE 'Asset Purchase%'
         """)
-        
         project_allocated = float(project_allocated_df['allocated'].iloc[0]) if not project_allocated_df.empty else 0.0
-        
     except Exception as e:
-        print(f" Project allocation calculation error: {e}")
+        print(f"❌ Project allocation calculation error: {e}")
         project_allocated = 0.0
 
-    # STEP 3: Calculate PAYROLL & ASSET allocations separately
+    # STEP 3: Calculate PAYROLL & ASSET allocations
     try:
-        # Current payroll costs
         payroll_df = run_query("""
             SELECT COALESCE(SUM(CAST(yearly_salary AS DECIMAL(18,2))), 0) as total_payroll
             FROM users 
@@ -1881,47 +2135,42 @@ def view_lead(user):
         """)
         current_payroll = float(payroll_df['total_payroll'].iloc[0]) if not payroll_df.empty else 0.0
 
-        # Asset purchases (approved asset requests)  
         asset_allocated_df = run_query("""
             SELECT COALESCE(SUM(CAST(amount AS DECIMAL(18,2))), 0) as asset_total
             FROM asset_requests 
             WHERE status = 'Approved'
         """)
         asset_allocated = float(asset_allocated_df['asset_total'].iloc[0]) if not asset_allocated_df.empty else 0.0
-
-        # Total payroll & asset allocation
         payroll_asset_allocated = current_payroll + asset_allocated
-        
     except Exception as e:
-        print(f" Payroll & Asset calculation error: {e}")
+        print(f"❌ Payroll & Asset calculation error: {e}")
         current_payroll = 0.0
         asset_allocated = 0.0
         payroll_asset_allocated = 0.0
 
-    # STEP 4: Calculate remaining budget CORRECTLY
+    # STEP 4: Calculate remaining budget
     remaining_company_budget = total_company_budget - project_allocated - payroll_asset_allocated
     
-    print(f" LEAD VIEW BUDGET CALCULATION:")
+    print(f"💰 LEAD VIEW BUDGET CALCULATION:")
     print(f"   Total Budget: ₹{total_company_budget:,.2f}")
     print(f"   Project Allocations: ₹{project_allocated:,.2f}")
     print(f"   Payroll & Asset Allocations: ₹{payroll_asset_allocated:,.2f}")
     print(f"   Remaining Available: ₹{remaining_company_budget:,.2f}")
     
-    # Get form filters for work history
+    # Get form filters
     work_start = request.args.get('work_start', '').strip()
     work_end = request.args.get('work_end', '').strip()
     work_user = request.args.get('work_user', '').strip()
     work_project = request.args.get('work_project', '').strip()
     work_status = request.args.get('work_status', '').strip()
     
-    # Get form filters for leave history
     leave_start = request.args.get('leave_start', '').strip()
     leave_end = request.args.get('leave_end', '').strip()
     leave_user = request.args.get('leave_user', '').strip()
     leave_type = request.args.get('leave_type', '').strip()
     leave_status = request.args.get('leave_status', '').strip()
     
-    # Get all projects with budget allocations (EXCLUDE SALARY PROJECTS)
+    # Get all projects
     my_projects = run_query("""
         SELECT p.project_id, p.project_name, p.description, p.created_by, p.created_on, p.end_date,
                p.hr_approval_status, p.cost_center, 
@@ -1935,12 +2184,11 @@ def view_lead(user):
             GROUP BY project_name
         ) e ON p.project_name = e.project_name
         WHERE p.project_name NOT LIKE 'Salary%'
-        AND p.project_name NOT LIKE '%Salary%'
         AND p.project_name NOT LIKE 'Asset Purchase%'
         ORDER BY p.created_on DESC
     """)
     
-    # Get budget summary for all approved projects (EXCLUDE SALARY)
+    # Budget summary
     budget_summary = run_query("""
         SELECT p.project_name, p.cost_center, p.created_by,
                COALESCE(CAST(p.budget_amount AS DECIMAL(18,2)), 0) as total_budget,
@@ -1954,28 +2202,27 @@ def view_lead(user):
         ) e ON p.project_name = e.project_name
         WHERE p.hr_approval_status = 'Approved'
         AND p.project_name NOT LIKE 'Salary%'
-        AND p.project_name NOT LIKE '%Salary%'
         AND p.project_name NOT LIKE 'Asset Purchase%'
         AND COALESCE(CAST(p.budget_amount AS DECIMAL(18,2)), 0) > 0
         ORDER BY p.project_name
     """)
     
-    # Get ALL expenses (EXCLUDE SALARY-RELATED)
-    # In view_manager function, update expenses query:
+    # Get expenses
     expenses = run_query("""
-SELECT id, spent_by, project_name, category, 
-       COALESCE(CAST(amount AS DECIMAL(18,2)), 0) as amount, 
-       description, date, document_path
-FROM expenses
-WHERE (spent_by = ? OR project_name IN (
-    SELECT project_name FROM projects 
-    WHERE hr_approval_status = 'Approved'
-    AND project_name NOT LIKE 'Salary Increase%'
-    AND project_name NOT LIKE 'Asset Purchase%'
-) OR project_name IS NULL OR project_name = '(non-project)')
-ORDER BY date DESC
-""", (user,))
-    # Get ALL employee payroll data (monthly and yearly salaries)
+        SELECT id, spent_by, project_name, category, 
+               COALESCE(CAST(amount AS DECIMAL(18,2)), 0) as amount, 
+               description, date, document_path
+        FROM expenses
+        WHERE (spent_by = ? OR project_name IN (
+            SELECT project_name FROM projects 
+            WHERE hr_approval_status = 'Approved'
+            AND project_name NOT LIKE 'Salary%'
+            AND project_name NOT LIKE 'Asset Purchase%'
+        ) OR project_name IS NULL OR project_name = '(non-project)')
+        ORDER BY date DESC
+    """, (user,))
+    
+    # Payroll data
     payment_rate_cards = run_query("""
         SELECT u.username, u.name, u.role, 
             COALESCE(CAST(u.monthly_salary AS DECIMAL(18,2)), 0) as monthly_salary, 
@@ -1985,7 +2232,7 @@ ORDER BY date DESC
         ORDER BY u.monthly_salary DESC
     """)
 
-    # Get ALL employee work history with filters
+    # Work history with filters
     work_base_query = """
         SELECT username, work_date, project_name, work_desc, hours, break_hours,
                CASE WHEN hours > 8 THEN hours - 8 ELSE 0 END AS overtime_hours,
@@ -1994,7 +2241,6 @@ ORDER BY date DESC
         WHERE 1=1
     """
     work_params = []
-    
     if work_start:
         work_base_query += " AND work_date >= ?"
         work_params.append(work_start)
@@ -2010,12 +2256,10 @@ ORDER BY date DESC
     if work_status:
         work_base_query += " AND rm_status = ?"
         work_params.append(work_status)
-    
     work_base_query += " ORDER BY work_date DESC"
-    
     all_employee_work_history = run_query(work_base_query, tuple(work_params))
     
-    # Get ALL employee leave history with filters
+    # Leave history with filters
     leave_base_query = """
         SELECT username, start_date, end_date, leave_type, description, 
                rm_status, rm_rejection_reason, rm_approver, 
@@ -2025,7 +2269,6 @@ ORDER BY date DESC
         WHERE 1=1
     """
     leave_params = []
-    
     if leave_start:
         leave_base_query += " AND start_date >= ?"
         leave_params.append(leave_start)
@@ -2041,47 +2284,66 @@ ORDER BY date DESC
     if leave_status:
         leave_base_query += " AND rm_status = ?"
         leave_params.append(leave_status)
-    
     leave_base_query += " ORDER BY start_date DESC"
-    
     all_employee_leave_history = run_query(leave_base_query, tuple(leave_params))
     
-    # Add this query to get all employees for work assignment
+    # Get all employees for work assignment
     try:
-        all_employees = run_query("""
-            SELECT username, role, name FROM users 
+        all_employees_list = run_query("""
+            SELECT username, name, role FROM users 
             WHERE status = 'Active'
-            ORDER BY role, COALESCE(name, username)
+            AND role NOT IN ('Admin', 'Super Admin')
+            ORDER BY name
         """)
+        print(f"✅ Loaded {len(all_employees_list)} employees for dropdown")
     except Exception as e:
-        print(f"All employees query error: {e}")
-        all_employees = pd.DataFrame()
+        print(f"❌ Error loading employees: {e}")
+        all_employees_list = pd.DataFrame()
 
-    # Get ALL work assignments
-    work_assignments = run_query("""
-        SELECT TOP 500 id, assigned_by, assigned_to, project_name, task_desc, 
-               start_date, due_date, assigned_on, manager_status, rm_status,
-               COALESCE(rm_rejection_reason, '') as rejection_reason
-        FROM assigned_work
-        ORDER BY assigned_on DESC
+    # Get work assignments WITH JIRA STATUS
+    try:
+        work_assignments = run_query("""
+            SELECT TOP 500 
+                id, assigned_by, assigned_to, project_name, task_desc, 
+                start_date, due_date, assigned_on, manager_status, rm_status,
+                jira_issue_key, jira_status, jira_status_color,
+                employee_status, employee_progress_notes, last_updated
+            FROM assigned_work 
+            ORDER BY assigned_on DESC
+        """)
+        print(f"✅ Loaded {len(work_assignments)} work assignments")
+    except Exception as e:
+        print(f"❌ Error loading work assignments: {e}")
+        work_assignments = pd.DataFrame()
+
+    # Get projects for dropdown
+    try:
+        all_projects = run_query("""
+            SELECT project_id, project_name, created_by, cost_center, description, 
+                   hr_approval_status, budget_amount, end_date, created_on 
+            FROM projects 
+            WHERE project_name NOT LIKE '%Salary%' 
+              AND project_name NOT LIKE '%Asset Purchase%'
+            ORDER BY created_on DESC
+        """)
+        print(f"✅ Loaded {len(all_projects)} projects for dropdown")
+    except Exception as e:
+        print(f"❌ Error loading projects: {e}")
+        all_projects = pd.DataFrame()
+    
+    # Asset requests
+    asset_requests = run_query("""
+        SELECT id, asset_type, quantity, 
+               CAST(COALESCE(amount, 0) AS DECIMAL(18,2)) as amount, 
+               for_employee, description, requested_by, requested_date, 
+               status, approved_by, approved_date, rejection_reason, document_path
+        FROM asset_requests
+        ORDER BY 
+            CASE WHEN status = 'Pending' THEN 1 WHEN status = 'Approved' THEN 2 ELSE 3 END,
+            requested_date DESC
     """)
     
-    # Get ALL asset requests
-    asset_requests = run_query("""
-    SELECT id, asset_type, quantity, 
-           CAST(COALESCE(amount, 0) AS DECIMAL(18,2)) as amount, 
-           for_employee, description, requested_by, requested_date, 
-           status, approved_by, approved_date, rejection_reason, document_path
-    FROM asset_requests
-    ORDER BY 
-        CASE 
-            WHEN status = 'Pending' THEN 1 
-            WHEN status = 'Approved' THEN 2 
-            ELSE 3 
-        END,
-        requested_date DESC
-""")
-    # Get system requests
+    # System requests
     system_requests = run_query("""
         SELECT TOP 50 id, requested_by, item, CAST(amount AS DECIMAL(18,2)) as amount, 
                description, date, status, reason
@@ -2089,7 +2351,7 @@ ORDER BY date DESC
         ORDER BY date DESC
     """)
     
-    # Get pending leaves for subordinates (if any)
+    # Pending approvals for direct reports
     direct_reports = get_direct_reports(user)
     pending_timesheets = pd.DataFrame()
     pending_leaves = pd.DataFrame()
@@ -2097,7 +2359,6 @@ ORDER BY date DESC
     if direct_reports:
         placeholders = ",".join(["?"] * len(direct_reports))
         
-        # Get pending work approvals for direct reports
         pending_timesheets = run_query(f"""
             SELECT t.id, t.username, t.work_date, t.project_name, t.work_desc, t.hours, 
                 COALESCE(t.break_hours, 0) as break_hours, t.start_time, t.end_time,
@@ -2108,7 +2369,6 @@ ORDER BY date DESC
             ORDER BY t.work_date ASC
         """, tuple(direct_reports + [user]))
         
-        # Get pending leave approvals for direct reports with document info
         pending_leaves = run_query(f"""
             SELECT l.id, l.username, l.start_date, l.end_date, l.leave_type, l.description, 
                 l.rm_status, l.health_document,
@@ -2121,8 +2381,7 @@ ORDER BY date DESC
             ORDER BY l.start_date ASC
         """, tuple(direct_reports + [user]))
 
-    
-    # Calculate leave duration
+    # Calculate leave durations
     pending_leave_records = pending_leaves.to_dict('records') if not pending_leaves.empty else []
     pending_leave_records = calculate_leave_duration(pending_leave_records)
 
@@ -2132,7 +2391,7 @@ ORDER BY date DESC
     all_leave_records = all_employee_leave_history.to_dict('records') if not all_employee_leave_history.empty else []
     all_leave_records = calculate_leave_duration(all_leave_records)
     
-    # Calculate financial metrics (EXCLUDE SALARY PROJECTS)
+    # Calculate financial metrics
     budget_records = budget_summary.to_dict('records') if not budget_summary.empty else []
     total_allocated_budget = sum(float(row.get('total_budget', 0) or 0) for row in budget_records)
     total_used_budget = sum(float(row.get('used_amount', 0) or 0) for row in budget_records)
@@ -2154,13 +2413,19 @@ ORDER BY date DESC
                     'remaining': project['remaining']
                 })
     
+    print(f"\n{'='*60}")
+    print(f"✅ LEAD DASHBOARD DATA LOADED")
+    print(f"   • Employees: {len(all_employees_list)}")
+    print(f"   • Work Assignments: {len(work_assignments)}")
+    print(f"   • Projects: {len(all_projects)}")
+    print(f"{'='*60}\n")
+    
     return render_template('lead.html',
         user=user,
         role=session['role'],
-        all_employees=all_employees.to_dict('records') if not all_employees.empty else [],  
         today=date.today().isoformat(),
         
-        # ENHANCED Financial Overview (same as HR Finance)
+        # Financial Overview
         total_budget=float(total_company_budget),
         project_allocated=float(project_allocated),
         payroll_asset_allocated=float(payroll_asset_allocated),
@@ -2169,37 +2434,38 @@ ORDER BY date DESC
         asset_allocated=float(asset_allocated),
         allocated=float(total_allocated_budget),
         
-        # Project & Budget Data (NO SALARY PROJECTS)
+        # Project & Budget Data
         my_projects=my_projects.to_dict('records') if not my_projects.empty else [],
         budget_summary=budget_records,
         budget_alerts=budget_alerts,
         
-        # Expense Data (EXCLUDING SALARY)
+        # Expense Data
         expenses=expenses.to_dict('records') if not expenses.empty else [],
         
-        # Payroll Data (ALL employees' monthly and yearly salaries)
+        # Payroll Data
         payment_rate_cards=payroll_records,
         total_monthly_payroll=float(total_monthly_payroll),
         total_yearly_payroll=float(total_yearly_payroll),
         
-        # ALL Employee Work & Leave History with Filters
+        # Employee Work & Leave History
         all_employee_work_history=all_employee_work_history.to_dict('records') if not all_employee_work_history.empty else [],
         all_employee_leave_history=all_leave_records,
         
-        # Work Assignments and Assets
+        # Work Assignments WITH JIRA
+        all_employees_list=all_employees_list.to_dict('records') if not all_employees_list.empty else [],
         work_assignments=work_assignments.to_dict('records') if not work_assignments.empty else [],
-        asset_requests=asset_requests.to_dict('records') if not asset_requests.empty else [],
+
         
-        # System Data
+        # Assets & Requests
+        asset_requests=asset_requests.to_dict('records') if not asset_requests.empty else [],
         system_requests=system_requests.to_dict('records') if not system_requests.empty else [],
         
-        # Pending approvals (if Lead has subordinates)
+        # Pending approvals
         direct_reports=direct_reports,
         has_team=len(direct_reports) > 0,
         pending_timesheets=pending_timesheets.to_dict('records') if not pending_timesheets.empty else [],
         pending_leaves=pending_leave_records,
-        #pending_leaves=leave_records,
-        
+        all_projects=all_projects.to_dict('records') ,
         # Filter values
         work_start=work_start,
         work_end=work_end,
@@ -2212,6 +2478,7 @@ ORDER BY date DESC
         leave_type=leave_type,
         leave_status=leave_status
     )
+
 
 # Update the view_employee function to fix team history filters
 def view_employee(user):
@@ -2238,21 +2505,24 @@ def view_employee(user):
     assigned_work_df = pd.DataFrame()
     try:
         assigned_work_df = run_query("""
-            SELECT aw.id, aw.assigned_by, aw.project_name, aw.task_desc, aw.start_date, aw.due_date, 
-                   aw.assigned_on, aw.rm_status,
-                   CASE 
-                       WHEN aw.due_date < GETDATE() AND aw.rm_status != 'Completed' THEN 'Overdue'
-                       WHEN aw.due_date <= DATEADD(day, 3, GETDATE()) AND aw.rm_status != 'Completed' THEN 'Due Soon'
-                       ELSE 'Active'
-                   END as urgency_status,
-                   u.name as assigned_by_name
-            FROM assigned_work aw 
-            LEFT JOIN users u ON aw.assigned_by = u.username
-            WHERE aw.assigned_to = ? 
-            ORDER BY 
-                CASE WHEN aw.due_date < GETDATE() THEN 1 ELSE 2 END,
-                aw.due_date ASC, aw.assigned_on DESC
-        """, (user,))
+    SELECT aw.id, aw.assigned_by, aw.project_name, aw.task_desc, aw.start_date, aw.due_date, 
+           aw.assigned_on, aw.rm_status,
+           aw.jira_issue_key, aw.jira_status, aw.jira_status_color,
+           aw.employee_status, aw.employee_progress_notes, aw.last_updated,
+           CASE 
+               WHEN aw.due_date < GETDATE() AND aw.rm_status != 'Completed' THEN 'Overdue'
+               WHEN aw.due_date <= DATEADD(day, 3, GETDATE()) AND aw.rm_status != 'Completed' THEN 'Due Soon'
+               ELSE 'Active'
+           END as urgency_status,
+           u.name as assigned_by_name
+    FROM assigned_work aw 
+    LEFT JOIN users u ON aw.assigned_by = u.username
+    WHERE aw.assigned_to = ? 
+    ORDER BY 
+        CASE WHEN aw.due_date < GETDATE() THEN 1 ELSE 2 END,
+        aw.due_date ASC, aw.assigned_on DESC
+""", (user,))
+
     except Exception as e:
         print(f"Error fetching assigned work: {e}")
         assigned_work_df = pd.DataFrame()
@@ -2262,20 +2532,23 @@ def view_employee(user):
     if is_rm:
         try:
             my_assigned_work_df = run_query("""
-                SELECT 
-                    aw.id, aw.assigned_to, aw.task_desc, aw.project_name, aw.start_date, aw.due_date,
-                    aw.assigned_on, aw.rm_status,
-                    u.name as assigned_to_name,
-                    CASE 
-                        WHEN aw.due_date < GETDATE() AND aw.rm_status != 'Completed' THEN 'Overdue'
-                        WHEN aw.due_date <= DATEADD(day, 3, GETDATE()) AND aw.rm_status != 'Completed' THEN 'Due Soon'
-                        ELSE 'Active'
-                    END as urgency_status
-                FROM assigned_work aw
-                LEFT JOIN users u ON aw.assigned_to = u.username
-                WHERE aw.assigned_by = ?
-                ORDER BY aw.assigned_on DESC, aw.due_date ASC
-            """, (user,))
+    SELECT 
+        aw.id, aw.assigned_to, aw.task_desc, aw.project_name, aw.start_date, aw.due_date,
+        aw.assigned_on, aw.rm_status,
+        aw.jira_issue_key, aw.jira_status, aw.jira_status_color,
+        aw.employee_status, aw.employee_progress_notes, aw.last_updated,
+        u.name as assigned_to_name,
+        CASE 
+            WHEN aw.due_date < GETDATE() AND aw.rm_status != 'Completed' THEN 'Overdue'
+            WHEN aw.due_date <= DATEADD(day, 3, GETDATE()) AND aw.rm_status != 'Completed' THEN 'Due Soon'
+            ELSE 'Active'
+        END as urgency_status
+    FROM assigned_work aw
+    LEFT JOIN users u ON aw.assigned_to = u.username
+    WHERE aw.assigned_by = ?
+    ORDER BY aw.assigned_on DESC, aw.due_date ASC
+""", (user,))
+
         except Exception as e:
             print(f"Error fetching my assigned work: {e}")
             my_assigned_work_df = pd.DataFrame()
@@ -2599,19 +2872,16 @@ def view_intern(user):
     
     # FIXED: Get ALL assigned work for this intern
     assigned_work_df = run_query("""
-        SELECT aw.id, aw.assigned_by, aw.project_name, aw.task_desc, aw.start_date, aw.due_date,
-               aw.assigned_on, aw.rm_status, aw.manager_status,
-               u.name as assigned_by_name,
-               CASE 
-                   WHEN aw.due_date < GETDATE() AND aw.rm_status NOT IN ('Completed', 'Rejected') THEN 'Overdue'
-                   WHEN aw.due_date <= DATEADD(day, 3, GETDATE()) AND aw.rm_status NOT IN ('Completed', 'Rejected') THEN 'Due Soon'
-                   ELSE 'Active'
-               END as urgency_status
-        FROM assigned_work aw
-        LEFT JOIN users u ON aw.assigned_by = u.username
-        WHERE aw.assigned_to = ? 
-        ORDER BY aw.assigned_on DESC, aw.due_date ASC
-    """, (user,))
+    SELECT 
+        id, assigned_by, assigned_to, project_name, task_desc, 
+        due_date, start_date, 
+        jira_issue_key, jira_status, jira_status_color,  -- Make sure these are included!
+        employee_status, employee_progress_notes, last_updated
+    FROM assigned_work 
+    WHERE assigned_to = ?
+    ORDER BY due_date ASC, id DESC
+""", (user,))
+
     
     # Get work history
     work_history_df = run_query("""
@@ -2665,11 +2935,8 @@ def view_intern(user):
         all_employees=all_employees,
         all_managers=all_managers,
     )
-
-# Admin Manager View Function - COMPLETE WITH FIXED DATA
-# --------------------
 def view_admin_manager(user):
-    """Admin Manager dashboard view with COMPLETE employee management, asset handling, and team management - UPDATED with proper data"""
+    """Admin Manager dashboard view with COMPLETE employee management, asset handling, team management, and JIRA-integrated work assignments"""
     user_role = session.get('role', '')
     can_manage_payroll = user_role == 'Lead Staffing Specialist'
     is_admin_manager = user_role == 'Admin Manager'
@@ -2679,9 +2946,9 @@ def view_admin_manager(user):
     direct_reports_list = get_direct_reports(user)
     assignable_employees_list = get_work_assignable_employees(user)
     
-    print(f" DEBUG view_admin_manager: User {user} ({user_role})")
-    print(f" DEBUG: Direct reports: {direct_reports_list}")
-    print(f" DEBUG: Assignable employees: {assignable_employees_list}")
+    print(f"🔍 DEBUG view_admin_manager: User {user} ({user_role})")
+    print(f"   Direct reports: {direct_reports_list}")
+    print(f"   Assignable employees: {assignable_employees_list}")
     
     # Convert to proper format for template
     direct_reports_data = []
@@ -2703,7 +2970,7 @@ def view_admin_manager(user):
                ed.joining_date, ed.employment_type, ed.blood_group, ed.mobile_number,
                ed.emergency_contact, ed.id_card, ed.id_card_provided, ed.photo_url,
                ed.linkedin_url, ed.laptop_provided, ed.email_provided, ed.asset_details,
-               ed.documents_folder_path, ed.duration,ed.employmentid,
+               ed.documents_folder_path, ed.duration, ed.employmentid,
                r.rm, r.manager
         FROM users u
         LEFT JOIN employee_details ed ON u.username = ed.username
@@ -2712,83 +2979,95 @@ def view_admin_manager(user):
         ORDER BY u.role, u.username
     """)
     
-  # ✅ FULLY CORRECTED - All non-existent columns removed
-    my_assigned_work = run_query("""
-        SELECT 
-        aw.id, 
-        aw.assigned_by, 
-        aw.assigned_to, 
-        aw.task_desc, 
-        aw.project_name, 
-        aw.due_date, 
-        aw.start_date,
-        aw.assigned_on,
-        aw.rm_status, 
-        aw.manager_status,
-        u.name as assigned_to_name, 
-        u.role as assigned_to_role,
-        CASE 
-            WHEN aw.due_date < CAST(GETDATE() AS DATE) THEN 'Overdue'
-            WHEN aw.due_date <= DATEADD(day, 3, CAST(GETDATE() AS DATE)) THEN 'Due Soon'
-            ELSE 'On Track'
-        END as urgency_status,
-        CASE 
-            WHEN aw.assigned_on > DATEADD(hour, -1, GETDATE()) THEN 1 
-            ELSE 0 
-        END as recently_updated
-        FROM assigned_work aw
-        LEFT JOIN users u ON aw.assigned_to = u.username
-        WHERE aw.assigned_by = ?
-        OR aw.assigned_to IN (
-        SELECT username FROM users 
-        WHERE username IN (
-            SELECT username FROM report 
-            WHERE rm = ? OR manager = ?
-        )
-    )
-        ORDER BY aw.assigned_on DESC
-        """, (user, user, user))
+    # ===== WORK ASSIGNMENTS WITH JIRA - UPDATED =====
+    try:
+        # Work I assigned (with Jira data)
+        my_assigned_work = run_query("""
+            SELECT 
+                aw.id, aw.assigned_by, aw.assigned_to, aw.task_desc, aw.project_name, 
+                aw.due_date, aw.start_date, aw.assigned_on, aw.rm_status, aw.manager_status,
+                aw.jira_issue_key, aw.jira_status, aw.jira_status_color,
+                aw.employee_status, aw.employee_progress_notes, aw.last_updated,
+                u.name as assigned_to_name, u.role as assigned_to_role,
+                CASE 
+                    WHEN aw.due_date < CAST(GETDATE() AS DATE) THEN 'Overdue'
+                    WHEN aw.due_date <= DATEADD(day, 3, CAST(GETDATE() AS DATE)) THEN 'Due Soon'
+                    ELSE 'On Track'
+                END as urgency_status,
+                CASE 
+                    WHEN aw.assigned_on > DATEADD(hour, -1, GETDATE()) THEN 1 
+                    ELSE 0 
+                END as recently_updated
+            FROM assigned_work aw
+            LEFT JOIN users u ON aw.assigned_to = u.username
+            WHERE aw.assigned_by = ?
+            ORDER BY aw.assigned_on DESC
+        """, (user,))
+        print(f"✅ Loaded {len(my_assigned_work)} work assignments I assigned")
+    except Exception as e:
+        print(f"❌ Error loading my assigned work: {e}")
+        my_assigned_work = pd.DataFrame()
 
+    # Work assigned TO me (with Jira data)
+    try:
+        work_assigned_to_me = run_query("""
+            SELECT 
+                aw.id, aw.assigned_by, aw.task_desc, aw.project_name, 
+                aw.start_date, aw.end_date, aw.due_date, aw.assigned_on, 
+                aw.rm_status, aw.manager_status, aw.work_type, aw.rm_rejection_reason,
+                aw.jira_issue_key, aw.jira_status, aw.jira_status_color,
+                aw.employee_status, aw.employee_progress_notes, aw.last_updated,
+                u.name as assigned_by_name,
+                CASE 
+                    WHEN aw.due_date < GETDATE() AND aw.employee_status != 'Completed' THEN 'Overdue'
+                    WHEN aw.due_date <= DATEADD(day, 3, GETDATE()) AND aw.employee_status != 'Completed' THEN 'Due Soon'
+                    ELSE 'Active'
+                END as urgency_status
+            FROM assigned_work aw 
+            LEFT JOIN users u ON aw.assigned_by = u.username 
+            WHERE aw.assigned_to = ?
+            ORDER BY aw.assigned_on DESC, aw.due_date ASC
+        """, (user,))
+        print(f"✅ Loaded {len(work_assigned_to_me)} work assignments assigned to me")
+    except Exception as e:
+        print(f"❌ Error loading work assigned to me: {e}")
+        work_assigned_to_me = pd.DataFrame()
 
-
-    # Get work assigned TO this admin manager
-    work_assigned_to_me = run_query("""
-        SELECT aw.id, aw.assigned_by, aw.task_desc, aw.project_name, 
-            COALESCE(aw.start_date, aw.assigned_on) as startdate,
-            aw.end_date, aw.due_date, aw.assigned_on, aw.rm_status, aw.manager_status, 
-            aw.work_type, aw.rm_rejection_reason, u.name as assigned_by_name,
-            CASE 
-                WHEN aw.due_date < GETDATE() AND aw.rm_status != 'Completed' THEN 'Overdue'
-                WHEN aw.due_date <= DATEADD(day, 3, GETDATE()) AND aw.rm_status != 'Completed' THEN 'Due Soon'
-                ELSE 'Active'
-            END as urgency_status
-        FROM assigned_work aw 
-        LEFT JOIN users u ON aw.assigned_by = u.username 
-        WHERE aw.assigned_to = ?
-        ORDER BY aw.assigned_on DESC, aw.due_date ASC
-    """, (user,))
+    # Get projects for dropdown (for work assignment)
+    try:
+        projects_dropdown = run_query("""
+            SELECT DISTINCT project_name 
+            FROM projects 
+            WHERE project_name IS NOT NULL
+            AND project_name != ''
+            AND project_name NOT LIKE '%Salary%'
+            AND project_name NOT LIKE '%Asset%'
+            ORDER BY project_name
+        """)
+        print(f"✅ Loaded {len(projects_dropdown)} projects for dropdown")
+    except Exception as e:
+        print(f"❌ Error loading projects: {e}")
+        projects_dropdown = pd.DataFrame()
 
     # Get all managers for dropdown
-    # Get all RMs from report table PLUS other managers - COMPREHENSIVE
     all_managers = run_query("""
-    SELECT DISTINCT u.username, u.name, u.role 
-    FROM (
-        SELECT DISTINCT rm as username FROM report WHERE rm IS NOT NULL
-        UNION
-        SELECT username FROM users WHERE role IN ('Manager', 'Admin Manager', 'Lead Staffing Specialist') AND status = 'Active'
-    ) AS combined
-    JOIN users u ON combined.username = u.username
-    WHERE u.status = 'Active'
-    ORDER BY u.name
-""")
-
+        SELECT DISTINCT u.username, u.name, u.role 
+        FROM (
+            SELECT DISTINCT rm as username FROM report WHERE rm IS NOT NULL
+            UNION
+            SELECT username FROM users WHERE role IN ('Manager', 'Admin Manager', 'Lead Staffing Specialist') AND status = 'Active'
+        ) AS combined
+        JOIN users u ON combined.username = u.username
+        WHERE u.status = 'Active'
+        ORDER BY u.name
+    """)
     
     # Get resigned employees
     resigned_employees = run_query("""
-    SELECT username, name, role, joining_date, resigned_date, resigned_by, resignation_reason
-    FROM resigned_employees
-    ORDER BY resigned_date DESC
-""")
+        SELECT username, name, role, joining_date, resigned_date, resigned_by, resignation_reason
+        FROM resigned_employees
+        ORDER BY resigned_date DESC
+    """)
     
     # Get projects list for work assignments
     projects_df = run_query("""
@@ -2800,13 +3079,13 @@ def view_admin_manager(user):
     """)
     proj_list = ["(non-project)"] + projects_df["project_name"].astype(str).tolist() if not projects_df.empty else ["(non-project)"]
 
-    # Get ALL asset requests with proper schema alignment
+    # Get ALL asset requests
     try:
         all_asset_requests = run_query("""
             SELECT id, asset_type, quantity, 
                    COALESCE(CAST(amount AS DECIMAL(18,2)), 0) as amount, 
                    for_employee, description, requested_by, requested_date, 
-                   status, approved_by, approved_date, rejection_reason,document_path
+                   status, approved_by, approved_date, rejection_reason, document_path
             FROM asset_requests
             ORDER BY 
                 CASE 
@@ -2824,7 +3103,6 @@ def view_admin_manager(user):
                     record['amount'] = float(record['amount']) if record['amount'] is not None else 0.0
                     record['rejection_reason'] = record['rejection_reason'] or ''
                     record['for_employee'] = record['for_employee'] or ''
-                    # Format dates
                     if record.get('requested_date') and hasattr(record['requested_date'], 'strftime'):
                         record['requested_date'] = record['requested_date'].strftime('%Y-%m-%d')
                     if record.get('approved_date') and hasattr(record['approved_date'], 'strftime'):
@@ -2832,13 +3110,12 @@ def view_admin_manager(user):
                 except (ValueError, TypeError):
                     record['amount'] = 0.0
                     record['rejection_reason'] = ''
-                    record['documentpath'] = record.get('document_path', '')
+                    record['document_path'] = record.get('document_path', '')
             all_asset_requests_list = asset_records
         else:
             all_asset_requests_list = []
-            
     except Exception as e:
-        print(f"Asset requests error: {e}")
+        print(f"❌ Asset requests error: {e}")
         all_asset_requests_list = []
 
     # Calculate asset request totals by status
@@ -2850,7 +3127,7 @@ def view_admin_manager(user):
     total_approved_cost = sum(r.get('amount', 0) for r in approved_asset_requests)
     total_rejected_cost = sum(r.get('amount', 0) for r in rejected_asset_requests)
 
-    # Get personal work history for this admin
+    # Get personal work history
     personal_work_history = run_query("""
         SELECT id, work_date, project_name, work_desc, hours, break_hours, start_time, end_time,
                CASE WHEN hours > 8 THEN hours - 8 ELSE 0 END AS overtime_hours,
@@ -2860,7 +3137,7 @@ def view_admin_manager(user):
         ORDER BY work_date DESC, id DESC
     """, (user,))
     
-    # Get personal leaves for this admin
+    # Get personal leaves
     personal_leaves = run_query("""
         SELECT id, start_date, end_date, leave_type, description, 
                rm_status, rm_rejection_reason, rm_approver, 
@@ -2875,7 +3152,7 @@ def view_admin_manager(user):
     # Get personal remaining leave balances
     personal_remaining_leaves = _get_remaining_balances(user)
     
-    # Get assigned work for this admin
+    # Get personal assigned work
     personal_assigned_work = run_query("""
         SELECT id, assigned_by, project_name, task_desc, start_date, due_date,
                rm_status, assigned_on
@@ -2969,7 +3246,7 @@ def view_admin_manager(user):
         leave_query += " ORDER BY l.start_date DESC"
         team_leave_history = run_query(leave_query, tuple(leave_params))
 
-        # Pending approvals (only for direct reports where current user is RM)
+        # Pending approvals
         pending_work_approvals = run_query(f"""
             SELECT t.id, t.username, t.work_date, t.project_name, t.work_desc, t.hours, 
                    COALESCE(t.break_hours, 0) as break_hours, t.start_time, t.end_time,
@@ -2992,19 +3269,19 @@ def view_admin_manager(user):
             ORDER BY l.start_date ASC
         """, tuple(direct_reports_list + [user]))
     
-    # Calculate leave duration for team leaves
+    # Calculate leave duration
     team_leave_records = team_leave_history.to_dict('records') if not team_leave_history.empty else []
     team_leave_records = calculate_leave_duration(team_leave_records)
     
     pending_leave_records = pending_leave_approvals.to_dict('records') if not pending_leave_approvals.empty else []
     pending_leave_records = calculate_leave_duration(pending_leave_records)
     
-    # Calculate statistics - FIXED
+    # Calculate statistics
     active_employees_count = len([emp for emp in all_employees.to_dict('records') if emp.get('status') == 'Active'])
     inactive_employees_count = len([emp for emp in all_employees.to_dict('records') if emp.get('status') == 'Inactive'])
     suspended_employees_count = len([emp for emp in all_employees.to_dict('records') if emp.get('status') == 'Suspended'])
     
-    # Calculate payroll totals - FIXED
+    # Calculate payroll totals
     all_emp_records = all_employees.to_dict('records') if not all_employees.empty else []
     total_monthly_payroll = 0.0
     total_yearly_payroll = 0.0
@@ -3038,7 +3315,7 @@ def view_admin_manager(user):
         ORDER BY ed.joining_date DESC
     """)
     
-    # Get work assignment statistics - FIXED
+    # Get work assignment statistics
     my_assigned_work_records = my_assigned_work.to_dict('records') if not my_assigned_work.empty else []
     work_assigned_to_me_records = work_assigned_to_me.to_dict('records') if not work_assigned_to_me.empty else []
     
@@ -3049,7 +3326,7 @@ def view_admin_manager(user):
         'my_pending_work': len([w for w in work_assigned_to_me_records if w.get('rm_status') == 'Pending']),
     }
     
-    # Get company performance metrics - FIXED
+    # Get company performance metrics
     try:
         monthly_metrics = run_query("""
             SELECT 
@@ -3063,7 +3340,7 @@ def view_admin_manager(user):
             'total_timesheets_this_month': 0,
             'total_leaves_this_month': 0,
             'avg_working_hours': 0.0,
-            'employee_satisfaction': 85.0  # Default value
+            'employee_satisfaction': 85.0
         }
         
         if not monthly_metrics.empty:
@@ -3074,7 +3351,7 @@ def view_admin_manager(user):
                 'avg_working_hours': float(metrics.get('avg_hours', 0) or 0)
             })
     except Exception as e:
-        print(f"Error calculating company metrics: {e}")
+        print(f"❌ Error calculating company metrics: {e}")
         company_metrics = {
             'total_employees': active_employees_count,
             'total_timesheets_this_month': 0,
@@ -3100,7 +3377,8 @@ def view_admin_manager(user):
         if not dept_stats.empty:
             department_breakdown = dept_stats.to_dict('records')
     except Exception as e:
-        print(f"Error calculating department breakdown: {e}")
+        print(f"❌ Error calculating department breakdown: {e}")
+    
     project_options = get_assigned_projects_and_work(user)
     vacation_info = get_vacation_leave_info()
     
@@ -3109,13 +3387,13 @@ def view_admin_manager(user):
         role=session['role'],
         today=date.today().isoformat(),
         
-        # Employee data - FIXED
+        # Employee data
         all_employees=all_emp_records,
         all_managers=all_managers.to_dict('records') if not all_managers.empty else [],
         resigned_employees=resigned_employees.to_dict('records') if not resigned_employees.empty else [],
         recent_hires=recent_hires.to_dict('records') if not recent_hires.empty else [],
         
-        # Asset requests data - FIXED
+        # Asset requests data
         all_asset_requests=all_asset_requests_list,
         pending_asset_requests=pending_asset_requests,
         approved_asset_requests=approved_asset_requests,
@@ -3124,20 +3402,22 @@ def view_admin_manager(user):
         total_approved_asset_cost=float(total_approved_cost),
         total_rejected_asset_cost=float(total_rejected_cost),
 
-        # Work assignments - FIXED
+        # ===== WORK ASSIGNMENTS WITH JIRA =====
         my_assigned_work=my_assigned_work_records,
         work_assigned_to_me=work_assigned_to_me_records,
+        my_work_assignments=work_assigned_to_me_records,  # Alternative name for template
         assignment_stats=assignment_stats,
+        projects_dropdown=projects_dropdown.to_dict('records') if not projects_dropdown.empty else [],
         
-        # Team history data - FIXED
+        # Team history data
         team_work_history=team_work_history.to_dict('records') if not team_work_history.empty else [],
         team_leave_history=team_leave_records,
         
-        # Approval data (only for direct reports) - FIXED
+        # Approval data
         pending_work_approvals=pending_work_approvals.to_dict('records') if not pending_work_approvals.empty else [],
         pending_leave_approvals=pending_leave_records,
         
-        # Statistics - ALL FIXED
+        # Statistics
         active_employees_count=int(active_employees_count),
         inactive_employees_count=int(inactive_employees_count),
         suspended_employees_count=int(suspended_employees_count),
@@ -3146,7 +3426,7 @@ def view_admin_manager(user):
         paid_employees_count=int(paid_employees_count),
         employee_stats_by_role=employee_stats_by_role,
         
-        # Company performance metrics - FIXED
+        # Company performance metrics
         company_metrics=company_metrics,
         department_breakdown=department_breakdown,
         
@@ -3155,9 +3435,9 @@ def view_admin_manager(user):
         is_admin_manager=is_admin_manager,
         is_lead_staffing=is_lead_staffing,
         
-        # Team info - FIXED with proper data structure
-        direct_reports=direct_reports_data,  # This is now a list of dictionaries with username, name, role
-        assignable_employees=direct_reports_data,  # Same as direct_reports for template compatibility
+        # Team info
+        direct_reports=direct_reports_list,  # List of usernames for form
+        assignable_employees=direct_reports_data,  # Full data with name, role
         has_team=len(direct_reports_data) > 0,
         can_assign_work=len(direct_reports_data) > 0,
         proj_list=proj_list,
@@ -3168,7 +3448,7 @@ def view_admin_manager(user):
         personal_leaves=personal_leaves.to_dict('records') if not personal_leaves.empty else [],
         personal_remaining_leaves=personal_remaining_leaves,
         
-        # Filter values for team history
+        # Filter values
         work_start=request.args.get('team_work_start', ''),
         work_end=request.args.get('team_work_end', ''),
         work_user=request.args.get('team_work_emp', ''),
@@ -3184,13 +3464,11 @@ def view_admin_manager(user):
         system_alerts=[],
         pending_system_actions=len(pending_asset_requests) + len(pending_work_approvals.to_dict('records') if not pending_work_approvals.empty else []),
         last_backup_date=datetime.now().strftime('%Y-%m-%d'),
-        
-        # Add missing variables that template expects
-        my_work_assignments=my_assigned_work_records,  # Alternative name
         work_assigned_to_admin=work_assigned_to_me_records,
         project_options=project_options, 
-        vacation_leave_info=vacation_info # Alternative name
+        vacation_leave_info=vacation_info
     )
+
 
 
 
@@ -4361,225 +4639,495 @@ This is an automated notification from the Timesheet & Leave Management System."
 
 @app.route('/assign_project_multiple_action', methods=['POST'])
 def assign_project_multiple_action():
-    """Assign project to multiple employees directly"""
+    """Assign project to multiple employees - Works with existing table structure"""
     if 'username' not in session:
         return redirect(url_for('login_sso'))
     
+    user = session['username']
     employee_usernames = request.form.getlist('employees')
-    project_name = request.form.get('project_name')
-    start_date = request.form.get('start_date')
-    end_date = request.form.get('end_date')
-    assignment_notes = request.form.get('assignment_notes')
+    project_name = request.form.get('projectname', '').strip()
+    start_date = request.form.get('startdate')
+    end_date = request.form.get('enddate')
+    assignment_notes = request.form.get('assignmentnotes', '').strip()
+    
+    print(f"\n{'='*60}")
+    print(f"📁 PROJECT ASSIGNMENT")
+    print(f"{'='*60}")
+    print(f"👤 Assigned By: {user}")
+    print(f"👥 Employees: {employee_usernames}")
+    print(f"📁 Project: {project_name}")
+    print(f"📅 Start: {start_date}, End: {end_date}")
+    print(f"{'='*60}\n")
     
     if not employee_usernames or not project_name or not start_date or not end_date:
-        flash("Please select employees, project, and dates.")
+        flash('Please select employees, project, and dates.', 'error')
         return redirect(url_for('dashboard'))
+    
+    # Get project_id from project_name
+    project_query = run_query("""
+        SELECT project_id, cost_center FROM projects WHERE project_name = ?
+    """, (project_name,))
+    
+    if project_query.empty:
+        flash(f'❌ Project "{project_name}" not found in the projects table.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    project_id = project_query.iloc[0]['project_id']
+    cost_center = project_query.iloc[0]['cost_center'] if 'cost_center' in project_query.columns else 'General'
+    
+    print(f"✅ Found project - ID: {project_id}, Cost Center: {cost_center}\n")
     
     success_count = 0
     failed_employees = []
     
     for employee in employee_usernames:
         try:
-            # Use the correct assigned_work table with proper column names
+            print(f"📝 Processing: {employee}")
+            
+            # Get employee details for email
+            emp_details = run_query("""
+                SELECT email, name 
+                FROM users 
+                WHERE username = ?
+            """, (employee,))
+            
+            emp_email = emp_details.iloc[0]['email'] if not emp_details.empty else None
+            emp_name = emp_details.iloc[0]['name'] if not emp_details.empty else employee
+            
+            # Check if already assigned
+            existing = run_query("""
+                SELECT * FROM project_assignments 
+                WHERE project_id = ? AND assigned_to = ?
+            """, (project_id, employee))
+            
+            if not existing.empty:
+                print(f"   ⚠️ {employee} already assigned to this project")
+                failed_employees.append(f"{employee} (already assigned)")
+                continue
+            
+            # INSERT INTO project_assignments
             ok = run_exec("""
-                INSERT INTO [timesheet_db].[dbo].[assigned_work] 
-                (assigned_by, assigned_to, project_name, task_desc, start_date, due_date, 
-                 assigned_on, rm_status, manager_status, work_type)
-                VALUES (?, ?, ?, ?, ?, ?, ?, 'Approved', 'Approved', 'Project Assignment')
-            """, (session['username'], employee, project_name, 
-                  assignment_notes or f"Assigned to project: {project_name}", 
-                  start_date, end_date, date.today()))
+                INSERT INTO project_assignments 
+                (project_id, assigned_by, assigned_to, project_name, 
+                 assigned_on, assignment_end_date, cost_center)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            """, (project_id, user, employee, project_name, 
+                  start_date, end_date, cost_center))
             
             if ok:
                 success_count += 1
-                # ADD EMAIL NOTIFICATION HERE
-                emp_email = get_user_email(employee)
+                print(f"   ✅ Assignment created for {employee}")
+                
+                # SEND EMAIL NOTIFICATION
                 if emp_email:
-                    subject = f"New Project Assignment - {employee}"
-                    text_content = f"""Dear {employee},
+                    subject = f"New Project Assignment - {project_name}"
+                    text_content = f"""Dear {emp_name},
 
-You have been assigned to a new project.
+You have been assigned to a new project by your Manager {user}.
 
 Project Assignment Details:
-- Assigned by: {session['username']}
-- Project: {project_name}
-- Start Date: {start_date}
-- End Date: {end_date}
-- Notes: {assignment_notes or 'No additional notes'}
+━━━━━━━━━━━━━━━━━━━━
+• Assigned by: {user}
+• Project Name: {project_name}
+• Project ID: {project_id}
+• Cost Center: {cost_center}
+• Start Date: {start_date}
+• End Date: {end_date}
+• Notes: {assignment_notes or 'No additional notes'}
 
-Please log in to your dashboard to view the complete project details and begin work.
-https://nexus.chervicaon.com
+Please log in to your dashboard to view the complete project details.
+
+🔗 Dashboard: https://nexus.chervicaon.com
+
 This is an automated notification from the Timesheet & Leave Management System."""
                     
                     send_email(emp_email, subject, text_content)
-
+                    print(f"   📧 Email sent to {emp_email}")
             else:
                 failed_employees.append(employee)
+                print(f"   ❌ Failed to create assignment for {employee}")
+                
         except Exception as e:
-            print(f"Error assigning to {employee}: {e}")
+            print(f"❌ Error: {employee} - {e}")
+            import traceback
+            traceback.print_exc()
             failed_employees.append(employee)
     
+    # Summary
+    print(f"\n{'='*60}")
+    print(f"✅ Successful: {success_count}")
+    print(f"❌ Failed: {len(failed_employees)}")
+    print(f"{'='*60}\n")
+    
+    # Flash messages
     if success_count > 0:
-        flash(f" Project '{project_name}' assigned successfully to {success_count} employee(s).")
+        flash(f"✅ Project '{project_name}' assigned successfully to {success_count} employees.", "success")
     
     if failed_employees:
-        flash(f" Failed to assign project to: {', '.join(failed_employees)}")
+        flash(f"❌ Failed to assign project to: {', '.join(failed_employees)}", "error")
     
     return redirect(url_for('dashboard'))
 
+
 @app.route('/manager_assign_work_action', methods=['POST'])
 def manager_assign_work_action():
-    """Manager assigns work to team members"""
+    """Manager assigns work to team members WITH FULL JIRA INTEGRATION"""
     if 'username' not in session:
         return redirect(url_for('login_sso'))
     
     user = session['username']
-    assignees_raw = request.form.get('assignees_raw', '')
+    
+    # HANDLE BOTH MULTI-SELECT AND COMMA-SEPARATED INPUT
+    assignees_list = request.form.getlist('assignees_raw')  # Get as list from multi-select
+    if not assignees_list:
+        # Fallback to comma-separated string
+        assignees_raw = request.form.get('assignees_raw', '')
+        assignees = [name.strip() for name in assignees_raw.split(',') if name.strip()]
+    else:
+        assignees = assignees_list
+    
     project = request.form.get('project', '')
     start_date = request.form.get('start_d')
     due_date = request.form.get('due_d')
     description = request.form.get('desc')
     
+    print(f"\n{'='*60}")
+    print(f"🚀 MANAGER WORK ASSIGNMENT WITH JIRA INTEGRATION")
+    print(f"{'='*60}")
+    print(f"👤 Assigned By: {user}")
+    print(f"👥 Employees: {assignees}")
+    print(f"📁 Project: {project or '(non-project)'}")
+    print(f"📝 Task: {description[:100] if description else 'No description'}...")
+    print(f"{'='*60}\n")
+    
+    
+
+    
     if not assignees_raw or not description:
-        flash("Please select team members and provide task description.")
+        flash("Please select team members and provide task description.", "error")
         return redirect(url_for('dashboard'))
     
-    # Parse assignees
+    # Parse assignees (comma-separated names)
     assignees = [name.strip() for name in assignees_raw.split(',') if name.strip()]
+    print(f"📋 Parsed Assignees: {assignees}")
     
     success_count = 0
     failed_employees = []
+    jira_issues_created = []
     
     for assignee in assignees:
         try:
+            print(f"\n📝 Processing assignment for: {assignee}")
+            
+            # Get employee email and name for Jira
+            emp_details = run_query("""
+                SELECT email, name 
+                FROM users 
+                WHERE username = ?
+            """, (assignee,))
+            
+            emp_email = emp_details.iloc[0]['email'] if not emp_details.empty else None
+            emp_name = emp_details.iloc[0]['name'] if not emp_details.empty else assignee
+            
+            print(f"   📧 Email: {emp_email}")
+            print(f"   👤 Name: {emp_name}")
+            
+            # CREATE JIRA ISSUE
+            jira_summary = f"{project or '(non-project)'} - {emp_name}"
+            jira_description = f"""Task Assignment from Manager
+
+Assigned To: {emp_name} ({assignee})
+Assigned By: {user} (Manager)
+Project: {project or 'General Task'}
+Start Date: {start_date or 'Not specified'}
+Due Date: {due_date or 'No deadline'}
+
+Task Description:
+{description}
+
+---
+This task was automatically created from the Timesheet Management System.
+Dashboard: https://nexus.chervicaon.com"""
+            
+            print(f"   🔄 Creating Jira issue: {jira_summary}")
+            
+            jira_result = create_jira_issue(
+                summary=jira_summary,
+                description=jira_description,
+                assignee_email=emp_email
+            )
+            
+            jira_issue_key = jira_result.get("issue_key") if jira_result.get("success") else None
+            jira_status = "To Do" if jira_result.get("success") else None
+            jira_status_color = "6B7280" if jira_result.get("success") else None
+            
+            if jira_result.get("success"):
+                print(f"   ✅ Jira issue created: {jira_issue_key}")
+                jira_issues_created.append({
+                    'employee': assignee,
+                    'issue_key': jira_issue_key,
+                    'url': f"{JIRA_URL}/browse/{jira_issue_key}"
+                })
+            else:
+                print(f"   ⚠️ Jira creation failed: {jira_result.get('error', 'Unknown error')}")
+            
+            # INSERT INTO DATABASE WITH JIRA INFO
             ok = run_exec("""
-                INSERT INTO [timesheet_db].[dbo].[assigned_work] 
+                INSERT INTO assigned_work 
                 (assigned_by, assigned_to, project_name, task_desc, start_date, due_date, 
-                 assigned_on, manager_status, rm_status, work_type)
-                VALUES (?, ?, ?, ?, ?, ?, ?, 'Pending', 'Approved', 'Task Assignment')
-            """, (user, assignee, project, description, start_date, due_date, date.today()))
+                 assigned_on, manager_status, rm_status, work_type,
+                 jira_issue_key, jira_status, jira_status_color, 
+                 employee_status, last_updated)
+                VALUES (?, ?, ?, ?, ?, ?, GETDATE(), 'Pending', 'Approved', 'Task Assignment',
+                        ?, ?, ?, 'Not Started', GETDATE())
+            """, (user, assignee, project, description, start_date, due_date,
+                  jira_issue_key, jira_status, jira_status_color))
             
             if ok:
                 success_count += 1
-                # ADD EMAIL NOTIFICATION HERE
-                emp_email = get_user_email(assignee)
+                print(f"   💾 Database entry created successfully")
+                
+                # SEND EMAIL NOTIFICATION WITH JIRA LINK
                 if emp_email:
                     subject = f"New Work Assignment - {assignee}"
-                    text_content = f"""Dear {assignee},
+                    jira_link = f"\n\n🎫 View in Jira: {JIRA_URL}/browse/{jira_issue_key}" if jira_issue_key else ""
+                    text_content = f"""Dear {emp_name},
 
 You have been assigned new work by your Manager {user}.
 
 Assignment Details:
-- Assigned by: {user}
-- Project: {project or 'General Task'}
-- Task Description: {description}
-- Start Date: {start_date}
-- Due Date: {due_date}
+━━━━━━━━━━━━━━━━━━━━
+• Assigned by: {user} (Manager)
+• Project: {project or 'General Task'}
+• Task: {description[:200]}
+• Start Date: {start_date or 'Not specified'}
+• Due Date: {due_date or 'No deadline'}
+• Jira Issue: {jira_issue_key or 'Not created'}
+{jira_link}
 
-Please log in to your dashboard to view the complete assignment details and update the status as you progress.
-https://nexus.chervicaon.com
+Please log in to your dashboard to view the complete assignment details and update status as you progress.
+
+🔗 Dashboard: https://nexus.chervicaon.com
+
 This is an automated notification from the Timesheet & Leave Management System."""
                     
                     send_email(emp_email, subject, text_content)
-
+                    print(f"   📧 Email notification sent")
             else:
                 failed_employees.append(assignee)
+                print(f"   ❌ Database insertion failed")
+                
         except Exception as e:
-            print(f"Error assigning to {assignee}: {e}")
+            print(f"   ❌ Error assigning to {assignee}: {e}")
+            import traceback
+            traceback.print_exc()
             failed_employees.append(assignee)
     
+    # SUMMARY
+    print(f"\n{'='*60}")
+    print(f"📊 ASSIGNMENT SUMMARY")
+    print(f"{'='*60}")
+    print(f"✅ Successful: {success_count}")
+    print(f"❌ Failed: {len(failed_employees)}")
+    print(f"🎫 Jira Issues Created: {len(jira_issues_created)}")
+    
+    if jira_issues_created:
+        print(f"\n📝 Jira Issues:")
+        for issue in jira_issues_created:
+            print(f"   • {issue['employee']}: {issue['issue_key']} ({issue['url']})")
+    
+    print(f"{'='*60}\n")
+    
+    # Flash messages
     if success_count > 0:
-        flash(f" Work assigned successfully to {success_count} team member(s).")
+        jira_msg = f" {len(jira_issues_created)} Jira issues created." if jira_issues_created else ""
+        flash(f"✅ Work assigned successfully to {success_count} team member(s).{jira_msg}", "success")
     
     if failed_employees:
-        flash(f" Failed to assign work to: {', '.join(failed_employees)}")
+        flash(f"❌ Failed to assign work to: {', '.join(failed_employees)}", "error")
+    
+    return redirect(url_for('dashboard'))
+
+
+@app.route('/updateworkstatus', methods=['POST'])
+def updateworkstatus():
+    """Employee updates work status and syncs to Jira"""
+    if 'username' not in session:
+        return redirect(url_for('loginsso'))
+    
+    user = session['username']
+    work_id = request.form.get('workid')
+    employee_status = request.form.get('employeestatus')
+    progress_notes = request.form.get('progressnotes', '')
+    
+    print(f"\n{'='*60}")
+    print(f"📝 Work Status Update Request")
+    print(f"{'='*60}")
+    print(f"User: {user}")
+    print(f"Work ID: {work_id}")
+    print(f"New Status: {employee_status}")
+    print(f"Progress Notes: {progress_notes[:100]}...")
+    
+    try:
+        # Get the work assignment
+        work_df = run_query("""
+            SELECT jira_issue_key, assigned_to, task_desc, project_name
+            FROM assigned_work 
+            WHERE id = ? AND assigned_to = ?
+        """, (work_id, user))
+        
+        if work_df.empty:
+            print("❌ Work assignment not found")
+            flash('Work assignment not found.', 'error')
+            return redirect(url_for('dashboard'))
+        
+        jira_issue_key = work_df.iloc[0]['jira_issue_key']
+        print(f"🎫 Jira Issue Key: {jira_issue_key if jira_issue_key else 'None'}")
+        
+        # Update database
+        print("💾 Updating database...")
+        run_exec("""
+            UPDATE assigned_work 
+            SET employee_status = ?, 
+                employee_progress_notes = ?,
+                last_updated = GETDATE()
+            WHERE id = ? AND assigned_to = ?
+        """, (employee_status, progress_notes, work_id, user))
+        print("✅ Database updated successfully")
+        
+        # Update Jira if issue exists
+        if jira_issue_key:
+            print(f"🔄 Syncing to Jira issue: {jira_issue_key}")
+            
+            # Map employee status to Jira status
+            status_map = {
+                "Not Started": "To Do",
+                "In Progress": "In Progress",
+                "On Hold": "In Progress",
+                "Completed": "Done",
+                "Blocked": "In Progress"
+            }
+            
+            jira_status = status_map.get(employee_status, "In Progress")
+            print(f"🎯 Mapping '{employee_status}' → '{jira_status}'")
+            
+            jira_result = update_jira_issue_status(jira_issue_key, jira_status)
+            
+            if jira_result["success"]:
+                print("✅ Jira status updated successfully")
+                
+                # Sync back to get exact status
+                details = get_jira_issue_details(jira_issue_key)
+                if details["success"]:
+                    run_exec("""
+                        UPDATE assigned_work 
+                        SET jira_status = ?, jira_status_color = ?
+                        WHERE id = ?
+                    """, (details["status_name"], details["status_color"], work_id))
+                    print(f"✅ Synced status: {details['status_name']}")
+                
+                flash(f'Work status updated and synced to Jira! ({jira_issue_key})', 'success')
+            else:
+                print(f"⚠️ Jira sync failed: {jira_result.get('error', 'Unknown error')}")
+                flash(f'Work status updated but Jira sync failed: {jira_result.get("error", "Unknown error")}', 'warning')
+        else:
+            print("ℹ️ No Jira issue linked - skipping Jira sync")
+            flash('Work status updated successfully!', 'success')
+        
+        print(f"{'='*60}\n")
+        
+    except Exception as e:
+        error_msg = f"Error updating work status: {str(e)}"
+        print(f"❌ {error_msg}")
+        flash('Error updating work status.', 'error')
     
     return redirect(url_for('dashboard'))
 
 
 @app.route('/rm_assign_work_action', methods=['POST'])
 def rm_assign_work_action():
-    """RM assign work action - UPDATED with proper validation"""
+
+    """RM assign work action with Jira integration"""
     if 'username' not in session:
-        return redirect(url_for('login_sso'))
+        return redirect(url_for('loginsso'))
     
     user = session['username']
-    employee_usernames = request.form.getlist('employee_username')
-    project_name = request.form.get('project_name', '')
-    task_desc = request.form.get('task_desc', '').strip()
-    due_date = request.form.get('due_date')
-    priority = request.form.get('priority', 'Medium')
+    employee_usernames = request.form.getlist('employeeusername')
+    project_name = request.form.get('projectname', '')
+    task_desc = request.form.get('taskdesc', '').strip()
+    due_date = request.form.get('duedate')
     
     if not employee_usernames or not task_desc:
-        flash(" Please select at least one employee and provide task description.")
-        return redirect(url_for('dashboard'))
-    
-    # Get all team members user can assign work to
-    all_team_members = get_all_reports_recursive(user)
-    
-    if not all_team_members:
-        flash(" You don't have any team members to assign work to.")
-        return redirect(url_for('dashboard'))
-    
-    # Validate that selected employees are in user's team
-    invalid_employees = [emp for emp in employee_usernames if emp not in all_team_members]
-    
-    if invalid_employees:
-        flash(f" You can only assign work to your team members. Invalid: {', '.join(invalid_employees)}")
+        flash('Please select at least one employee and provide task description.')
         return redirect(url_for('dashboard'))
     
     success_count = 0
     failed_employees = []
     
-    for employee in employee_usernames:
+    for assigned_to in employee_usernames:
         try:
-            # Insert work assignment
+            # Get employee email for Jira assignment
+            emp_email_df = run_query("SELECT email FROM users WHERE username = ?", (assigned_to,))
+            emp_email = emp_email_df.iloc[0]['email'] if not emp_email_df.empty else None
+            
+            # Create Jira issue - FIXED FUNCTION NAME AND PARAMETERS
+            jira_summary = f"{project_name or 'Task'} - {assigned_to}"
+            jira_result = create_jira_issue(
+                summary=jira_summary,
+                description=task_desc,
+                assignee_email=emp_email
+            )
+            
+            jira_issue_key = jira_result["issue_key"] if jira_result["success"] else None
+            jira_status = "To Do" if jira_result["success"] else None
+            jira_status_color = "6B7280" if jira_result["success"] else None
+            
+            # Insert into database with Jira information
             ok = run_exec("""
-                INSERT INTO [timesheet_db].[dbo].[assigned_work] (
-                    assigned_by, assigned_to, task_desc, start_date, due_date, 
-                    project_name, rm_status, manager_status, assigned_on
-                ) VALUES (?, ?, ?, ?, ?, ?, 'Approved', 'Pending', ?)
-            """, (user, employee, task_desc, date.today(), due_date, 
-                  project_name, date.today()))
+                INSERT INTO assigned_work 
+                (assigned_by, assigned_to, project_name, task_desc, start_date, due_date, 
+                 assigned_on, rm_status, manager_status, jira_issue_key, jira_status, jira_status_color)
+                VALUES (?, ?, ?, ?, GETDATE(), ?, GETDATE(), 'Pending', 'Approved', ?, ?, ?)
+            """, (user, assigned_to, project_name or None, task_desc, due_date, 
+                  jira_issue_key, jira_status, jira_status_color))
             
             if ok:
                 success_count += 1
-                # Send notification to assigned employee
-                emp_email = get_user_email(employee)
+                
+                # Send email notification
                 if emp_email:
-                    subject = f"New Work Assignment - {employee}"
-                    text_content = f"""Dear {employee},
+                    subject = f"New Work Assignment - {assigned_to}"
+                    jira_link = f"\n\nJira Issue: {JIRA_URL}/browse/{jira_issue_key}" if jira_issue_key else ""
+                    text_content = f"""Dear {assigned_to},
 
-You have been assigned a new task by your RM {user}.
+You have been assigned new work by {user}.
 
-Details:
+Assignment Details:
 - Assigned by: {user}
-- Project: {project_name}
-- Task Description: {task_desc}
+- Project: {project_name or 'General Task'}
+- Task: {task_desc}
 - Due Date: {due_date}
+{jira_link}
 
-Please log in to the system to view the complete assignment details.
-https://nexus.chervicaon.com
-This is an automated notification from the Timesheet & Leave Management System."""
+Please log in to your dashboard to view the complete assignment details.
+
+This is an automated notification from the Timesheet & Leave Management System.
+"""
                     send_email(emp_email, subject, text_content)
-
             else:
-                failed_employees.append(employee)
+                failed_employees.append(assigned_to)
                 
         except Exception as e:
-            print(f"Error assigning to {employee}: {e}")
-            failed_employees.append(employee)
+            print(f"Error assigning to {assigned_to}: {e}")
+            failed_employees.append(assigned_to)
     
-    # Success/failure messages
     if success_count > 0:
-        successful_employees = [emp for emp in employee_usernames if emp not in failed_employees]
-        flash(f" Work assigned successfully to {success_count} team member(s): {', '.join(successful_employees)}")
-        
-    
+        flash(f'Work assigned successfully to {success_count} employees. Jira issues created.')
     if failed_employees:
-        flash(f" Failed to assign work to: {', '.join(failed_employees)}")
+        flash(f'Failed to assign work to: {", ".join(failed_employees)}', 'error')
     
     return redirect(url_for('dashboard'))
+
 
 
 @app.route('/complete_work_assignment', methods=['POST'])
@@ -5451,70 +5999,171 @@ def update_total_budget_action():
 # HR Finance Work Assignment Route
 @app.route('/hr_assign_work_action', methods=['POST'])
 def hr_assign_work_action():
-    """HR assigns work to multiple employees"""
-    if 'username' not in session or session['role'] != 'Hr & Finance Controller':
-        flash("Access denied. HR & Finance Controller privileges required.")
+    """HR Finance assigns work to multiple employees WITH FULL JIRA INTEGRATION"""
+    if 'username' not in session or session['role'] != 'Hr Finance Controller':
+        flash('Access denied. HR Finance Controller privileges required.', 'error')
         return redirect(url_for('dashboard'))
     
     user = session['username']
+    
+    # Get form data
     employee_usernames = request.form.getlist('employees')
-    project_name = request.form.get('project_name', '')
-    task_desc = request.form.get('task_desc')
-    due_date = request.form.get('due_date')
-    start_date = request.form.get('start_date', date.today())
+    project_name = request.form.get('projectname', '')
+    task_desc = request.form.get('taskdesc')
+    due_date = request.form.get('duedate')
+    start_date = request.form.get('startdate', date.today())
+    
+    print(f"\n{'='*60}")
+    print(f"🚀 HR FINANCE WORK ASSIGNMENT WITH JIRA INTEGRATION")
+    print(f"{'='*60}")
+    print(f"👤 Assigned By: {user}")
+    print(f"👥 Employees: {employee_usernames}")
+    print(f"📁 Project: {project_name or '(non-project)'}")
+    print(f"📝 Task: {task_desc[:100] if task_desc else 'No task'}...")
+    print(f"📅 Start: {start_date}, Due: {due_date}")
+    print(f"{'='*60}\n")
     
     if not employee_usernames or not task_desc:
-        flash("Please select at least one employee and provide task description.")
+        flash('Please select at least one employee and provide task description.', 'error')
         return redirect(url_for('dashboard'))
     
     success_count = 0
     failed_employees = []
+    jira_issues_created = []
     
     for employee in employee_usernames:
         try:
+            print(f"\n📝 Processing assignment for: {employee}")
+            
+            # Get employee details
+            emp_details = run_query("""
+                SELECT email, name 
+                FROM users 
+                WHERE username = ?
+            """, (employee,))
+            
+            emp_email = emp_details.iloc[0]['email'] if not emp_details.empty else None
+            emp_name = emp_details.iloc[0]['name'] if not emp_details.empty else employee
+            
+            print(f"   📧 Email: {emp_email}")
+            print(f"   👤 Name: {emp_name}")
+            
+            # CREATE JIRA ISSUE
+            jira_summary = f"{project_name or '(non-project)'} - {emp_name}"
+            jira_description = f"""Task Assignment from HR Finance
+
+Assigned To: {emp_name} ({employee})
+Assigned By: {user} (HR Finance Controller)
+Project: {project_name or 'General Task'}
+Start Date: {start_date}
+Due Date: {due_date or 'No deadline'}
+
+Task Description:
+{task_desc}
+
+---
+This task was automatically created from the Timesheet Management System.
+Dashboard: https://nexus.chervicaon.com"""
+            
+            print(f"   🔄 Creating Jira issue: {jira_summary}")
+            
+            jira_result = create_jira_issue(
+                summary=jira_summary,
+                description=jira_description,
+                assignee_email=emp_email
+            )
+            
+            jira_issue_key = jira_result.get("issue_key") if jira_result.get("success") else None
+            jira_status = "To Do" if jira_result.get("success") else None
+            jira_status_color = "6B7280" if jira_result.get("success") else None
+            
+            if jira_result.get("success"):
+                print(f"   ✅ Jira issue created: {jira_issue_key}")
+                jira_issues_created.append({
+                    'employee': employee,
+                    'issue_key': jira_issue_key,
+                    'url': f"{JIRA_URL}/browse/{jira_issue_key}"
+                })
+            else:
+                print(f"   ⚠️ Jira creation failed: {jira_result.get('error', 'Unknown error')}")
+            
+            # INSERT INTO DATABASE WITH JIRA INFO
             ok = run_exec("""
-                INSERT INTO [timesheet_db].[dbo].[assigned_work] (assigned_by, assigned_to, task_desc, start_date, due_date, 
-                                         project_name, rm_status, manager_status, assigned_on)
-                VALUES (?, ?, ?, ?, ?, ?, 'Approved', 'Approved', ?)
-            """, (user, employee, task_desc, start_date, due_date, project_name, date.today()))
+                INSERT INTO assigned_work 
+                (assigned_by, assigned_to, task_desc, start_date, due_date, project_name, 
+                 rm_status, manager_status, assigned_on,
+                 jira_issue_key, jira_status, jira_status_color, 
+                 employee_status, last_updated)
+                VALUES (?, ?, ?, ?, ?, ?, 'Approved', 'Approved', GETDATE(),
+                        ?, ?, ?, 'Not Started', GETDATE())
+            """, (user, employee, task_desc, start_date, due_date, project_name,
+                  jira_issue_key, jira_status, jira_status_color))
             
             if ok:
                 success_count += 1
-                # Send email notification to assigned employee
-                emp_email = get_user_email(employee)
+                print(f"   💾 Database entry created successfully")
+                
+                # SEND EMAIL NOTIFICATION WITH JIRA LINK
                 if emp_email:
                     subject = f"New Work Assignment - {employee}"
-                    text_content = f"""Dear {employee},
+                    jira_link = f"\n\n🎫 View in Jira: {JIRA_URL}/browse/{jira_issue_key}" if jira_issue_key else ""
+                    text_content = f"""Dear {emp_name},
 
-            You have been assigned new work by HR.
+You have been assigned new work by HR Finance ({user}).
 
-            Assignment Details:
-            - Assigned by: {user}
-            - Project: {project_name or 'General Task'}
-            - Task Description: {task_desc}
-            - Start Date: {start_date}
-            - Due Date: {due_date}
+Assignment Details:
+━━━━━━━━━━━━━━━━━━━━
+• Assigned by: {user} (HR Finance Controller)
+• Project: {project_name or 'General Task'}
+• Task: {task_desc[:200]}
+• Start Date: {start_date}
+• Due Date: {due_date or 'No deadline'}
+• Jira Issue: {jira_issue_key or 'Not created'}
+{jira_link}
 
-            Please log in to your dashboard to view the complete assignment details and update the status as you progress.
-            https://nexus.chervicaon.com
-            This is an automated notification from the Timesheet & Leave Management System."""
+Please log in to your dashboard to view the complete assignment details and update status as you progress.
+
+🔗 Dashboard: https://nexus.chervicaon.com
+
+This is an automated notification from the Timesheet & Leave Management System."""
                     
                     send_email(emp_email, subject, text_content)
-
-    
+                    print(f"   📧 Email notification sent")
             else:
                 failed_employees.append(employee)
+                print(f"   ❌ Database insertion failed")
+                
         except Exception as e:
-            print(f"Error assigning to {employee}: {e}")
+            print(f"   ❌ Error assigning to {employee}: {e}")
+            import traceback
+            traceback.print_exc()
             failed_employees.append(employee)
     
+    # SUMMARY
+    print(f"\n{'='*60}")
+    print(f"📊 ASSIGNMENT SUMMARY")
+    print(f"{'='*60}")
+    print(f"✅ Successful: {success_count}")
+    print(f"❌ Failed: {len(failed_employees)}")
+    print(f"🎫 Jira Issues Created: {len(jira_issues_created)}")
+    
+    if jira_issues_created:
+        print(f"\n📝 Jira Issues:")
+        for issue in jira_issues_created:
+            print(f"   • {issue['employee']}: {issue['issue_key']} ({issue['url']})")
+    
+    print(f"{'='*60}\n")
+    
+    # Flash messages
     if success_count > 0:
-        flash(f" Work assigned successfully to {success_count} employee(s).")
+        jira_msg = f" {len(jira_issues_created)} Jira issues created." if jira_issues_created else ""
+        flash(f"✅ Work assigned successfully to {success_count} employees.{jira_msg}", "success")
     
     if failed_employees:
-        flash(f" Failed to assign work to: {', '.join(failed_employees)}")
+        flash(f"❌ Failed to assign work to: {', '.join(failed_employees)}", "error")
     
     return redirect(url_for('dashboard'))
+
 
 # HR Finance Expense Recording Route
 @app.route('/hr_record_expense_action', methods=['POST'])
@@ -6424,16 +7073,16 @@ This is an automated notification from the Timesheet & Leave Management System."
 
 @app.route('/admin_assign_work_to_team', methods=['POST'])
 def admin_assign_work_to_team():
-    """Admin Manager/Lead Staffing Specialist assigns work to direct reports ONLY"""
+    """Admin Manager/Lead Staffing Specialist assigns work to direct reports WITH JIRA"""
     if 'username' not in session:
         return redirect(url_for('login_sso'))
     
     # Check ONLY Admin Manager and Lead Staffing Specialist can use this
     if session['role'] not in ('Admin Manager', 'Lead Staffing Specialist'):
-        flash(" Access denied. Only Admin Manager and Lead Staffing Specialist can assign work.")
+        flash("❌ Access denied. Only Admin Manager and Lead Staffing Specialist can assign work.")
         return redirect(url_for('dashboard'))
     
-    user = session['username']  # This would be Sabitha or Koyel
+    user = session['username']
     assignee_usernames = request.form.getlist('assignee_username')
     project_name = request.form.get('project_name', '')
     task_desc = request.form.get('task_desc', '').strip()
@@ -6443,88 +7092,162 @@ def admin_assign_work_to_team():
     work_type = request.form.get('work_type', 'Project')
     
     if not assignee_usernames or not task_desc:
-        flash(" Please select at least one team member and provide task description.")
+        flash("⚠️ Please select at least one team member and provide task description.")
         return redirect(url_for('dashboard'))
     
-    # Get ONLY direct reports where current user is the RM
+    # Get ONLY direct reports
     direct_reports = get_direct_reports(user)
     
-    print(f" DEBUG: {user} ({session['role']}) can assign work to direct reports: {direct_reports}")
+    print(f"\n{'='*60}")
+    print(f"🔍 DEBUG: {user} ({session['role']}) direct reports: {direct_reports}")
+    print(f"{'='*60}\n")
     
     if not direct_reports:
-        flash(f" No direct reports found for {user}. You can only assign work to employees who directly report to you as RM.")
+        flash(f"⚠️ No direct reports found for {user}. You can only assign work to employees who directly report to you as RM.")
         return redirect(url_for('dashboard'))
     
-    # Validate that selected employees are DIRECT reports only
+    # Validate selected employees are direct reports
     invalid_employees = [emp for emp in assignee_usernames if emp not in direct_reports]
     
     if invalid_employees:
-        flash(f" You can ONLY assign work to your DIRECT reports. Invalid selections: {', '.join(invalid_employees)}")
-        flash(f" Your direct reports: {', '.join(direct_reports)}")
+        flash(f"❌ You can ONLY assign work to your DIRECT reports. Invalid: {', '.join(invalid_employees)}")
+        flash(f"✅ Your direct reports: {', '.join(direct_reports)}")
         return redirect(url_for('dashboard'))
     
     success_count = 0
     failed_employees = []
+    jira_issues_created = []
     
     for assignee in assignee_usernames:
         try:
-            # Double-check: is this user really a direct report?
+            # Double-check RM
             rm_check = get_rm_for_employee(assignee)
             if rm_check != user:
                 failed_employees.append(f"{assignee} (RM mismatch)")
                 continue
             
-            # Insert work assignment
+            # Get employee details for Jira
+            emp_details = run_query("""
+                SELECT email, name 
+                FROM users 
+                WHERE username = ?
+            """, (assignee,))
+            
+            emp_email = emp_details.iloc[0]['email'] if not emp_details.empty else None
+            emp_name = emp_details.iloc[0]['name'] if not emp_details.empty else assignee
+            
+            # ===== CREATE JIRA ISSUE =====
+            jira_summary = f"{project_name or '(non-project)'} - {emp_name}"
+            jira_description = f"""Task Assignment from {session['role']}
+
+Assigned To: {emp_name} ({assignee})
+Assigned By: {user} ({session['role']})
+Project: {project_name or 'General Task'}
+Work Type: {work_type}
+Start Date: {start_date}
+End Date: {end_date}
+Due Date: {due_date}
+
+Task Description:
+{task_desc}
+
+---
+This task was automatically created from the Timesheet Management System.
+Dashboard: https://nexus.chervicaon.com"""
+            
+            print(f"   🔄 Creating Jira issue for {assignee}: {jira_summary}")
+            
+            jira_result = create_jira_issue(
+                summary=jira_summary,
+                description=jira_description,
+                assignee_email=emp_email
+            )
+            
+            jira_issue_key = jira_result.get("issue_key") if jira_result.get("success") else None
+            jira_status = "To Do" if jira_result.get("success") else None
+            jira_status_color = "6B7280" if jira_result.get("success") else None
+            
+            if jira_result.get("success"):
+                print(f"   ✅ Jira issue created: {jira_issue_key}")
+                jira_issues_created.append({
+                    'employee': assignee,
+                    'issue_key': jira_issue_key,
+                    'url': f"{JIRA_URL}/browse/{jira_issue_key}"
+                })
+            else:
+                print(f"   ⚠️ Jira creation failed: {jira_result.get('error', 'Unknown')}")
+            # ===== END JIRA CODE =====
+            
+            # Insert work assignment WITH JIRA DATA
             ok = run_exec("""
-                INSERT INTO [timesheet_db].[dbo].[assigned_work] (
+                INSERT INTO assigned_work (
                     assigned_by, assigned_to, task_desc, start_date, end_date, due_date,
-                    project_name, rm_status, manager_status, assigned_on, work_type, rm_approver
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, 'Pending', 'Approved', GETDATE(), ?, ?)
+                    project_name, rm_status, manager_status, assigned_on, work_type, rm_approver,
+                    jira_issue_key, jira_status, jira_status_color, employee_status, last_updated
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, 'Pending', 'Approved', GETDATE(), ?, ?,
+                          ?, ?, ?, 'Not Started', GETDATE())
             """, (user, assignee, task_desc, start_date, end_date, due_date, 
-                  project_name, work_type, user))  # rm_approver is also the assigner
+                  project_name, work_type, user,
+                  jira_issue_key, jira_status, jira_status_color))
             
             if ok:
                 success_count += 1
-
-                # Send email notification to assignee
-                emp_email = get_user_email(assignee)
+                
+                # Send email with Jira link
                 if emp_email:
                     subject = f"New Work Assignment - {assignee}"
-                    text_content = f"""Dear {assignee},
+                    jira_link = f"\n\n🎫 View in Jira: {JIRA_URL}/browse/{jira_issue_key}" if jira_issue_key else ""
+                    
+                    text_content = f"""Dear {emp_name},
 
-You have been assigned new work by your {session['role']}.
+You have been assigned new work by your {session['role']} ({user}).
 
 Assignment Details:
-- Assigned by: {user}
-- Project: {project_name}
-- Task: {task_desc}
-- Start Date: {start_date}
-- Due Date: {due_date}
-- Work Type: {work_type}
+━━━━━━━━━━━━━━━━━━━━
+• Assigned by: {user} ({session['role']})
+• Project: {project_name or 'General Task'}
+• Task: {task_desc[:200]}
+• Work Type: {work_type}
+• Start Date: {start_date}
+• End Date: {end_date}
+• Due Date: {due_date}
+• Jira Issue: {jira_issue_key or 'Not created'}
+{jira_link}
 
-Please log in to your dashboard to view the complete assignment details and update the status as you progress.
-https://nexus.chervicaon.com
+Please log in to your dashboard to view complete details and update status.
+🔗 Dashboard: https://nexus.chervicaon.com
+
 This is an automated notification from the Timesheet & Leave Management System."""
+                    
                     send_email(emp_email, subject, text_content)
+                    print(f"   📧 Email sent to {assignee}")
                 
-
-                print(f" {user} assigned work to {assignee}")
+                print(f"   ✅ {user} assigned work to {assignee}")
             else:
                 failed_employees.append(assignee)
                 
         except Exception as e:
-            print(f" Error assigning to {assignee}: {e}")
+            print(f"   ❌ Error assigning to {assignee}: {e}")
+            import traceback
+            traceback.print_exc()
             failed_employees.append(assignee)
     
-    # Success/failure messages
+    # Summary
+    print(f"\n{'='*60}")
+    print(f"📊 SUMMARY: ✅ {success_count} | ❌ {len(failed_employees)} | 🎫 {len(jira_issues_created)}")
+    print(f"{'='*60}\n")
+    
+    # Flash messages
     if success_count > 0:
         successful_employees = [emp for emp in assignee_usernames if emp not in failed_employees]
-        flash(f" Work assigned successfully to {success_count} direct report(s): {', '.join(successful_employees)}")
+        jira_msg = f" {len(jira_issues_created)} Jira issues created." if jira_issues_created else ""
+        flash(f"✅ Work assigned successfully to {success_count} direct report(s): {', '.join(successful_employees)}.{jira_msg}")
     
     if failed_employees:
-        flash(f" Failed to assign work to: {', '.join(failed_employees)}")
+        flash(f"❌ Failed to assign work to: {', '.join(failed_employees)}")
     
     return redirect(url_for('dashboard'))
+
 
 
 
@@ -12500,6 +13223,484 @@ def ensure_database_columns():
         
     except Exception as e:
         print(f" Database schema update error: {e}")
+@app.route('/test-jira')
+def test_jira():
+    """Test Jira API connection"""
+    try:
+        # Test basic authentication
+        url = f"{JIRA_URL}/rest/api/3/myself"
+        response = requests.get(url, headers=JIRA_HEADERS, auth=JIRA_AUTH)
+        
+        if response.status_code == 200:
+            user_data = response.json()
+            return jsonify({
+                "success": True,
+                "message": "Jira connection successful!",
+                "user": user_data.get("displayName"),
+                "email": user_data.get("emailAddress"),
+                "account_id": user_data.get("accountId")
+            })
+        else:
+            return jsonify({
+                "success": False,
+                "error": f"Status {response.status_code}: {response.text}"
+            })
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        })
+
+@app.route('/create-jira-for-task/<int:work_id>')
+def create_jira_for_task(work_id):
+    """Create Jira issue for existing work assignment"""
+    try:
+        print(f"\n{'='*60}")
+        print(f"🔧 Manual Jira Issue Creation for Work ID: {work_id}")
+        print(f"{'='*60}")
+        
+        # Get work assignment details
+        work_df = run_query("""
+            SELECT id, assigned_by, assigned_to, project_name, task_desc, 
+                   due_date, jira_issue_key
+            FROM assigned_work 
+            WHERE id = ?
+        """, (work_id,))
+        
+        if work_df.empty:
+            return jsonify({"success": False, "error": "Work assignment not found"}), 404
+        
+        work = work_df.iloc[0]
+        
+        # Check if already has Jira issue
+        if work['jira_issue_key']:
+            return jsonify({
+                "success": False, 
+                "message": f"Task already has Jira issue: {work['jira_issue_key']}",
+                "url": f"{JIRA_URL}/browse/{work['jira_issue_key']}"
+            }), 400
+        
+        print(f"📋 Task Details:")
+        print(f"   Assigned to: {work['assigned_to']}")
+        print(f"   Project: {work['project_name']}")
+        print(f"   Description: {work['task_desc'][:100]}...")
+        
+        # Get assignee email
+        emp_email_df = run_query("SELECT email FROM users WHERE username = ?", (work['assigned_to'],))
+        emp_email = emp_email_df.iloc[0]['email'] if not emp_email_df.empty else None
+        print(f"   Assignee Email: {emp_email}")
+        
+        # Create Jira issue
+        jira_summary = f"{work['project_name'] or 'Task'} - {work['assigned_to']}"
+        print(f"\n🔄 Creating Jira issue...")
+        print(f"   Summary: {jira_summary}")
+        
+        jira_result = create_jira_issue(
+            summary=jira_summary,
+            description=work['task_desc'],
+            assignee_email=emp_email
+        )
+        
+        if jira_result["success"]:
+            issue_key = jira_result["issue_key"]
+            print(f"\n✅ Jira issue created: {issue_key}")
+            
+            # Update database
+            run_exec("""
+                UPDATE assigned_work 
+                SET jira_issue_key = ?, 
+                    jira_status = 'To Do', 
+                    jira_status_color = '6B7280',
+                    last_updated = GETDATE()
+                WHERE id = ?
+            """, (issue_key, work_id))
+            
+            print(f"💾 Database updated with Jira issue key")
+            print(f"{'='*60}\n")
+            
+            return jsonify({
+                "success": True,
+                "message": f"Jira issue {issue_key} created successfully!",
+                "issue_key": issue_key,
+                "url": f"{JIRA_URL}/browse/{issue_key}",
+                "work_id": work_id
+            }), 200
+        else:
+            error = jira_result.get("error", "Unknown error")
+            print(f"\n❌ Failed to create Jira issue: {error}")
+            print(f"{'='*60}\n")
+            
+            return jsonify({
+                "success": False,
+                "error": error
+            }), 500
+            
+    except Exception as e:
+        error_msg = str(e)
+        print(f"\n❌ Exception: {error_msg}")
+        print(f"{'='*60}\n")
+        return jsonify({"success": False, "error": error_msg}), 500
+@app.route('/lead_assign_work_action', methods=['POST'])
+def lead_assign_work_action():
+    """Lead assigns work to employees WITH JIRA INTEGRATION"""
+    if 'username' not in session or session['role'] != 'Lead':
+        flash('Access denied. Lead privileges required.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    user = session['username']
+    
+    # Get form data
+    employee_usernames = request.form.getlist('employees')
+    project_name = request.form.get('projectname', '')
+    task_desc = request.form.get('taskdesc')
+    due_date = request.form.get('duedate')
+    start_date = request.form.get('startdate', date.today())
+    
+    print(f"\n{'='*60}")
+    print(f"🚀 LEAD WORK ASSIGNMENT WITH JIRA INTEGRATION")
+    print(f"{'='*60}")
+    print(f"👤 Assigned By: {user}")
+    print(f"👥 Employees: {employee_usernames}")
+    print(f"📁 Project: {project_name or '(non-project)'}")
+    print(f"📝 Task: {task_desc[:100] if task_desc else 'No task'}...")
+    print(f"{'='*60}\n")
+    
+    if not employee_usernames or not task_desc:
+        flash('Please select at least one employee and provide task description.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    success_count = 0
+    failed_employees = []
+    jira_issues_created = []
+    
+    for employee in employee_usernames:
+        try:
+            print(f"\n📝 Processing assignment for: {employee}")
+            
+            # Get employee details
+            emp_details = run_query("""
+                SELECT email, name 
+                FROM users 
+                WHERE username = ?
+            """, (employee,))
+            
+            emp_email = emp_details.iloc[0]['email'] if not emp_details.empty else None
+            emp_name = emp_details.iloc[0]['name'] if not emp_details.empty else employee
+            
+            # CREATE JIRA ISSUE
+            jira_summary = f"{project_name or '(non-project)'} - {emp_name}"
+            jira_description = f"""Task Assignment from Lead
+
+Assigned To: {emp_name} ({employee})
+Assigned By: {user} (Lead)
+Project: {project_name or 'General Task'}
+Start Date: {start_date}
+Due Date: {due_date or 'No deadline'}
+
+Task Description:
+{task_desc}
+
+---
+This task was automatically created from the Timesheet Management System.
+Dashboard: https://nexus.chervicaon.com"""
+            
+            print(f"   🔄 Creating Jira issue: {jira_summary}")
+            
+            jira_result = create_jira_issue(
+                summary=jira_summary,
+                description=jira_description,
+                assignee_email=emp_email
+            )
+            
+            jira_issue_key = jira_result.get("issue_key") if jira_result.get("success") else None
+            jira_status = "To Do" if jira_result.get("success") else None
+            jira_status_color = "6B7280" if jira_result.get("success") else None
+            
+            if jira_result.get("success"):
+                print(f"   ✅ Jira issue created: {jira_issue_key}")
+                jira_issues_created.append({
+                    'employee': employee,
+                    'issue_key': jira_issue_key,
+                    'url': f"{JIRA_URL}/browse/{jira_issue_key}"
+                })
+            else:
+                print(f"   ⚠️ Jira creation failed: {jira_result.get('error', 'Unknown error')}")
+            
+            # INSERT INTO DATABASE
+            ok = run_exec("""
+                INSERT INTO assigned_work 
+                (assigned_by, assigned_to, task_desc, start_date, due_date, project_name, 
+                 rm_status, manager_status, assigned_on,
+                 jira_issue_key, jira_status, jira_status_color, 
+                 employee_status, last_updated)
+                VALUES (?, ?, ?, ?, ?, ?, 'Approved', 'Approved', GETDATE(),
+                        ?, ?, ?, 'Not Started', GETDATE())
+            """, (user, employee, task_desc, start_date, due_date, project_name,
+                  jira_issue_key, jira_status, jira_status_color))
+            
+            if ok:
+                success_count += 1
+                print(f"   💾 Database entry created")
+                
+                # SEND EMAIL
+                if emp_email:
+                    subject = f"New Work Assignment - {employee}"
+                    jira_link = f"\n\n🎫 View in Jira: {JIRA_URL}/browse/{jira_issue_key}" if jira_issue_key else ""
+                    text_content = f"""Dear {emp_name},
+
+You have been assigned new work by Lead ({user}).
+
+Assignment Details:
+━━━━━━━━━━━━━━━━━━━━
+• Assigned by: {user} (Lead)
+• Project: {project_name or 'General Task'}
+• Task: {task_desc[:200]}
+• Start Date: {start_date}
+• Due Date: {due_date or 'No deadline'}
+• Jira Issue: {jira_issue_key or 'Not created'}
+{jira_link}
+
+🔗 Dashboard: https://nexus.chervicaon.com
+
+This is an automated notification from the Timesheet & Leave Management System."""
+                    
+                    send_email(emp_email, subject, text_content)
+                    print(f"   📧 Email sent")
+            else:
+                failed_employees.append(employee)
+                
+        except Exception as e:
+            print(f"   ❌ Error: {e}")
+            import traceback
+            traceback.print_exc()
+            failed_employees.append(employee)
+    
+    # Summary
+    print(f"\n{'='*60}")
+    print(f"📊 SUMMARY: ✅ {success_count} | ❌ {len(failed_employees)} | 🎫 {len(jira_issues_created)}")
+    print(f"{'='*60}\n")
+    
+    if success_count > 0:
+        jira_msg = f" {len(jira_issues_created)} Jira issues created." if jira_issues_created else ""
+        flash(f"✅ Work assigned successfully to {success_count} employees.{jira_msg}", "success")
+    
+    if failed_employees:
+        flash(f"❌ Failed to assign work to: {', '.join(failed_employees)}", "error")
+    
+    return redirect(url_for('dashboard'))
+
+# ============================================================
+# JIRA MIGRATION ROUTES
+# ============================================================
+
+@app.route('/migrate-all-tasks-to-jira')
+def migrate_all_tasks_to_jira():
+    """Bulk create Jira issues for all existing work assignments without Jira issues"""
+    try:
+        print(f"\n{'='*60}")
+        print(f"🚀 BULK JIRA MIGRATION STARTED")
+        print(f"{'='*60}")
+        
+        # Get all work assignments without Jira issues
+        tasks_df = run_query("""
+            SELECT 
+                aw.id, 
+                aw.assigned_by, 
+                aw.assigned_to, 
+                aw.project_name, 
+                aw.task_desc, 
+                aw.due_date, 
+                aw.jira_issue_key,
+                u.email
+            FROM assigned_work aw
+            LEFT JOIN users u ON aw.assigned_to = u.username
+            WHERE aw.jira_issue_key IS NULL OR aw.jira_issue_key = ''
+            ORDER BY aw.id
+        """)
+        
+        if tasks_df.empty:
+            message = "✅ No tasks need migration - all tasks already have Jira issues!"
+            print(message)
+            print(f"{'='*60}\n")
+            return jsonify({
+                "success": True,
+                "message": "All tasks already have Jira issues",
+                "migrated": 0,
+                "failed": 0
+            })
+        
+        total_tasks = len(tasks_df)
+        print(f"📋 Found {total_tasks} tasks without Jira issues")
+        print(f"{'='*60}\n")
+        
+        migrated = []
+        failed = []
+        
+        for idx, task in tasks_df.iterrows():
+            task_id = task['id']
+            assigned_to = task['assigned_to']
+            project_name = task['project_name'] or '(non-project)'
+            task_desc = task['task_desc']
+            assignee_email = task['email']
+            
+            print(f"\n📝 Task #{task_id} ({idx+1}/{total_tasks})")
+            print(f"   👤 Assigned To: {assigned_to}")
+            print(f"   📁 Project: {project_name}")
+            print(f"   📝 Description: {task_desc[:80] if task_desc else 'No description'}...")
+            
+            try:
+                # Create Jira issue
+                jira_summary = f"{project_name} - {assigned_to}"
+                print(f"   🔄 Creating Jira issue: {jira_summary}")
+                
+                jira_result = create_jira_issue(
+                    summary=jira_summary,
+                    description=task_desc or "No description provided",
+                    assignee_email=assignee_email
+                )
+                
+                if jira_result["success"]:
+                    issue_key = jira_result["issue_key"]
+                    
+                    # Update database
+                    run_exec("""
+                        UPDATE assigned_work 
+                        SET jira_issue_key = ?, 
+                            jira_status = 'To Do', 
+                            jira_status_color = '6B7280',
+                            last_updated = GETDATE()
+                        WHERE id = ?
+                    """, (issue_key, task_id))
+                    
+                    print(f"   ✅ SUCCESS: Created {issue_key}")
+                    migrated.append({
+                        "task_id": task_id,
+                        "issue_key": issue_key,
+                        "assigned_to": assigned_to,
+                        "project": project_name,
+                        "url": f"{JIRA_URL}/browse/{issue_key}"
+                    })
+                    
+                else:
+                    error = jira_result.get("error", "Unknown error")
+                    print(f"   ❌ FAILED: {error[:100]}")
+                    failed.append({
+                        "task_id": task_id,
+                        "assigned_to": assigned_to,
+                        "project": project_name,
+                        "error": error
+                    })
+                
+                # Small delay to avoid rate limiting
+                import time
+                time.sleep(0.5)
+                
+            except Exception as e:
+                error_msg = str(e)
+                print(f"   ❌ EXCEPTION: {error_msg}")
+                failed.append({
+                    "task_id": task_id,
+                    "assigned_to": assigned_to,
+                    "project": project_name,
+                    "error": error_msg
+                })
+        
+        print(f"\n{'='*60}")
+        print(f"🎉 MIGRATION COMPLETE")
+        print(f"{'='*60}")
+        print(f"✅ Successfully migrated: {len(migrated)}")
+        print(f"❌ Failed: {len(failed)}")
+        print(f"📊 Success Rate: {(len(migrated)/total_tasks*100):.1f}%")
+        print(f"{'='*60}\n")
+        
+        return jsonify({
+            "success": True,
+            "message": f"Migration complete! {len(migrated)} tasks migrated, {len(failed)} failed",
+            "total_tasks": total_tasks,
+            "migrated": len(migrated),
+            "failed": len(failed),
+            "success_rate": f"{(len(migrated)/total_tasks*100):.1f}%",
+            "migrated_tasks": migrated,
+            "failed_tasks": failed
+        })
+        
+    except Exception as e:
+        error_msg = str(e)
+        print(f"\n❌ MIGRATION FAILED: {error_msg}")
+        print(f"{'='*60}\n")
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            "success": False,
+            "error": error_msg
+        }), 500
+
+
+def auto_check_and_migrate_tasks():
+    """Check for tasks without Jira issues on startup"""
+    try:
+        tasks_df = run_query("""
+            SELECT COUNT(*) as count
+            FROM assigned_work
+            WHERE jira_issue_key IS NULL OR jira_issue_key = ''
+        """)
+        
+        count = tasks_df.iloc[0]['count'] if not tasks_df.empty else 0
+        
+        if count > 0:
+            print(f"\n{'='*60}")
+            print(f"⚠️  ATTENTION: {count} tasks without Jira issues found!")
+            print(f"{'='*60}")
+            print(f"📍 To migrate, visit: http://127.0.0.1:8084/migrate-all-tasks-to-jira")
+            print(f"{'='*60}\n")
+    except Exception as e:
+        print(f"⚠️  Could not check for unmigrated tasks: {e}")
+
+def auto_check_and_migrate_tasks():
+    """Check for tasks without Jira issues and prompt for migration"""
+    try:
+        tasks_df = run_query("""
+            SELECT COUNT(*) as count
+            FROM assigned_work
+            WHERE jira_issue_key IS NULL OR jira_issue_key = ''
+        """)
+        
+        count = tasks_df.iloc[0]['count'] if not tasks_df.empty else 0
+        
+        if count > 0:
+            print(f"\n{'='*60}")
+            print(f"⚠️  ATTENTION: {count} tasks without Jira issues found!")
+            print(f"{'='*60}")
+            print(f"📍 To migrate, visit: http://127.0.0.1:8084/migrate-all-tasks-to-jira")
+            print(f"{'='*60}\n")
+        else:
+            print("✅ All tasks have Jira issues")
+    except Exception as e:
+        print(f"⚠️  Could not check for unmigrated tasks: {e}")
+
+
+
+def auto_check_and_migrate_tasks():
+    """Check for tasks without Jira issues on startup"""
+    try:
+        tasks_df = run_query("""
+            SELECT COUNT(*) as count
+            FROM assigned_work
+            WHERE jira_issue_key IS NULL OR jira_issue_key = ''
+        """)
+        
+        count = tasks_df.iloc[0]['count'] if not tasks_df.empty else 0
+        
+        if count > 0:
+            print(f"\n{'='*60}")
+            print(f"⚠️  ATTENTION: {count} tasks without Jira issues found!")
+            print(f"{'='*60}")
+            print(f"📍 To migrate, visit: http://127.0.0.1:8084/migrate-all-tasks-to-jira")
+            print(f"{'='*60}\n")
+        else:
+            print("✅ All tasks have Jira issues\n")
+    except Exception as e:
+        print(f"⚠️  Could not check for unmigrated tasks: {e}\n")
 
 # Add this function call when the app starts
 def initialize_database():
@@ -12538,16 +13739,18 @@ def debug_reporting_structure(username):
     
     print("=== END DEBUG ===\n")
 if __name__ == '__main__':
-    flask_port = int(os.getenv('FLASK_PORT', '8084'))
-    flask_host = os.getenv('FLASK_HOST', '0.0.0.0')
+    print(f"\n{'='*60}")
+    print("🚀 Starting Flask app with SocketIO on 0.0.0.0:8084...")
+    print(f"Redirect URI: {REDIRECT_URI}")
+    print(f"Client ID: {CLIENT_ID[:12]}...")
+   
+    print("All database columns created/updated successfully")
+    print("Database columns verified/created successfully")
+    print(f"{'='*60}\n")
     
-    print(f" Starting Flask app with SocketIO on {flask_host}:{flask_port}...")
-    print(f" Redirect URI: {REDIRECT_URI}")
-    print(f" Client ID: {CLIENT_ID[:10] if CLIENT_ID else 'NOT SET'}...")
-    print(f" Email configured: {'Yes' if os.getenv('SMTP_USER') else 'No'}")
-    print(f" Database: {SQL_SERVER}/{SQL_DATABASE}")
+    # Check for tasks needing Jira migration
+    auto_check_and_migrate_tasks()
     
-    # Initialize database and run with SocketIO
-    initialize_database()
-    socketio.run(app, debug=app.debug, port=flask_port, host=flask_host, allow_unsafe_werkzeug=True)
+    socketio.run(app, debug=True, host='0.0.0.0', port=8084, allow_unsafe_werkzeug=True)
+
     
