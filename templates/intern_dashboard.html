@@ -373,7 +373,7 @@
         </div>
 
       <!-- Work Assignments Tab -->
-<div id="work" class="tab-content hidden">
+<!-- <div id="work" class="tab-content hidden">
     <div class="bg-white rounded-lg shadow-sm border border-gray-200">
         <div class="px-6 py-4 border-b border-gray-200">
             <h2 class="text-lg font-semibold text-gray-800">
@@ -451,7 +451,7 @@
                     </table>
                 </div>
 
-                <!-- Statistics Cards Below Table -->
+                Statistics Cards Below Table
                 <div class="mt-6 grid grid-cols-3 gap-4">
                     <div class="bg-blue-50 rounded-lg p-4 border border-blue-200">
                         <div class="flex items-center">
@@ -504,7 +504,299 @@
             {% endif %}
         </div>
     </div>
+</div> -->
+<!-- 📋 Work Assignments Tab -->
+<!-- 📋 Work Assignments Tab -->
+<div id="work" class="tab-content hidden">
+    <div class="bg-white rounded-xl shadow-lg p-6">
+        <div class="flex items-center justify-between mb-6">
+            <h2 class="text-2xl font-bold text-gray-800 flex items-center">
+                <i class="fas fa-tasks text-blue-600 mr-3"></i>
+                My Assigned Work
+            </h2>
+            <div class="flex items-center space-x-3">
+                <span class="bg-green-100 text-green-800 px-4 py-2 rounded-full text-sm font-bold flex items-center">
+                    <i class="fas fa-clipboard-check mr-2"></i>
+                    Total Tasks: {{ assigned_work|length }}
+                </span>
+                <span class="bg-blue-100 text-blue-800 px-4 py-2 rounded-full text-sm font-bold flex items-center">
+                    <i class="fas fa-project-diagram mr-2"></i>
+                    Active Tasks: {{ assigned_work|length }}
+                </span>
+                <span class="bg-purple-100 text-purple-800 px-4 py-2 rounded-full text-sm font-bold flex items-center">
+                    <i class="fas fa-clock mr-2"></i>
+                    Due Soon: 0
+                </span>
+            </div>
+        </div>
+
+        {% if assigned_work and assigned_work|length > 0 %}
+        <!-- Work Assignment Table with Jira Integration -->
+        <div class="overflow-x-auto rounded-lg border border-gray-200">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gradient-to-r from-blue-50 to-indigo-50">
+                    <tr>
+                        <th class="px-4 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
+                            ID
+                        </th>
+                        <th class="px-4 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
+                            ASSIGNED BY
+                        </th>
+                        <th class="px-4 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
+                            PROJECT
+                        </th>
+                        <th class="px-4 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
+                            TASK DESCRIPTION
+                        </th>
+                        <th class="px-4 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
+                            JIRA STATUS
+                        </th>
+                        <th class="px-4 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
+                            MY STATUS
+                        </th>
+                        <th class="px-4 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
+                            DUE DATE
+                        </th>
+                        <th class="px-4 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
+                            ACTIONS
+                        </th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                    {% for work in assigned_work %}
+                    <tr class="hover:bg-blue-50 transition-colors duration-150">
+                        <!-- ID -->
+                        <td class="px-4 py-4 whitespace-nowrap">
+                            <span class="inline-flex items-center justify-center w-12 h-12 rounded-lg bg-blue-100 text-blue-700 font-bold text-sm">
+                                #{{ work.id or loop.index }}
+                            </span>
+                        </td>
+
+                        <!-- Assigned By -->
+                        <td class="px-4 py-4 whitespace-nowrap">
+                            <div class="flex items-center">
+                                <div class="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-indigo-500 flex items-center justify-center text-white font-bold text-sm mr-3 shadow-md">
+                                    {{ work.assigned_by[0]|upper if work.assigned_by else 'A' }}
+                                </div>
+                                <div>
+                                    <div class="text-sm font-semibold text-gray-900">{{ work.assigned_by }}</div>
+                                    <div class="text-xs text-gray-500">Supervisor</div>
+                                </div>
+                            </div>
+                        </td>
+
+                        <!-- Project -->
+                        <td class="px-4 py-4 whitespace-nowrap">
+                            {% if work.project_name and work.project_name != 'General Task' %}
+                            <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-purple-100 text-purple-800 border border-purple-200">
+                                <i class="fas fa-project-diagram mr-1"></i>
+                                {{ work.project_name }}
+                            </span>
+                            {% else %}
+                            <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-600 border border-gray-200">
+                                <i class="fas fa-tasks mr-1"></i>
+                                (non-project)
+                            </span>
+                            {% endif %}
+                        </td>
+
+                        <!-- Task Description -->
+                        <td class="px-4 py-4 max-w-xs">
+                            <div class="text-sm text-gray-900 font-medium truncate" title="{{ work.task_desc }}">
+                                {{ work.task_desc[:80] }}{% if work.task_desc|length > 80 %}...{% endif %}
+                            </div>
+                        </td>
+
+                        <!-- Jira Status -->
+                        <td class="px-4 py-4 whitespace-nowrap text-sm">
+                            {% if work.jira_issue_key %}
+                            <div class="flex items-center space-x-2">
+                                <a href="https://sai8903.atlassian.net/browse/{{ work.jira_issue_key }}" 
+                                   target="_blank"
+                                   class="inline-flex items-center px-3 py-1.5 text-xs font-bold rounded-lg shadow-sm hover:shadow-md transition-all duration-200"
+                                   style="background-color: #{{ work.jira_status_color or '6B7280' }}20; color: #{{ work.jira_status_color or '6B7280' }}; border: 1px solid #{{ work.jira_status_color or '6B7280' }}40;">
+                                    <i class="fab fa-jira mr-1.5 text-sm"></i>
+                                    {{ work.jira_status or 'To Do' }}
+                                </a>
+                            </div>
+                            {% else %}
+                            <span class="inline-flex items-center px-3 py-1 rounded-lg text-xs font-medium bg-gray-100 text-gray-400 italic">
+                                No Jira Issue
+                            </span>
+                            {% endif %}
+                        </td>
+
+                        <!-- My Status -->
+                        <td class="px-4 py-4 whitespace-nowrap text-sm">
+                            {% if work.employee_status %}
+                            <span class="inline-flex items-center px-3 py-1.5 text-xs font-bold rounded-lg shadow-sm
+                                {% if work.employee_status == 'Completed' %}bg-green-100 text-green-800 border border-green-200
+                                {% elif work.employee_status == 'In Progress' %}bg-blue-100 text-blue-800 border border-blue-200
+                                {% elif work.employee_status == 'Blocked' %}bg-red-100 text-red-800 border border-red-200
+                                {% elif work.employee_status == 'On Hold' %}bg-yellow-100 text-yellow-800 border border-yellow-200
+                                {% else %}bg-gray-100 text-gray-800 border border-gray-200{% endif %}">
+                                {% if work.employee_status == 'Completed' %}<i class="fas fa-check-circle mr-1.5"></i>
+                                {% elif work.employee_status == 'In Progress' %}<i class="fas fa-spinner fa-pulse mr-1.5"></i>
+                                {% elif work.employee_status == 'Blocked' %}<i class="fas fa-ban mr-1.5"></i>
+                                {% elif work.employee_status == 'On Hold' %}<i class="fas fa-pause-circle mr-1.5"></i>
+                                {% else %}<i class="fas fa-clock mr-1.5"></i>{% endif %}
+                                {{ work.employee_status }}
+                            </span>
+                            {% else %}
+                            <span class="inline-flex items-center px-3 py-1 rounded-lg text-xs font-medium bg-gray-100 text-gray-500 italic border border-gray-200">
+                                <i class="fas fa-circle text-xs mr-1.5"></i>
+                                Not Started
+                            </span>
+                            {% endif %}
+                        </td>
+
+                        <!-- Due Date -->
+                        <td class="px-4 py-4 whitespace-nowrap text-sm">
+                            {% if work.due_date %}
+                                {% set due_date = work.due_date|string %}
+                                {% set today_str = today|string %}
+                                {% if due_date == today_str %}
+                                <span class="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-bold bg-orange-100 text-orange-800 border border-orange-200 shadow-sm">
+                                    <i class="fas fa-exclamation-circle mr-1.5"></i>
+                                    Due Today
+                                </span>
+                                {% elif due_date < today_str %}
+                                <span class="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-bold bg-red-100 text-red-800 border border-red-200 shadow-sm animate-pulse">
+                                    <i class="fas fa-exclamation-triangle mr-1.5"></i>
+                                    Overdue
+                                </span>
+                                {% else %}
+                                <span class="text-sm font-medium text-gray-700 flex items-center">
+                                    <i class="fas fa-calendar-alt text-gray-400 mr-2"></i>
+                                    {{ due_date }}
+                                </span>
+                                {% endif %}
+                            {% else %}
+                            <span class="text-xs text-gray-400 italic">No deadline</span>
+                            {% endif %}
+                        </td>
+
+                        <!-- Actions -->
+                        <td class="px-4 py-4 whitespace-nowrap">
+                            <div class="flex items-center space-x-2">
+                                <!-- Update Status Button -->
+                                <button onclick="openStatusUpdateModal({{ work.id }}, '{{ work.employee_status or '' }}', '{{ work.employee_progress_notes or '' }}', '{{ work.task_desc }}')"
+                                        class="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-lg transition-all duration-200 shadow-md hover:shadow-lg transform hover:scale-105">
+                                    <i class="fas fa-edit mr-1.5"></i>
+                                    Update
+                                </button>
+                                
+                                <!-- View in Jira Button -->
+                                {% if work.jira_issue_key %}
+                                <a href="https://sai8903.atlassian.net/browse/{{ work.jira_issue_key }}" 
+                                   target="_blank"
+                                   class="inline-flex items-center px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-lg transition-all duration-200 shadow-md hover:shadow-lg transform hover:scale-105">
+                                    <i class="fab fa-jira mr-1.5"></i>
+                                    Jira
+                                </a>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        {% else %}
+        <!-- Empty State -->
+        <div class="text-center py-16 bg-gradient-to-br from-gray-50 to-blue-50 rounded-xl border-2 border-dashed border-gray-300">
+            <div class="inline-flex items-center justify-center w-20 h-20 rounded-full bg-blue-100 mb-4">
+                <i class="fas fa-inbox text-blue-400 text-4xl"></i>
+            </div>
+            <h3 class="text-xl font-bold text-gray-700 mb-2">No Tasks Assigned Yet</h3>
+            <p class="text-gray-500 text-base mb-1">You don't have any assigned tasks at the moment.</p>
+            <p class="text-gray-400 text-sm">Check back later or contact your supervisor for new assignments.</p>
+        </div>
+        {% endif %}
+    </div>
 </div>
+
+<!-- Status Update Modal -->
+<div id="statusUpdateModal" class="fixed inset-0 bg-gray-900 bg-opacity-60 hidden z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+    <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full mx-4 transform transition-all" id="modalContent">
+        <!-- Modal Header -->
+        <div class="flex justify-between items-center p-6 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-t-2xl">
+            <h3 class="text-2xl font-bold text-gray-800 flex items-center">
+                <i class="fas fa-edit text-blue-600 mr-3"></i>
+                Update Work Status
+            </h3>
+            <button onclick="closeStatusUpdateModal()" class="text-gray-400 hover:text-gray-600 transition-colors p-2 rounded-lg hover:bg-white">
+                <i class="fas fa-times text-2xl"></i>
+            </button>
+        </div>
+        
+        <!-- Modal Body -->
+        <form method="post" action="{{ url_for('updateworkstatus') }}" class="p-6">
+            <input type="hidden" id="updateWorkId" name="workid">
+            
+            <!-- Task Info Display -->
+            <div class="mb-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                <label class="block text-sm font-semibold text-gray-700 mb-2">
+                    <i class="fas fa-info-circle mr-1"></i>Task
+                </label>
+                <p id="taskDescDisplay" class="text-sm text-gray-800"></p>
+            </div>
+
+            <!-- Status Selection -->
+            <div class="mb-6">
+                <label class="block text-sm font-bold text-gray-700 mb-3">
+                    <i class="fas fa-flag mr-2"></i>Update Status
+                </label>
+                <select name="employeestatus" id="updateEmployeeStatus" required 
+                        class="form-select w-full rounded-lg border-2 border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all text-base py-3 px-4">
+                    <option value="Not Started">🔴 Not Started - Task hasn't begun yet</option>
+                    <option value="In Progress">🔵 In Progress - Currently working on this</option>
+                    <option value="On Hold">🟡 On Hold - Temporarily paused</option>
+                    <option value="Blocked">🔴 Blocked - Waiting on dependencies</option>
+                    <option value="Completed">🟢 Completed - Task is finished</option>
+                </select>
+            </div>
+            
+            <!-- Progress Notes -->
+            <div class="mb-6">
+                <label class="block text-sm font-bold text-gray-700 mb-3">
+                    <i class="fas fa-comment-dots mr-2"></i>Progress Notes
+                </label>
+                <textarea name="progressnotes" id="updateProgressNotes" rows="5"
+                          placeholder="📝 Describe your progress, challenges, blockers, or completion notes...
+
+Examples:
+• Completed initial research and design mockups
+• Waiting for API documentation from backend team
+• Encountered issue with database connection - need help
+• Task completed and tested successfully"
+                          class="form-textarea w-full rounded-lg border-2 border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all text-sm"></textarea>
+                <div class="mt-2 flex items-start space-x-2 text-xs text-gray-500">
+                    <i class="fas fa-lightbulb text-yellow-500 mt-0.5"></i>
+                    <p>Your notes will be synced to Jira and visible to your supervisor. Be clear and specific about your progress.</p>
+                </div>
+            </div>
+            
+            <!-- Action Buttons -->
+            <div class="flex space-x-3 pt-4 border-t border-gray-200">
+                <button type="submit" class="flex-1 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white py-3 px-6 rounded-lg font-bold transition-all duration-200 shadow-md hover:shadow-lg transform hover:scale-105 flex items-center justify-center">
+                    <i class="fas fa-save mr-2"></i>
+                    Update Status & Sync to Jira
+                </button>
+                <button type="button" onclick="closeStatusUpdateModal()" 
+                        class="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 py-3 px-6 rounded-lg font-bold transition-all duration-200 flex items-center justify-center">
+                    <i class="fas fa-times mr-2"></i>
+                    Cancel
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+
+
+
 
 <!-- Add Employee Tab - Only for Finance & HR Intern -->
 {% if is_finance_hr_intern %}
@@ -1019,7 +1311,7 @@
 </div>
 
 
-
+                        <!-- -->  </div>
                             </div>
                         </div>
 
@@ -1170,6 +1462,8 @@
             </form>
         </div>
     </div>
+</div>
+</div>
 </div>
         <!-- Complete History Tab -->
         <div id="history" class="tab-content hidden">
@@ -2173,6 +2467,138 @@ function showNotification(message, type = 'info') {
     }, 5000);
 }
 
+
+// Status update modal functions
+function openStatusUpdateModal(workId, currentStatus, currentNotes) {
+    document.getElementById('updateWorkId').value = workId;
+    document.getElementById('updateEmployeeStatus').value = currentStatus || 'Not Started';
+    document.getElementById('updateProgressNotes').value = currentNotes || '';
+    document.getElementById('statusUpdateModal').classList.remove('hidden');
+}
+
+function closeStatusUpdateModal() {
+    document.getElementById('statusUpdateModal').classList.add('hidden');
+}
+
+// Close modal on escape key
+document.addEventListener('keydown', function(event) {
+    if (event.key === 'Escape') {
+        closeStatusUpdateModal();
+    }
+});
+
+
+// Status Update Modal Functions
+function openStatusUpdateModal(workId, currentStatus, currentNotes, taskDesc) {
+    const modal = document.getElementById('statusUpdateModal');
+    const modalContent = document.getElementById('modalContent');
+    
+    document.getElementById('updateWorkId').value = workId;
+    document.getElementById('updateEmployeeStatus').value = currentStatus || 'Not Started';
+    document.getElementById('updateProgressNotes').value = currentNotes || '';
+    document.getElementById('taskDescDisplay').textContent = taskDesc || 'No description available';
+    
+    modal.classList.remove('hidden');
+    
+    // Animate modal entrance
+    setTimeout(() => {
+        modalContent.classList.remove('scale-95', 'opacity-0');
+        modalContent.classList.add('scale-100', 'opacity-100');
+    }, 10);
+}
+
+function closeStatusUpdateModal() {
+    const modal = document.getElementById('statusUpdateModal');
+    const modalContent = document.getElementById('modalContent');
+    
+    // Animate modal exit
+    modalContent.classList.remove('scale-100', 'opacity-100');
+    modalContent.classList.add('scale-95', 'opacity-0');
+    
+    setTimeout(() => {
+        modal.classList.add('hidden');
+    }, 200);
+}
+<!-- JavaScript Functions -->
+
+// Status Update Modal Functions
+function openStatusUpdateModal(workId, currentStatus, currentNotes, taskDesc) {
+    const modal = document.getElementById('statusUpdateModal');
+    const modalContent = document.getElementById('modalContent');
+    const workIdInput = document.getElementById('updateWorkId');
+    const statusSelect = document.getElementById('updateEmployeeStatus');
+    const notesTextarea = document.getElementById('updateProgressNotes');
+    const taskDisplay = document.getElementById('taskDescDisplay');
+    
+    // Check if all elements exist
+    if (!modal || !workIdInput || !statusSelect || !notesTextarea || !taskDisplay) {
+        console.error('Modal elements not found');
+        return;
+    }
+    
+    workIdInput.value = workId;
+    statusSelect.value = currentStatus || 'Not Started';
+    notesTextarea.value = currentNotes || '';
+    taskDisplay.textContent = taskDesc || 'No description available';
+    
+    modal.classList.remove('hidden');
+    
+    // Animate modal entrance
+    setTimeout(() => {
+        if (modalContent) {
+            modalContent.classList.remove('scale-95', 'opacity-0');
+            modalContent.classList.add('scale-100', 'opacity-100');
+        }
+    }, 10);
+}
+
+function closeStatusUpdateModal() {
+    const modal = document.getElementById('statusUpdateModal');
+    const modalContent = document.getElementById('modalContent');
+    
+    if (!modal) return;
+    
+    // Animate modal exit
+    if (modalContent) {
+        modalContent.classList.remove('scale-100', 'opacity-100');
+        modalContent.classList.add('scale-95', 'opacity-0');
+    }
+    
+    setTimeout(() => {
+        modal.classList.add('hidden');
+    }, 200);
+}
+
+// Close modal on Escape key
+document.addEventListener('keydown', function(event) {
+    if (event.key === 'Escape') {
+        closeStatusUpdateModal();
+    }
+});
+
+// Close modal when clicking outside
+document.getElementById('statusUpdateModal')?.addEventListener('click', function(event) {
+    if (event.target === this) {
+        closeStatusUpdateModal();
+    }
+});
+
+
+
+// Close modal on Escape key
+document.addEventListener('keydown', function(event) {
+    if (event.key === 'Escape') {
+        closeStatusUpdateModal();
+    }
+});
+
+// Close modal when clicking outside
+document.getElementById('statusUpdateModal')?.addEventListener('click', function(event) {
+    if (event.target === this) {
+        closeStatusUpdateModal();
+    }
+});
+
 // Close modals with Escape key
 document.addEventListener('keydown', function(e) {
     if (e.key === 'Escape') {
@@ -2255,6 +2681,43 @@ button:hover {
     transition: box-shadow 0.3s ease-in-out;
 }
 
+
+@keyframes pulse-slow {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: .7;
+    }
+}
+
+.animate-pulse {
+    animation: pulse-slow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+#modalContent {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+
+
+
+@keyframes pulse-slow {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: .7;
+    }
+}
+
+.animate-pulse {
+    animation: pulse-slow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+#modalContent {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
 /* Status indicators with updated colors for new leave types */
 .bg-yellow-100 { background-color: #fef3c7; }
 .text-yellow-800 { color: #92400e; }
