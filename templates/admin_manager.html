@@ -2,26 +2,26 @@
 {% block content %}
 <div class="space-y-6">
     <!-- Header with User Info and Logout -->
-    <div class="bg-gradient-to-r from-blue-600 to-purple-600 rounded-xl shadow-lg p-6 text-white">
-        <div class="flex items-center justify-between">
-            <div>
-                <h1 class="text-2xl font-bold">{{ user }} ({{ role }})</h1>
-                <p class="text-blue-100 mt-1">Admin Manager Dashboard - Complete system oversight and employee management</p>
+<div class="bg-gradient-to-r from-blue-600 to-purple-600 rounded-xl shadow-lg p-6 text-white">
+    <div class="flex items-center justify-between">
+        <div>
+            <h1 class="text-2xl font-bold">{{ user }} ({{ role }})</h1>
+            <p class="text-blue-100 mt-1">Admin Manager Dashboard - Complete system oversight and employee management</p>
+        </div>
+        <div class="flex items-center space-x-4">
+            <div class="bg-white bg-opacity-20 rounded-lg p-3">
+                <p class="text-sm opacity-90">Today</p>
+                <p class="text-lg font-semibold">{{ today }}</p>
             </div>
-            <div class="flex items-center space-x-4">
-                <div class="bg-white bg-opacity-20 rounded-lg p-3">
-                    <p class="text-sm opacity-90">Today</p>
-                    <p class="text-lg font-semibold">{{ today }}</p>
-                </div>
-                <button onclick="window.history.back()" class="bg-white bg-opacity-20 hover:bg-opacity-30 px-4 py-2 rounded-lg transition-colors">
-                    <i class="fas fa-arrow-left mr-2"></i>Back to Dashboard
-                </button>
-                <a href="{{ url_for('logout') }}" class="bg-white bg-opacity-20 hover:bg-opacity-30 px-4 py-2 rounded-lg transition-colors">
-                    <i class="fas fa-sign-out-alt mr-2"></i>Logout
-                </a>
-            </div>
+            <!-- REMOVED: Back to Dashboard button -->
+            <a href="{{ url_for('logout') }}" 
+               class="bg-white bg-opacity-20 hover:bg-opacity-30 px-4 py-2 rounded-lg transition-colors">
+                <i class="fas fa-sign-out-alt mr-2"></i>Logout
+            </a>
         </div>
     </div>
+</div>
+
 
     <!-- Flash Messages -->
     {% with messages = get_flashed_messages() %}
@@ -1105,206 +1105,188 @@
                 </div>
             </div>
 
-            <!-- Work Assignments Tab -->
-            <div id="work-assignments" class="tab-content hidden">
-                <div class="space-y-6">
-                    <!-- Assign Work to Direct Reports -->
-                    <div class="bg-white rounded-lg shadow-sm border border-gray-200">
-                        <div class="px-6 py-4 border-b border-gray-200">
-                            <h2 class="text-lg font-semibold text-gray-800">
-                                <i class="fas fa-user-plus text-blue-600 mr-2"></i>Assign Work to My Direct Reports
-                            </h2>
-                            <p class="text-sm text-gray-600 mt-1">Assign tasks only to employees directly reporting to you</p>
-                        </div>
-                        <div class="p-6">
-                            {% if direct_reports %}
-                            <form method="post" action="{{ url_for('rm_assign_work_action') }}" class="space-y-4">
-                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div>
-                                        <label class="block text-sm font-medium text-gray-700 mb-2">Select Team Members *</label>
-                                        <select name="employee_username" multiple required class="form-select w-full rounded-lg border-gray-300" size="6">
-                                            {% for employee in direct_reports %}
-                                            <option value="{{ employee.username }}">{{ employee.name or employee.username }} ({{ employee.role }})</option>
-                                            {% endfor %}
-                                        </select>
-                                        <p class="text-xs text-gray-500 mt-1">Hold Ctrl/Cmd to select multiple employees</p>
-                                    </div>
-                                    <div>
-                                        <label class="block text-sm font-medium text-gray-700 mb-2">Project (Optional)</label>
-                                        <select name="project_name" class="form-select w-full rounded-lg border-gray-300">
-                                            <option value="">(No specific project)</option>
-                                            {% for project in proj_list %}
-                                            <option value="{{ project }}">{{ project }}</option>
-                                            {% endfor %}
-                                        </select>
-                                    </div>
-                                </div>
-                                
-                                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                    <div>
-                                        <label class="block text-sm font-medium text-gray-700 mb-2">Start Date</label>
-                                        <input type="date" name="start_date" class="form-input w-full rounded-lg border-gray-300" value="{{ today }}">
-                                    </div>
-                                    <div>
-                                        <label class="block text-sm font-medium text-gray-700 mb-2">Due Date *</label>
-                                        <input type="date" name="due_date" required class="form-input w-full rounded-lg border-gray-300" min="{{ today }}">
-                                    </div>
-                                    <div>
-                                        <label class="block text-sm font-medium text-gray-700 mb-2">Priority</label>
-                                        <select name="priority" class="form-select w-full rounded-lg border-gray-300">
-                                            <option value="Low">Low</option>
-                                            <option value="Medium" selected>Medium</option>
-                                            <option value="High">High</option>
-                                            <option value="Urgent">Urgent</option>
-                                        </select>
-                                    </div>
-                                </div>
-                                
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700 mb-2">Task Description *</label>
-                                    <textarea name="task_desc" rows="4" required class="form-textarea w-full rounded-lg border-gray-300" placeholder="Describe the task, requirements, and expectations..."></textarea>
-                                </div>
-                                
-                                <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-4 rounded-lg transition-colors">
-                                    <i class="fas fa-paper-plane mr-2"></i>Assign Work to Selected Team Members
-                                </button>
-                            </form>
-                            {% else %}
-                            <div class="text-center py-8">
-                                <i class="fas fa-users text-4xl text-gray-300 mb-4"></i>
-                                <p class="text-gray-500">No direct reports found for work assignment</p>
-                            </div>
-                            {% endif %}
-                        </div>
-                    </div>
+            <!-- ====================================================================== -->
+<!-- WORK ASSIGNMENTS TAB - SIMPLE & SAFE VERSION -->
+<!-- ====================================================================== -->
 
-                    <!-- Work Assigned BY Admin Manager -->
-                    <div class="bg-white rounded-lg shadow-sm border border-gray-200">
-                        <div class="px-6 py-4 border-b border-gray-200">
-                            <h2 class="text-lg font-semibold text-gray-800">
-                                <i class="fas fa-clipboard-list text-green-600 mr-2"></i>Work Assigned by Me ({{ my_assigned_work|length }})
-                            </h2>
-                        </div>
-                        <div class="p-6">
-                            {% if my_assigned_work %}
-                            <div class="overflow-x-auto">
-                                <table class="min-w-full divide-y divide-gray-200">
-                                    <thead class="bg-gray-50">
-                                        <tr>
-                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Assigned To</th>
-                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Task</th>
-                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Project</th>
-                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Start Date</th>
-                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Due Date</th>
-                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Urgency</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody class="bg-white divide-y divide-gray-200">
-                                        {% for assignment in my_assigned_work %}
-                                        <tr class="hover:bg-gray-50 transition-colors">
-                                            <td class="px-4 py-4 whitespace-nowrap text-sm font-medium">
-                                                {{ assignment.assigned_to_name or assignment.assigned_to }}
-                                            </td>
-                                            <td class="px-4 py-4 text-sm max-w-xs">
-                                                <div class="truncate" title="{{ assignment.task_desc }}">{{ assignment.task_desc }}</div>
-                                            </td>
-                                            <td class="px-4 py-4 whitespace-nowrap text-sm">{{ assignment.project_name or '(No project)' }}</td>
-                                            <td class="px-4 py-4 whitespace-nowrap text-sm">{{ assignment.startdate or assignment.assignedon or 'N/A' }}</td>
-                                            <td class="px-4 py-4 whitespace-nowrap text-sm">{{ assignment.due_date or 'N/A' }}</td>
-                                            
-                                            <td class="px-4 py-4 whitespace-nowrap">
-                                                {% if assignment.urgency_status == 'Overdue' %}
-                                                    <span class="inline-flex px-2 py-1 text-xs font-semibold bg-red-100 text-red-800 rounded-full">
-                                                        <i class="fas fa-exclamation-triangle mr-1"></i>Overdue
-                                                    </span>
-                                                {% elif assignment.urgency_status == 'Due Soon' %}
-                                                    <span class="inline-flex px-2 py-1 text-xs font-semibold bg-orange-100 text-orange-800 rounded-full">
-                                                        <i class="fas fa-clock mr-1"></i>Due Soon
-                                                    </span>
-                                                {% else %}
-                                                    <span class="inline-flex px-2 py-1 text-xs font-semibold bg-green-100 text-green-800 rounded-full">
-                                                        <i class="fas fa-check mr-1"></i>Active
-                                                    </span>
-                                                {% endif %}
-                                            </td>
-                                        </tr>
-                                        {% endfor %}
-                                    </tbody>
-                                </table>
-                            </div>
-                            {% else %}
-                            <div class="text-center py-8">
-                                <i class="fas fa-clipboard text-4xl text-gray-300 mb-4"></i>
-                                <p class="text-gray-500">No work assignments created yet</p>
-                            </div>
-                            {% endif %}
-                        </div>
-                    </div>
+<div id="work-assignments" class="tab-content hidden">
+    
+    <!-- Header -->
+    <div class="bg-white rounded-lg shadow p-4 mb-6">
+        <div class="flex items-center justify-between">
+            <h2 class="text-xl font-bold text-gray-900">
+                <i class="fas fa-tasks text-blue-600 mr-2"></i>
+                Work Assignments
+            </h2>
+            <button onclick="openWorkAssignModal()" 
+                    class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded font-semibold">
+                <i class="fas fa-plus mr-2"></i>Assign Work
+            </button>
+        </div>
+    </div>
 
-                    <!-- Work Assigned TO Admin Manager -->
-                    <div class="bg-white rounded-lg shadow-sm border border-gray-200">
-                        <div class="px-6 py-4 border-b border-gray-200">
-                            <h2 class="text-lg font-semibold text-gray-800">
-                                <i class="fas fa-inbox text-purple-600 mr-2"></i>Work Assigned to Me ({{ work_assigned_to_admin|length }})
-                            </h2>
-                        </div>
-                        <div class="p-6">
-                            {% if work_assigned_to_admin %}
-                            <div class="overflow-x-auto">
-                                <table class="min-w-full divide-y divide-gray-200">
-                                    <thead class="bg-gray-50">
-                                        <tr>
-                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Assigned By</th>
-                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Task</th>
-                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Project</th>
-                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Start Date</th>
-                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Due Date</th>
-                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Urgency</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody class="bg-white divide-y divide-gray-200">
-                                        {% for assignment in work_assigned_to_admin %}
-                                        <tr class="hover:bg-gray-50 transition-colors">
-                                            <td class="px-4 py-4 whitespace-nowrap text-sm font-medium">
-                                                {{ assignment.assigned_by_name or assignment.assigned_by }}
-                                            </td>
-                                            <td class="px-4 py-4 text-sm max-w-xs">
-                                                <div class="truncate" title="{{ assignment.task_desc }}">{{ assignment.task_desc }}</div>
-                                            </td>
-                                            <td class="px-4 py-4 whitespace-nowrap text-sm">{{ assignment.project_name or '(No project)' }}</td>
-                                            <td class="px-4 py-4 whitespace-nowrap text-sm">{{ assignment.startdate or assignment.assignedon or 'N/A' }}</td>
-                                            <td class="px-4 py-4 whitespace-nowrap text-sm">{{ assignment.due_date or 'N/A' }}</td>
-                                            
-                                            <td class="px-4 py-4 whitespace-nowrap">
-                                                {% if assignment.urgency_status == 'Overdue' %}
-                                                    <span class="inline-flex px-2 py-1 text-xs font-semibold bg-red-100 text-red-800 rounded-full">
-                                                        <i class="fas fa-exclamation-triangle mr-1"></i>Overdue
-                                                    </span>
-                                                {% elif assignment.urgency_status == 'Due Soon' %}
-                                                    <span class="inline-flex px-2 py-1 text-xs font-semibold bg-orange-100 text-orange-800 rounded-full">
-                                                        <i class="fas fa-clock mr-1"></i>Due Soon
-                                                    </span>
-                                                {% else %}
-                                                    <span class="inline-flex px-2 py-1 text-xs font-semibold bg-green-100 text-green-800 rounded-full">
-                                                        <i class="fas fa-check mr-1"></i>Active
-                                                    </span>
-                                                {% endif %}
-                                            </td>
-                                        </tr>
-                                        {% endfor %}
-                                    </tbody>
-                                </table>
-                            </div>
+    <!-- Work I Assigned -->
+    <div class="bg-white rounded-lg shadow mb-6">
+        <div class="bg-blue-50 px-4 py-3 border-b">
+            <h3 class="font-bold text-gray-900">Work I Assigned</h3>
+        </div>
+        <div class="p-4">
+            {% if my_assigned_work and my_assigned_work|length > 0 %}
+            <table class="min-w-full">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-4 py-2 text-left text-xs font-bold text-gray-600">Employee</th>
+                        <th class="px-4 py-2 text-left text-xs font-bold text-gray-600">Task</th>
+                        <th class="px-4 py-2 text-left text-xs font-bold text-gray-600">Status</th>
+                        <th class="px-4 py-2 text-left text-xs font-bold text-gray-600">Jira</th>
+                        <th class="px-4 py-2 text-left text-xs font-bold text-gray-600">Due Date</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for work in my_assigned_work %}
+                    <tr class="border-t">
+                        <td class="px-4 py-3">{{ work.assigned_to }}</td>
+                        <td class="px-4 py-3">{{ work.task_desc[:50] }}...</td>
+                        <td class="px-4 py-3">
+                            <span class="px-2 py-1 text-xs rounded
+                                {% if work.employee_status == 'Completed' %}bg-green-100 text-green-700
+                                {% elif work.employee_status == 'In Progress' %}bg-blue-100 text-blue-700
+                                {% else %}bg-gray-100 text-gray-600{% endif %}">
+                                {{ work.employee_status or 'Not Updated' }}
+                            </span>
+                        </td>
+                        <td class="px-4 py-3">
+                            {% if work.jira_issue_key %}
+                            <a href="https://sai8903.atlassian.net/browse/{{ work.jira_issue_key }}" target="_blank"
+                               class="text-blue-600 text-xs">{{ work.jira_issue_key }}</a>
                             {% else %}
-                            <div class="text-center py-8">
-                                <i class="fas fa-inbox text-4xl text-gray-300 mb-4"></i>
-                                <p class="text-gray-500">No work has been assigned to you</p>
-                            </div>
+                            <span class="text-gray-400 text-xs">-</span>
                             {% endif %}
-                        </div>
+                        </td>
+                        <td class="px-4 py-3 text-sm">{{ work.due_date or '-' }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <p class="text-gray-500 text-center py-8">No work assigned yet</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Work Assigned to Me -->
+    <div class="bg-white rounded-lg shadow">
+        <div class="bg-green-50 px-4 py-3 border-b">
+            <h3 class="font-bold text-gray-900">Work Assigned to Me</h3>
+        </div>
+        <div class="p-4">
+            {% if work_assigned_to_me and work_assigned_to_me|length > 0 %}
+            <table class="min-w-full">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-4 py-2 text-left text-xs font-bold text-gray-600">From</th>
+                        <th class="px-4 py-2 text-left text-xs font-bold text-gray-600">Task</th>
+                        <th class="px-4 py-2 text-left text-xs font-bold text-gray-600">Status</th>
+                        <th class="px-4 py-2 text-left text-xs font-bold text-gray-600">Jira</th>
+                        <th class="px-4 py-2 text-left text-xs font-bold text-gray-600">Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for work in work_assigned_to_me %}
+                    <tr class="border-t">
+                        <td class="px-4 py-3">{{ work.assigned_by }}</td>
+                        <td class="px-4 py-3">{{ work.task_desc[:50] }}...</td>
+                        <td class="px-4 py-3">
+                            <span class="px-2 py-1 text-xs rounded
+                                {% if work.employee_status == 'Completed' %}bg-green-100 text-green-700
+                                {% elif work.employee_status == 'In Progress' %}bg-blue-100 text-blue-700
+                                {% else %}bg-yellow-100 text-yellow-700{% endif %}">
+                                {{ work.employee_status or 'Pending' }}
+                            </span>
+                        </td>
+                        <td class="px-4 py-3">
+                            {% if work.jira_issue_key %}
+                            <a href="https://sai8903.atlassian.net/browse/{{ work.jira_issue_key }}" target="_blank"
+                               class="text-blue-600 text-xs">{{ work.jira_issue_key }}</a>
+                            {% endif %}
+                        </td>
+                        <td class="px-4 py-3">
+                            <button onclick="updateWorkStatus({{ work.id }})" 
+                                    class="text-xs bg-blue-500 text-white px-2 py-1 rounded">
+                                Update
+                            </button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <p class="text-gray-500 text-center py-8">No work assigned to you</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Assign Work Modal - SIMPLE -->
+<div id="workAssignModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50" onclick="if(event.target===this) closeWorkAssignModal()">
+    <div class="flex items-center justify-center min-h-screen p-4">
+        <div class="bg-white rounded-lg w-full max-w-lg" onclick="event.stopPropagation()">
+            <div class="bg-blue-600 text-white px-4 py-3 rounded-t-lg">
+                <h3 class="text-lg font-bold">Assign Work</h3>
+            </div>
+            <form method="post" action="/admin_assign_work_to_team" class="p-6">
+                <div class="mb-4">
+                    <label class="block text-sm font-bold mb-2">Employee(s) *</label>
+                    <select name="assignee_username" multiple required size="5" class="w-full px-3 py-2 border rounded">
+                        {% if direct_reports %}
+                            {% for emp in direct_reports %}
+                            <option value="{{ emp }}">{{ emp }}</option>
+                            {% endfor %}
+                        {% endif %}
+                    </select>
+                </div>
+                <div class="mb-4">
+                    <label class="block text-sm font-bold mb-2">Task Description *</label>
+                    <textarea name="task_desc" required rows="3" class="w-full px-3 py-2 border rounded"></textarea>
+                </div>
+                <div class="mb-4">
+                    <label class="block text-sm font-bold mb-2">Project</label>
+                    <select name="project_name" class="w-full px-3 py-2 border rounded">
+                        <option value="">No Project</option>
+                        {% for proj in projects_dropdown %}
+                        <option value="{{ proj.project_name }}">{{ proj.project_name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="grid grid-cols-2 gap-3 mb-4">
+                    <div>
+                        <label class="block text-sm font-bold mb-2">Start Date</label>
+                        <input type="date" name="start_date" value="{{ today }}" class="w-full px-3 py-2 border rounded">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-bold mb-2">Due Date</label>
+                        <input type="date" name="due_date" class="w-full px-3 py-2 border rounded">
                     </div>
                 </div>
-            </div>
+                <div class="mb-4">
+                    <label class="block text-sm font-bold mb-2">Work Type</label>
+                    <select name="work_type" class="w-full px-3 py-2 border rounded">
+                        <option>Project</option>
+                        <option>Task</option>
+                        <option>Bug Fix</option>
+                    </select>
+                </div>
+                <div class="flex gap-3">
+                    <button type="submit" class="flex-1 bg-blue-600 text-white py-2 rounded">Assign</button>
+                    <button type="button" onclick="closeWorkAssignModal()" class="flex-1 bg-gray-300 py-2 rounded">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+
+
 
             <!-- Approvals Tab -->
             <div id="approvals" class="tab-content hidden">
@@ -2758,6 +2740,17 @@ function showNotification(message, type = 'info', duration = 3000) {
         }, 300);
     }, duration);
 }
+
+function openWorkAssignModal() {
+    document.getElementById('workAssignModal').classList.remove('hidden');
+}
+function closeWorkAssignModal() {
+    document.getElementById('workAssignModal').classList.add('hidden');
+}
+function updateWorkStatus(workId) {
+    alert('Update status for work ID: ' + workId);
+}
+
 </script>
 
 
