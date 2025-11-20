@@ -2036,131 +2036,320 @@
         </form>
     </div>
 </div>
-<!-- Work Assignments Tab Content -->
+<!-- ====================================================================== -->
+
+        <!-- ====================================================================== -->
+<!-- WORK ASSIGNMENTS TAB - SIMPLE LIKE MANAGER VIEW -->
+<!-- ====================================================================== -->
+
 <div id="work-assignments" class="tab-content hidden">
-    <div class="bg-white rounded-lg shadow-sm border border-gray-200">
-        <div class="px-6 py-4 border-b border-gray-200">
-            <h2 class="text-lg font-semibold text-gray-800">
-                <i class="fas fa-tasks text-indigo-600 mr-2"></i>Work Assignments Management
-            </h2>
-            <p class="text-sm text-gray-600 mt-1">Assign work to employees and view all assignments</p>
-        </div>
+    <div class="bg-white rounded-xl shadow-lg p-6">
         
-        <!-- Sub-tabs for Work Assignments -->
-        <div class="border-b border-gray-200">
-            <nav class="flex px-6" aria-label="Work Sub-tabs">
-                <button class="work-sub-tab-button active py-3 px-4 text-sm font-medium text-blue-600 border-b-2 border-blue-600" data-subtab="assign-work-hr">
-                    <i class="fas fa-plus mr-2"></i>Assign Work
-                </button>
-                <button class="work-sub-tab-button py-3 px-4 text-sm font-medium text-gray-500 border-b-2 border-transparent hover:text-gray-700 hover:border-gray-300" data-subtab="all-assignments-hr">
-                    <i class="fas fa-list mr-2"></i>All Assignments
-                    <span class="ml-1 bg-gray-100 text-gray-600 text-xs px-2 py-1 rounded-full">
-                        {{ work_assignments|length }}
-                    </span>
-                </button>
-            </nav>
+        <!-- Simple Header with Button -->
+        <div class="flex items-center justify-between mb-6">
+            <h2 class="text-2xl font-bold text-gray-800">
+                <i class="fas fa-tasks text-blue-600 mr-3"></i>
+                All Employee Work Status
+            </h2>
+            <button onclick="openHRAssignWorkModal()" 
+                    class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-semibold">
+                <i class="fas fa-plus mr-2"></i>Assign Work
+            </button>
         </div>
 
-        <div class="p-6">
-            <!-- Assign Work Sub-tab -->
-            <div id="assign-work-hr" class="work-sub-tab-content">
-                <form method="post" action="{{ url_for('hr_assign_work_action') }}" class="space-y-4">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Select Employees (Multiple Selection)</label>
-                        <div class="border border-gray-300 rounded-lg p-4 max-h-48 overflow-y-auto">
-                            {% for emp in all_employees %}
-                            <div class="flex items-center mb-2">
-                                <input type="checkbox" name="employees" value="{{ emp.username }}" id="hr_emp_{{ emp.username }}" 
-                                       class="h-4 w-4 text-blue-600 border-gray-300 rounded">
-                                <label for="hr_emp_{{ emp.username }}" class="ml-2 text-sm text-gray-700 cursor-pointer">
-                                    {{ emp.username }} ({{ emp.role }}) {% if emp.name %}- {{ emp.name }}{% endif %}
-                                </label>
+        <!-- Work Assignments Table -->
+        {% if work_assignments and work_assignments|length > 0 %}
+        <div class="overflow-x-auto rounded-lg border border-gray-200">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase">ID</th>
+                        <th class="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase">Employee</th>
+                        <th class="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase">Assigned By</th>
+                        <th class="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase">Project</th>
+                        <th class="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase">Task</th>
+                        <th class="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase">Jira Status</th>
+                        <th class="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase">Employee Status</th>
+                        <th class="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase">Timeline</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                    {% for work in work_assignments %}
+                    <tr class="hover:bg-gray-50">
+                        <td class="px-4 py-4 text-sm font-bold">#{{ work.id }}</td>
+                        
+                        <td class="px-4 py-4">
+                            <div class="flex items-center">
+                                <div class="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-semibold text-xs mr-2">
+                                    {{ work.assigned_to[0]|upper }}
+                                </div>
+                                <span class="text-sm font-medium">{{ work.assigned_to }}</span>
                             </div>
+                        </td>
+                        
+                        <td class="px-4 py-4 text-sm">{{ work.assigned_by }}</td>
+                        
+                        <td class="px-4 py-4">
+                            <span class="px-2 py-1 text-xs font-medium rounded bg-purple-100 text-purple-800">
+                                {{ work.project_name or '(non-project)' }}
+                            </span>
+                        </td>
+                        
+                        <td class="px-4 py-4 max-w-xs">
+                            <div class="text-sm text-gray-700 truncate">
+                                {{ work.task_desc[:50] }}{% if work.task_desc|length > 50 %}...{% endif %}
+                            </div>
+                        </td>
+                        
+                        <td class="px-4 py-4">
+                            {% if work.jira_issue_key %}
+                            <a href="https://sai8903.atlassian.net/browse/{{ work.jira_issue_key }}" target="_blank"
+                               class="px-2 py-1 text-xs font-semibold rounded inline-flex items-center hover:opacity-80"
+                               style="background-color: #{{ work.jira_status_color or '6B7280' }}20; color: #{{ work.jira_status_color or '6B7280' }};">
+                                <i class="fab fa-jira mr-1"></i>{{ work.jira_status or 'To Do' }}
+                            </a>
+                            {% else %}
+                            <span class="text-gray-400 text-xs">No Jira</span>
+                            {% endif %}
+                        </td>
+                        
+                        <td class="px-4 py-4">
+                            {% if work.employee_status %}
+                            <span class="px-2 py-1 text-xs font-semibold rounded
+                                {% if work.employee_status == 'Completed' %}bg-green-100 text-green-800
+                                {% elif work.employee_status == 'In Progress' %}bg-blue-100 text-blue-800
+                                {% elif work.employee_status == 'Blocked' %}bg-red-100 text-red-800
+                                {% else %}bg-gray-100 text-gray-800{% endif %}">
+                                {{ work.employee_status }}
+                            </span>
+                            {% else %}
+                            <span class="text-gray-400 text-xs">Not Updated</span>
+                            {% endif %}
+                        </td>
+                        
+                        <td class="px-4 py-4 text-xs text-gray-600">
+                            <div>Start: {{ work.start_date or 'N/A' }}</div>
+                            <div>Due: {{ work.due_date or 'No deadline' }}</div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="text-center py-12 bg-gray-50 rounded-lg">
+            <i class="fas fa-tasks text-gray-400 text-5xl mb-4"></i>
+            <p class="text-gray-500">No work assignments yet.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+
+
+
+
+<!-- JavaScript for Complete Dashboard Functionality -->
+
+
+
+
+
+
+<!-- ====================================================================== -->
+<!-- SIMPLE ASSIGN WORK MODAL -->
+<!-- ====================================================================== -->
+
+<script>
+function openHRAssignWorkModal() {
+    const modal = document.createElement('div');
+    modal.id = 'hrAssignWorkModal';
+    modal.className = 'fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4';
+    modal.innerHTML = `
+        <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] flex flex-col">
+            <div class="p-5 border-b flex items-center justify-between">
+                <h3 class="text-xl font-bold">Assign Work to Employees</h3>
+                <button onclick="closeHRAssignWorkModal()" class="text-gray-500 hover:text-gray-700">
+                    <i class="fas fa-times text-xl"></i>
+                </button>
+            </div>
+            
+            <div class="overflow-y-auto p-5">
+                <form method="post" action="/hr_assign_work_action" id="assignWorkForm">
+                    <div class="mb-4">
+                        <label class="block text-sm font-bold mb-2">Employees *</label>
+                        <select name="employees" multiple required size="6"
+                                class="w-full px-3 py-2 border rounded">
+                            {% for emp in all_employees_list %}
+                            <option value="{{ emp.username }}">{{ emp.name or emp.username }} - {{ emp.role }}</option>
                             {% endfor %}
-                        </div>
-                        <p class="text-xs text-gray-500 mt-2">Check multiple employees to assign the same work to all of them</p>
+                        </select>
+                        <p class="text-xs text-gray-500 mt-1">Hold Ctrl/Cmd to select multiple</p>
                     </div>
                     
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Project (Optional)</label>
-                        <select name="project_name" class="form-select w-full rounded-lg border-gray-300">
-                            <option value="">Select project (optional)</option>
-                            {% for project in all_projects %}
-                                <option value="{{ project.project_name }}">{{ project.project_name }}</option>
+                    <div class="mb-4">
+                        <label class="block text-sm font-bold mb-2">Project (Optional)</label>
+                        <select name="projectname" class="w-full px-3 py-2 border rounded">
+                            <option value="">-- No Project --</option>
+                            {% for proj in all_projects %}
+                            <option value="{{ proj.project_name }}">{{ proj.project_name }}</option>
                             {% endfor %}
                         </select>
                     </div>
                     
+                    <div class="mb-4">
+                        <label class="block text-sm font-bold mb-2">Task Description *</label>
+                        <textarea name="taskdesc" required rows="4" 
+                                  class="w-full px-3 py-2 border rounded"
+                                  placeholder="Describe the task..."></textarea>
+                    </div>
+                    
                     <div class="grid grid-cols-2 gap-4">
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Start Date</label>
-                            <input type="date" name="start_date" value="{{ today }}"
-                                   class="form-input w-full rounded-lg border-gray-300">
+                            <label class="block text-sm font-bold mb-2">Start Date</label>
+                            <input type="date" name="startdate" value="{{ today }}" class="w-full px-3 py-2 border rounded">
                         </div>
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Due Date</label>
-                            <input type="date" name="due_date"
-                                   class="form-input w-full rounded-lg border-gray-300">
+                            <label class="block text-sm font-bold mb-2">Due Date</label>
+                            <input type="date" name="duedate" class="w-full px-3 py-2 border rounded">
                         </div>
                     </div>
-                    
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Task Description</label>
-                        <textarea name="task_desc" rows="3" required placeholder="Describe the task to be completed..."
-                                  class="form-textarea w-full rounded-lg border-gray-300"></textarea>
-                    </div>
-                    
-                    <button type="submit" 
-                            class="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-4 rounded-lg transition-colors">
-                        <i class="fas fa-paper-plane mr-2"></i>Assign Work to Selected Employees
-                    </button>
                 </form>
             </div>
-
-            <!-- All Assignments Sub-tab -->
-            <div id="all-assignments-hr" class="work-sub-tab-content hidden">
-                {% if work_assignments %}
-                    <div class="overflow-x-auto">
-                        <table class="min-w-full divide-y divide-gray-200">
-                            <thead class="bg-gray-50">
-                                <tr>
-                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Assigner</th>
-                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Assignee</th>
-                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Project</th>
-                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
-                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Start Date</th>
-                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Due Date</th>
-                                    
-                                </tr>
-                            </thead>
-                            <tbody class="bg-white divide-y divide-gray-200">
-                                {% for assignment in work_assignments %}
-                                <tr class="hover:bg-gray-50">
-                                    <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">{{ assignment.assigned_by }}</td>
-                                    <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">{{ assignment.assigned_to }}</td>
-                                    <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">{{ assignment.project_name or 'N/A' }}</td>
-                                    <td class="px-4 py-4 text-sm text-gray-900 max-w-xs truncate">{{ assignment.work_description }}</td>
-                                    <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">{{ assignment.start_date or 'N/A' }}</td>
-                                    <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">{{ assignment.due_date or 'N/A' }}</td>
-                                    
-                                </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
-                    </div>
-                {% else %}
-                    <p class="text-gray-500 text-center py-8">No work assignments found.</p>
-                {% endif %}
+            
+            <div class="p-5 border-t flex gap-3">
+                <button type="submit" form="assignWorkForm"
+                        class="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 rounded font-semibold">
+                    Assign & Create Jira
+                </button>
+                <button onclick="closeHRAssignWorkModal()" 
+                        class="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-800 py-2 rounded font-semibold">
+                    Cancel
+                </button>
             </div>
         </div>
-    </div>
-     </div>
-    </div>
-    </div>
+    `;
+    document.body.appendChild(modal);
+}
 
-<!-- JavaScript for Complete Dashboard Functionality -->
-<script>
+function closeHRAssignWorkModal() {
+    const modal = document.getElementById('hrAssignWorkModal');
+    if (modal) modal.remove();
+}
 
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closeHRAssignWorkModal();
+});
+
+
+
+
+
+
+
+
+
+// Sync Jira status
+async function syncWorkJiraStatus(workId) {
+    if (!confirm('Sync Jira status for this work assignment?')) return;
+    
+    const button = event.target.closest('button');
+    button.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+    button.disabled = true;
+    
+    try {
+        const response = await fetch(`/syncjirastatus/${workId}`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'}
+        });
+        const result = await response.json();
+        
+        if (result.success) {
+            alert('✅ Jira status synced successfully!');
+            location.reload();
+        } else {
+            alert('❌ Error: ' + result.error);
+            button.innerHTML = '<i class="fas fa-sync-alt"></i>';
+            button.disabled = false;
+        }
+    } catch (error) {
+        alert('❌ Error syncing Jira status: ' + error);
+        button.innerHTML = '<i class="fas fa-sync-alt"></i>';
+        button.disabled = false;
+    }
+}
+
+// Show full task description
+function showFullTask(task) {
+    const modal = document.createElement('div');
+    modal.className = 'fixed inset-0 bg-gray-900 bg-opacity-70 z-50 flex items-center justify-center p-4';
+    modal.innerHTML = `
+        <div class="bg-white rounded-2xl shadow-2xl max-w-3xl w-full p-6">
+            <div class="flex items-center justify-between mb-4 pb-4 border-b">
+                <h3 class="text-xl font-bold text-gray-800">
+                    <i class="fas fa-file-alt text-blue-600 mr-2"></i>Full Task Description
+                </h3>
+                <button onclick="this.closest('.fixed').remove()" class="text-gray-400 hover:text-gray-600 p-2">
+                    <i class="fas fa-times text-2xl"></i>
+                </button>
+            </div>
+            <div class="bg-gray-50 rounded-xl p-5 max-h-96 overflow-y-auto">
+                <p class="text-gray-700 whitespace-pre-wrap leading-relaxed">${task}</p>
+            </div>
+            <div class="mt-5 flex justify-end">
+                <button onclick="this.closest('.fixed').remove()" 
+                        class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-semibold shadow-md">
+                    Close
+                </button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+}
+
+// Show progress notes
+function showWorkProgressNotes(employeeName, notes) {
+    const modal = document.createElement('div');
+    modal.className = 'fixed inset-0 bg-gray-900 bg-opacity-70 z-50 flex items-center justify-center p-4';
+    modal.innerHTML = `
+        <div class="bg-white rounded-2xl shadow-2xl max-w-3xl w-full p-6">
+            <div class="flex items-center justify-between mb-4 pb-4 border-b">
+                <h3 class="text-xl font-bold text-gray-800">
+                    <i class="fas fa-comment-dots text-blue-600 mr-2"></i>
+                    Progress Notes from ${employeeName}
+                </h3>
+                <button onclick="this.closest('.fixed').remove()" class="text-gray-400 hover:text-gray-600 p-2">
+                    <i class="fas fa-times text-2xl"></i>
+                </button>
+            </div>
+            <div class="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-5 max-h-96 overflow-y-auto border-l-4 border-blue-500">
+                <p class="text-gray-700 whitespace-pre-wrap leading-relaxed">${notes || 'No progress notes available.'}</p>
+            </div>
+            <div class="mt-5 flex justify-end">
+                <button onclick="this.closest('.fixed').remove()" 
+                        class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-semibold shadow-md">
+                    Close
+                </button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+}
+
+// View work details
+function viewWorkDetails(workId) {
+    // Implement detailed view if needed
+    alert('Work details view - ID: ' + workId);
+}
+
+// Close modals on ESC key
+document.addEventListener('keydown', function(event) {
+    if (event.key === 'Escape') {
+        closeHRAssignWorkModal();
+        const modals = document.querySelectorAll('.fixed.inset-0');
+        modals.forEach(modal => modal.remove());
+    }
+});
 
 // Edit Expense Function
 function editExpense(id, project, category, amount, date, description, documentPath) {
@@ -2944,6 +3133,58 @@ document.addEventListener('DOMContentLoaded', function() {
 .transition-colors {
     transition: background-color 0.15s ease-in-out, border-color 0.15s ease-in-out, color 0.15s ease-in-out;
 }
+
+
+/* Scrollbar styling for employee select */
+#hrEmployeeSelect {
+    scrollbar-width: thin;
+    scrollbar-color: #3B82F6 #F3F4F6;
+}
+
+#hrEmployeeSelect::-webkit-scrollbar {
+    width: 8px;
+}
+
+#hrEmployeeSelect::-webkit-scrollbar-track {
+    background: #F3F4F6;
+    border-radius: 4px;
+}
+
+#hrEmployeeSelect::-webkit-scrollbar-thumb {
+    background: #3B82F6;
+    border-radius: 4px;
+}
+
+#hrEmployeeSelect::-webkit-scrollbar-thumb:hover {
+    background: #2563EB;
+}
+
+#hrEmployeeSelect option {
+    padding: 8px 12px;
+}
+
+#hrEmployeeSelect option:hover {
+    background-color: #EFF6FF !important;
+}
+
+/* Scrollbar for modal content */
+#hrAssignWorkModal .overflow-y-auto::-webkit-scrollbar {
+    width: 10px;
+}
+
+#hrAssignWorkModal .overflow-y-auto::-webkit-scrollbar-track {
+    background: #F9FAFB;
+}
+
+#hrAssignWorkModal .overflow-y-auto::-webkit-scrollbar-thumb {
+    background: #D1D5DB;
+    border-radius: 5px;
+}
+
+#hrAssignWorkModal .overflow-y-auto::-webkit-scrollbar-thumb:hover {
+    background: #9CA3AF;
+}
+
 
 .overflow-x-auto {
     scrollbar-width: thin;
