@@ -28,7 +28,8 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from flask import jsonify  
 import json
-
+from flask import send_file, abort
+import os
 import requests
 from requests.auth import HTTPBasicAuth
 import json
@@ -13679,6 +13680,180 @@ def auto_check_and_migrate_tasks():
         print(f"⚠️  Could not check for unmigrated tasks: {e}")
 
 
+
+@app.route('/api/employee-details/<username>')
+def api_employee_details(username):
+    """API endpoint to fetch complete employee details for HR Finance"""
+    if 'username' not in session:
+        return jsonify({'error': 'Access denied - Please login'}), 403
+    
+    if session.get('role') != 'Hr & Finance Controller':
+        return jsonify({'error': 'Access denied - HR Finance privileges required'}), 403
+    
+    try:
+        from urllib.parse import unquote
+        import os
+        username_decoded = unquote(username)
+        
+        print(f"DEBUG: Fetching employee details for: '{username_decoded}'")
+        
+        # Query with documents_folder_path
+        query = """
+        SELECT 
+            u.username,
+            u.name,
+            u.email,
+            u.role,
+            u.status,
+            u.monthly_salary,
+            u.yearly_salary,
+            ed.joining_date,
+            ed.employment_type,
+            ed.blood_group,
+            ed.mobile_number,
+            ed.emergency_contact,
+            ed.id_card,
+            ed.id_card_provided,
+            ed.photo_url,
+            ed.linkedin_url,
+            ed.laptop_provided,
+            ed.email_provided,
+            ed.asset_details,
+            ed.duration,
+            ed.employmentid,
+            ed.documents_folder_path,
+            r.rm,
+            r.manager
+        FROM users u
+        LEFT JOIN employee_details ed ON u.username = ed.username
+        LEFT JOIN report r ON u.username = r.username
+        WHERE u.username = ?
+        """
+        
+        df = run_query(query, (username_decoded,))
+        
+        if df.empty:
+            return jsonify({'error': f'Employee not found: {username_decoded}'}), 404
+        
+        employee = df.to_dict('records')[0]
+        
+        # Map database columns
+        employee_mapped = {
+            'username': employee.get('username', ''),
+            'name': employee.get('name', ''),
+            'email': employee.get('email', ''),
+            'role': employee.get('role', ''),
+            'status': employee.get('status', ''),
+            'monthlysalary': float(employee.get('monthly_salary', 0)) if employee.get('monthly_salary') else 0,
+            'yearlysalary': float(employee.get('yearly_salary', 0)) if employee.get('yearly_salary') else 0,
+            'joiningdate': str(employee.get('joining_date', '')) if employee.get('joining_date') else '',
+            'employmenttype': employee.get('employment_type', ''),
+            'bloodgroup': employee.get('blood_group', ''),
+            'mobilenumber': employee.get('mobile_number', ''),
+            'emergencycontact': employee.get('emergency_contact', ''),
+            'idcard': employee.get('id_card', ''),
+            'idcardprovided': 'Yes' if employee.get('id_card_provided') in [1, True, '1'] else 'No',
+            'photourl': employee.get('photo_url', ''),
+            'linkedinurl': employee.get('linkedin_url', ''),
+            'laptopprovided': 'Yes' if employee.get('laptop_provided') in [1, True, '1'] else 'No',
+            'emailprovided': 'Yes' if employee.get('email_provided') in [1, True, '1'] else 'No',
+            'assetdetails': employee.get('asset_details', ''),
+            'duration': employee.get('duration', ''),
+            'employmentid': employee.get('employmentid', ''),
+            'documentsfolderpath': employee.get('documents_folder_path', ''),
+            'rm': employee.get('rm', ''),
+            'manager': employee.get('manager', '')
+        }
+        
+        # Handle None values
+        for key, value in employee_mapped.items():
+            if value is None or str(value) == 'None' or str(value) == 'nan' or str(value) == 'NaT':
+                employee_mapped[key] = '' if key not in ['monthlysalary', 'yearlysalary'] else 0
+        
+        # Check for documents
+        documents = []
+        if employee_mapped.get('documentsfolderpath'):
+            doc_folder = employee_mapped['documentsfolderpath']
+            if os.path.exists(doc_folder) and os.path.isdir(doc_folder):
+                try:
+                    for filename in os.listdir(doc_folder):
+                        filepath = os.path.join(doc_folder, filename)
+                        if os.path.isfile(filepath):
+                            size = os.path.getsize(filepath)
+                            documents.append({
+                                'name': filename,
+                                'size': size,
+                                'size_readable': f"{size / 1024:.2f} KB" if size < 1024*1024 else f"{size / (1024*1024):.2f} MB"
+                            })
+                except Exception as e:
+                    print(f"Error reading documents: {e}")
+        
+        return jsonify({
+            'success': True,
+            'employee': employee_mapped,
+            'documents': documents
+        })
+    
+    except Exception as e:
+        print(f"ERROR: Exception in api_employee_details: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': f'Server error: {str(e)}'}), 500
+
+
+@app.route('/download-document/<username>/<filename>')
+def download_document(username, filename):
+    """Download employee document"""
+    if 'username' not in session or session.get('role') != 'Hr & Finance Controller':
+        return "Access denied", 403
+    
+    try:
+        from urllib.parse import unquote
+        import os
+        username_decoded = unquote(username)
+        filename_decoded = unquote(filename)
+        
+        query = "SELECT documents_folder_path FROM employee_details WHERE username = ?"
+        df = run_query(query, (username_decoded,))
+        
+        if not df.empty and df.iloc[0]['documents_folder_path']:
+            doc_folder = df.iloc[0]['documents_folder_path']
+            file_path = os.path.join(doc_folder, filename_decoded)
+            
+            if os.path.exists(file_path):
+                return send_file(file_path, as_attachment=True)
+        
+        return "File not found", 404
+    except Exception as e:
+        print(f"Error: {e}")
+        return "Error downloading file", 500
+
+
+@app.route('/view-employee-photo/<username>')
+def view_employee_photo(username):
+    # Get the photo path for the user
+    try:
+        username = username.strip()
+        query = "SELECT photo_url FROM employee_details WHERE username = ?"
+        df = run_query(query, (username,))
+        if df.empty or not df.iloc[0]['photo_url']:
+            # No photo uploaded for user
+            abort(404)
+        photo_path = df.iloc[0]['photo_url']
+        if not os.path.exists(photo_path):
+            # DB points to missing file
+            abort(404)
+        # Optionally detect mime type
+        ext = os.path.splitext(photo_path)[1].lower()
+        mimetype = 'image/jpeg'
+        if ext == '.png':
+            mimetype = 'image/png'
+        elif ext == '.gif':
+            mimetype = 'image/gif'
+        return send_file(photo_path, mimetype=mimetype)
+    except Exception as e:
+        print(f"Photo error: {e}")
+        abort(404)
 
 def auto_check_and_migrate_tasks():
     """Check for tasks without Jira issues on startup"""
