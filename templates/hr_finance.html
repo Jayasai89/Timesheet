@@ -1,4 +1,3 @@
-
 {% extends "base.html" %}
 {% block content %}
 <div class="space-y-6">
@@ -1226,9 +1225,11 @@
                                                             onclick="editSalary('{{ salary.username }}', {{ salary.monthly_salary or 0 }}, {{ salary.yearly_salary or 0 }})">
                                                         <i class="fas fa-edit mr-1"></i>Edit
                                                     </button>
-                                                    <button class="text-green-600 hover:text-green-800 text-xs px-2 py-1 border border-green-200 rounded hover:bg-green-50 transition-colors" onclick="viewEmployeeDetails('{{ salary.username }}')">
-                                                        <i class="fas fa-eye mr-1"></i>View
-                                                    </button>
+<button onclick="viewEmployeeDetails('{{ salary.username }}')" 
+        class="text-green-600 hover:text-green-800 text-xs px-3 py-1.5 border border-green-200 rounded hover:bg-green-50 transition-colors">
+  <i class="fas fa-eye mr-1"></i>View
+</button>
+
                                                 </td>
                                             </tr>
                                             {% endfor %}
@@ -1245,6 +1246,34 @@
                     </div>
                 </div>
             </div>
+
+<div id="employeeDetailsModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+  <div class="bg-white rounded-xl w-full max-w-6xl max-h-[95vh] flex flex-col overflow-hidden shadow-2xl">
+
+    <!-- Modal Header: fixed at top -->
+    <div class="bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-4 flex justify-between items-center flex-shrink-0">
+      <h3 class="text-xl font-bold text-white flex items-center">
+        <i class="fas fa-user-circle mr-2"></i>Complete Employee Profile
+      </h3>
+      <button onclick="closeEmployeeDetailsModal()" 
+              class="text-white hover:text-gray-200 transition-colors">
+        <i class="fas fa-times text-2xl"></i>
+      </button>
+    </div>
+
+    <!-- Fixed Employee Info Section (populated by JS) -->
+    <div id="employeeBasicInfo" class="flex-shrink-0 bg-gradient-to-br from-blue-50 to-purple-50 px-6 py-4 border-b-2 border-blue-200"></div>
+
+    <!-- Scrollable Content Area -->
+    <div id="employeeDetailsContent" class="flex-1 overflow-y-auto p-6">
+      <div class="flex items-center justify-center py-12">
+        <i class="fas fa-spinner fa-spin text-4xl text-blue-500"></i>
+        <p class="ml-4 text-gray-600">Loading employee details...</p>
+      </div>
+    </div>
+  </div>
+</div>
+
 
             <!-- Asset Approvals Tab -->
             <div id="asset-approvals" class="tab-content hidden">
@@ -3066,6 +3095,140 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
+function viewEmployeeDetails(username) {
+    // Open modal
+    const modal = document.getElementById('employeeDetailsModal');
+    if (!modal) {
+        alert('Modal element not found!');
+        return;
+    }
+    modal.classList.remove('hidden');
+    document.getElementById('employeeBasicInfo').innerHTML = 
+        '<div class="flex items-center justify-center py-4">' +
+        '<i class="fas fa-spinner fa-spin text-2xl text-blue-500"></i>' +
+        '<p class="ml-3 text-gray-600">Loading...</p></div>';
+    document.getElementById('employeeDetailsContent').innerHTML = 
+        '<div class="flex items-center justify-center py-12">' +
+        '<i class="fas fa-spinner fa-spin text-4xl text-blue-500"></i>' +
+        '<p class="ml-4 text-gray-600">Loading employee details...</p></div>';
+
+    fetch('/api/employee-details/' + encodeURIComponent(username))
+      .then(res => res.ok ? res.json() : res.json().then(d => {throw new Error(d.error)}))
+      .then(data => {
+        const emp = data.employee || {};
+        const documents = data.documents || [];
+        const safe = t => t && t !== 'null' && t !== 'None' ? t : 'N/A';
+        // PHOTO BLOCK
+        const photoHtml =
+          emp.photourl && emp.photourl !== '' && emp.photourl !== 'None'
+            ? `<img src="/view-employee-photo/${encodeURIComponent(emp.username)}"
+                   alt="${safe(emp.name)}"
+                   class="w-24 h-24 rounded-full object-cover border-4 border-white shadow-lg"
+                   onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">
+               <div style="display:none;" class="w-24 h-24 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-3xl font-bold border-4 border-white shadow-lg">
+                 ${safe(emp.username?emp.username[0].toUpperCase():'?')}
+               </div>`
+            : `<div class="w-24 h-24 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-3xl font-bold border-4 border-white shadow-lg">
+                 ${safe(emp.username?emp.username[0].toUpperCase():'?')}
+               </div>`;
+
+        document.getElementById('employeeBasicInfo').innerHTML =
+          `<div class="flex items-center space-x-4">
+            <div class="flex-shrink-0">
+              ${photoHtml}
+            </div>
+            <div class="flex-1">
+              <h2 class="text-2xl font-bold text-gray-900">${safe(emp.name)}</h2>
+              <p class="text-md text-gray-600 mb-2">@${safe(emp.username)}</p>
+              <div class="flex flex-wrap gap-2">
+                <span class="inline-flex px-3 py-1 text-xs font-semibold bg-blue-100 text-blue-800 rounded-full">
+                  <i class="fas fa-briefcase mr-1"></i>${safe(emp.role)}
+                </span>
+                <span class="inline-flex px-3 py-1 text-xs font-semibold ${emp.status=='Active'?'bg-green-100 text-green-800':'bg-red-100 text-red-800'} rounded-full">
+                  <i class="fas fa-${emp.status=='Active'?'check-circle':'times-circle'} mr-1"></i>${safe(emp.status)}
+                </span>
+              </div>
+            </div>
+          </div>`;
+
+        document.getElementById('employeeDetailsContent').innerHTML = `<div class="space-y-6">
+          <div class="bg-white rounded-xl border border-gray-200 p-6">
+            <h3 class="text-lg font-bold text-gray-800 mb-4 flex items-center"><i class="fas fa-address-book text-blue-600 mr-2"></i>Contact Information</h3>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div><p class="text-xs text-gray-500">Email</p><p class="text-sm font-medium text-gray-900">${safe(emp.email)}</p></div>
+              <div><p class="text-xs text-gray-500">Mobile</p><p class="text-sm font-medium text-gray-900">${safe(emp.mobilenumber)}</p></div>
+              <div><p class="text-xs text-gray-500">Emergency Contact</p><p class="text-sm font-medium text-gray-900">${safe(emp.emergencycontact)}</p></div>
+              <div><p class="text-xs text-gray-500">LinkedIn</p>${emp.linkedinurl? `<a class="text-blue-600 underline" href="${emp.linkedinurl}" target="_blank">View</a>`:'N/A'}</div>
+            </div>
+          </div>
+          <div class="bg-white rounded-xl border border-gray-200 p-6">
+            <h3 class="text-lg font-bold text-gray-800 mb-4 flex items-center"><i class="fas fa-briefcase text-green-600 mr-2"></i>Employment Details</h3>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div class="bg-blue-50 rounded-lg p-4 border border-blue-200"><p class="text-xs text-blue-600">ID</p><p class="text-lg font-bold">${safe(emp.employmentid)}</p></div>
+              <div class="bg-green-50 rounded-lg p-4 border border-green-200"><p class="text-xs text-green-600">Joining Date</p><p class="text-lg font-bold">${safe(emp.joiningdate)}</p></div>
+              <div class="bg-purple-50 rounded-lg p-4 border border-purple-200"><p class="text-xs text-purple-600">Role</p><p class="text-lg font-bold">${safe(emp.role)}</p></div>
+            </div>
+          </div>
+          <div class="bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl border border-green-200 p-6">
+            <h3 class="text-lg font-bold text-gray-800 mb-4 flex items-center"><i class="fas fa-rupee-sign text-green-600 mr-2"></i>Salary Information</h3>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div class="bg-white rounded-lg p-6 border border-green-100"><p class="text-sm text-gray-600">Monthly Salary</p><p class="text-3xl font-bold text-green-600">₹${emp.monthlysalary ? parseFloat(emp.monthlysalary).toFixed(2) : "0.00"}</p></div>
+              <div class="bg-white rounded-lg p-6 border border-blue-100"><p class="text-sm text-gray-600">Yearly Salary</p><p class="text-3xl font-bold text-blue-600">₹${emp.yearlysalary ? parseFloat(emp.yearlysalary).toFixed(2) : "0.00"}</p></div>
+            </div>
+          </div>
+          <!-- Documents Section -->
+          <div class="bg-white rounded-xl border border-gray-200 p-6">
+            <h3 class="text-lg font-bold text-gray-800 mb-4 flex items-center"><i class="fas fa-folder-open text-orange-600 mr-2"></i>Employee Documents</h3>
+            ${documents.length>0 ? 
+              `<div class="space-y-2">${
+                documents.map(doc => `
+                  <div class="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-200">
+                    <div class="flex items-center space-x-3">
+                      <i class="fas fa-file-pdf text-red-500 text-2xl"></i>
+                      <div><p class="text-sm font-semibold text-gray-900">${doc.name}</p><p class="text-xs text-gray-500">${doc.size_readable}</p></div>
+                    </div>
+                    <a href="/download-document/${encodeURIComponent(username)}/${encodeURIComponent(doc.name)}" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-xs font-semibold"><i class="fas fa-download mr-1"></i>Download</a>
+                  </div>
+                `).join('')
+              }</div>`
+              : `<div class="text-center py-8 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300"><i class="fas fa-folder-open text-4xl text-gray-300 mb-3"></i><p class="text-gray-500 font-medium">No documents uploaded</p></div>`
+            }
+          </div>
+        </div>`;
+      })
+      .catch(error => {
+        document.getElementById('employeeBasicInfo').innerHTML = '';
+        document.getElementById('employeeDetailsContent').innerHTML =
+          `<div class="text-center py-12"><i class="fas fa-exclamation-triangle text-5xl text-red-500 mb-4"></i>
+          <p class="text-red-600 text-lg font-bold mb-2">Error Loading Employee Details</p>
+          <p class="text-gray-600 mb-4">${error.message}</p>
+          <button onclick="closeEmployeeDetailsModal()" class="bg-gray-500 hover:bg-gray-600 text-white py-2 px-6 rounded-lg"><i class="fas fa-times mr-1"></i>Close</button></div>`;
+      });
+}
+// Add this function to enable closing the modal (X button and background/esc)
+function closeEmployeeDetailsModal() {
+    const modal = document.getElementById('employeeDetailsModal');
+    if (modal) {
+        modal.classList.add('hidden');
+    }
+}
+
+// Optional: allow closing on click outside or ESC
+document.addEventListener('click', function(e) {
+    const modal = document.getElementById('employeeDetailsModal');
+    if (modal && e.target === modal) {
+        closeEmployeeDetailsModal();
+    }
+});
+
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+        closeEmployeeDetailsModal();
+    }
+});
+
+
+
 </script>
 
 <style>
@@ -3252,6 +3415,16 @@ tbody tr:hover {
         font-size: 0.75rem;
     }
 }
+
+#employeeDetailsContent {
+  scroll-behavior: smooth;
+  max-height: calc(95vh - 200px);   /* Adjust this if your header + info block is taller/shorter */
+}
+#employeeDetailsContent::-webkit-scrollbar { width: 10px; }
+#employeeDetailsContent::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 10px; }
+#employeeDetailsContent::-webkit-scrollbar-thumb { background: linear-gradient(180deg, #667eea 0%, #764ba2 100%); border-radius: 10px; }
+#employeeDetailsContent::-webkit-scrollbar-thumb:hover { background: linear-gradient(180deg, #5568d3 0%, #653a8a 100%); }
+
 </style>
 </div>
 </div>
