@@ -246,65 +246,48 @@ def get_user_role(username: str) -> str:
 
 # --------------------
 def create_jira_issue(summary, description, assignee_email=None, project_key=JIRA_PROJECT_KEY):
-    """Create a new Jira issue"""
-    try:
-        url = f"{JIRA_URL}/rest/api/3/issue"
-        
-        payload = {
-            "fields": {
-                "project": {
-                    "key": project_key
-                },
-                "summary": summary,
-                "description": {
-                    "type": "doc",
-                    "version": 1,
-                    "content": [
-                        {
-                            "type": "paragraph",
-                            "content": [
-                                {
-                                    "type": "text",
-                                    "text": description
-                                }
-                            ]
-                        }
-                    ]
-                },
-                "issuetype": {
-                    "name": "Task"
-                }
-            }
+    url = f"{JIRA_URL}/rest/api/3/issue"
+    payload = {
+        "fields": {
+            "project": {"key": project_key},
+            "summary": summary,
+            "description": {
+                "type": "doc",
+                "version": 1,
+                "content": [
+                    {
+                        "type": "paragraph",
+                        "content": [
+                            {"type": "text", "text": description}
+                        ]
+                    }
+                ]
+            },
+            "issuetype": {"name": "Task"}
         }
-        
-        # Add assignee if provided
-        if assignee_email:
-            # Get Jira account ID from email
-            account_id = get_jira_account_id(assignee_email)
-            if account_id:
-                payload["fields"]["assignee"] = {"accountId": account_id}
-        
-        response = requests.post(
-            url,
-            data=json.dumps(payload),
-            headers=JIRA_HEADERS,
-            auth=JIRA_AUTH
-        )
-        
-        if response.status_code in [200, 201]:
-            issue_data = response.json()
-            return {
-                "success": True,
-                "issue_key": issue_data["key"],
-                "issue_id": issue_data["id"]
-            }
-        else:
-            print(f"Jira API Error: {response.status_code} - {response.text}")
-            return {"success": False, "error": response.text}
-            
-    except Exception as e:
-        print(f"Error creating Jira issue: {str(e)}")
-        return {"success": False, "error": str(e)}
+    }
+    if assignee_email:
+        account_id = get_jira_account_id(assignee_email)
+        if account_id:
+            payload["fields"]["assignee"] = {"accountId": account_id}
+
+    response = requests.post(url, data=json.dumps(payload), headers=JIRA_HEADERS, auth=JIRA_AUTH)
+    print(response.text)
+    if response.status_code in [200, 201]:
+        issue_data = response.json()
+        return {
+            "success": True,
+            "issue_key": issue_data["key"],
+            "issue_id": issue_data["id"]
+        }
+    else:
+        print(f"Jira API Error: {response.status_code} - {response.text}")
+        return {"success": False, "error": response.text}
+
+
+
+
+
 
 def get_jira_account_id(email):
     """Get Jira account ID from email"""
@@ -4640,134 +4623,144 @@ This is an automated notification from the Timesheet & Leave Management System."
 
 @app.route('/assign_project_multiple_action', methods=['POST'])
 def assign_project_multiple_action():
-    """Assign project to multiple employees - Works with existing table structure"""
+    """Assign project to multiple employees using project_assignments table"""
     if 'username' not in session:
         return redirect(url_for('login_sso'))
-    
+
     user = session['username']
     employee_usernames = request.form.getlist('employees')
-    project_name = request.form.get('projectname', '').strip()
+    project_name = (request.form.get('projectname') or '').strip()
     start_date = request.form.get('startdate')
     end_date = request.form.get('enddate')
-    assignment_notes = request.form.get('assignmentnotes', '').strip()
-    
-    print(f"\n{'='*60}")
-    print(f"📁 PROJECT ASSIGNMENT")
-    print(f"{'='*60}")
+    assignment_notes = (request.form.get('assignmentnotes') or '').strip()
+
+    print("\n" + "=" * 60)
+    print("📁 PROJECT ASSIGNMENT")
+    print("=" * 60)
     print(f"👤 Assigned By: {user}")
     print(f"👥 Employees: {employee_usernames}")
     print(f"📁 Project: {project_name}")
     print(f"📅 Start: {start_date}, End: {end_date}")
-    print(f"{'='*60}\n")
-    
+    print("=" * 60 + "\n")
+
     if not employee_usernames or not project_name or not start_date or not end_date:
         flash('Please select employees, project, and dates.', 'error')
         return redirect(url_for('dashboard'))
-    
-    # Get project_id from project_name
-    project_query = run_query("""
-        SELECT project_id, cost_center FROM projects WHERE project_name = ?
-    """, (project_name,))
-    
+
+    # Use REAL column names from your schema: project_id, project_name, cost_center
+    project_query = run_query(
+        """
+        SELECT project_id, cost_center
+        FROM projects
+        WHERE project_name = ?
+        """,
+        (project_name,)
+    )
+
     if project_query.empty:
         flash(f'❌ Project "{project_name}" not found in the projects table.', 'error')
         return redirect(url_for('dashboard'))
-    
-    project_id = project_query.iloc[0]['project_id']
-    cost_center = project_query.iloc[0]['cost_center'] if 'cost_center' in project_query.columns else 'General'
-    
+
+    project_id = int(project_query.iloc[0]['project_id'])
+    cost_center = project_query.iloc[0]['cost_center'] or 'General'
+
     print(f"✅ Found project - ID: {project_id}, Cost Center: {cost_center}\n")
-    
+
     success_count = 0
     failed_employees = []
-    
+
     for employee in employee_usernames:
         try:
-            print(f"📝 Processing: {employee}")
-            
-            # Get employee details for email
-            emp_details = run_query("""
-                SELECT email, name 
-                FROM users 
-                WHERE username = ?
-            """, (employee,))
-            
+            print(f"📝 Processing employee: {employee}")
+
+            # Employee details for email
+            emp_details = run_query(
+                "SELECT email, name FROM users WHERE username = ?",
+                (employee,)
+            )
             emp_email = emp_details.iloc[0]['email'] if not emp_details.empty else None
             emp_name = emp_details.iloc[0]['name'] if not emp_details.empty else employee
-            
-            # Check if already assigned
-            existing = run_query("""
-                SELECT * FROM project_assignments 
+
+            # Check if already assigned (project_assignments table, project_id / assigned_to)
+            existing = run_query(
+                """
+                SELECT *
+                FROM project_assignments
                 WHERE project_id = ? AND assigned_to = ?
-            """, (project_id, employee))
-            
+                """,
+                (project_id, employee)
+            )
             if not existing.empty:
                 print(f"   ⚠️ {employee} already assigned to this project")
                 failed_employees.append(f"{employee} (already assigned)")
                 continue
-            
-            # INSERT INTO project_assignments
-            ok = run_exec("""
-                INSERT INTO project_assignments 
-                (project_id, assigned_by, assigned_to, project_name, 
-                 assigned_on, assignment_end_date, cost_center)
+
+            # Insert into project_assignments with correct column names
+            ok = run_exec(
+                """
+                INSERT INTO project_assignments
+                    (project_id, assigned_to, assigned_on,
+                     assignment_end_date, project_name,
+                     assigned_by, cost_center)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
-            """, (project_id, user, employee, project_name, 
-                  start_date, end_date, cost_center))
-            
+                """,
+                (
+                    project_id,
+                    employee,
+                    start_date,
+                    end_date,
+                    project_name,
+                    user,
+                    cost_center,
+                )
+            )
+
             if ok:
                 success_count += 1
                 print(f"   ✅ Assignment created for {employee}")
-                
-                # SEND EMAIL NOTIFICATION
+
                 if emp_email:
                     subject = f"New Project Assignment - {project_name}"
-                    text_content = f"""Dear {emp_name},
-
-You have been assigned to a new project by your Manager {user}.
-
-Project Assignment Details:
-━━━━━━━━━━━━━━━━━━━━
-• Assigned by: {user}
-• Project Name: {project_name}
-• Project ID: {project_id}
-• Cost Center: {cost_center}
-• Start Date: {start_date}
-• End Date: {end_date}
-• Notes: {assignment_notes or 'No additional notes'}
-
-Please log in to your dashboard to view the complete project details.
-
-🔗 Dashboard: https://nexus.chervicaon.com
-
-This is an automated notification from the Timesheet & Leave Management System."""
-                    
+                    text_content = (
+                        f"Dear {emp_name},\n\n"
+                        f"You have been assigned to a new project by your Manager {user}.\n\n"
+                        "Project Assignment Details:\n"
+                        f"- Assigned by: {user}\n"
+                        f"- Project Name: {project_name}\n"
+                        f"- Project ID: {project_id}\n"
+                        f"- Cost Center: {cost_center}\n"
+                        f"- Start Date: {start_date}\n"
+                        f"- End Date: {end_date}\n"
+                        f"- Notes: {assignment_notes or 'No additional notes'}\n\n"
+                        "Please log in to your dashboard to view the complete project details.\n\n"
+                        "Dashboard: https://nexus.chervicaon.com\n\n"
+                        "This is an automated notification from the Timesheet & Leave Management System."
+                    )
                     send_email(emp_email, subject, text_content)
                     print(f"   📧 Email sent to {emp_email}")
             else:
                 failed_employees.append(employee)
                 print(f"   ❌ Failed to create assignment for {employee}")
-                
+
         except Exception as e:
-            print(f"❌ Error: {employee} - {e}")
+            print(f"❌ Error assigning project to {employee}: {e}")
             import traceback
             traceback.print_exc()
             failed_employees.append(employee)
-    
-    # Summary
-    print(f"\n{'='*60}")
+
+    print("\n" + "=" * 60)
     print(f"✅ Successful: {success_count}")
     print(f"❌ Failed: {len(failed_employees)}")
-    print(f"{'='*60}\n")
-    
-    # Flash messages
+    print("=" * 60 + "\n")
+
     if success_count > 0:
         flash(f"✅ Project '{project_name}' assigned successfully to {success_count} employees.", "success")
-    
     if failed_employees:
         flash(f"❌ Failed to assign project to: {', '.join(failed_employees)}", "error")
-    
+
     return redirect(url_for('dashboard'))
+
+
 
 
 @app.route('/manager_assign_work_action', methods=['POST'])
@@ -4775,154 +4768,144 @@ def manager_assign_work_action():
     """Manager assigns work to team members WITH FULL JIRA INTEGRATION"""
     if 'username' not in session:
         return redirect(url_for('login_sso'))
-    
+
     user = session['username']
-    
-    # HANDLE BOTH MULTI-SELECT AND COMMA-SEPARATED INPUT
-    assignees_list = request.form.getlist('assignees_raw')  # Get as list from multi-select
-    if not assignees_list:
-        # Fallback to comma-separated string
-        assignees_raw = request.form.get('assignees_raw', '')
-        assignees = [name.strip() for name in assignees_raw.split(',') if name.strip()]
+
+    # 1) Read both variants from form
+    assignees_list = request.form.getlist('assignees_raw')  # multi-select sends multiple values
+    assignees_raw = request.form.get('assignees_raw', '')   # text (comma-separated) fallback
+
+    # 2) Normalise to a single Python list
+    if assignees_list:
+        assignees = [a.strip() for a in assignees_list if a.strip()]
     else:
-        assignees = assignees_list
-    
+        assignees = [name.strip() for name in assignees_raw.split(',') if name.strip()]
+
     project = request.form.get('project', '')
     start_date = request.form.get('start_d')
     due_date = request.form.get('due_d')
-    description = request.form.get('desc')
-    
-    print(f"\n{'='*60}")
-    print(f"🚀 MANAGER WORK ASSIGNMENT WITH JIRA INTEGRATION")
-    print(f"{'='*60}")
+    description = (request.form.get('desc') or '').strip()
+
+    print("\n" + "="*60)
+    print("🚀 MANAGER WORK ASSIGNMENT WITH JIRA INTEGRATION")
+    print("="*60)
     print(f"👤 Assigned By: {user}")
     print(f"👥 Employees: {assignees}")
     print(f"📁 Project: {project or '(non-project)'}")
     print(f"📝 Task: {description[:100] if description else 'No description'}...")
-    print(f"{'='*60}\n")
-    
-    
+    print("="*60 + "\n")
 
-    
-    if not assignees_raw or not description:
+    # 3) Validate using the final list
+    if not assignees or not description:
         flash("Please select team members and provide task description.", "error")
         return redirect(url_for('dashboard'))
-    
-    # Parse assignees (comma-separated names)
-    assignees = [name.strip() for name in assignees_raw.split(',') if name.strip()]
-    print(f"📋 Parsed Assignees: {assignees}")
-    
+
     success_count = 0
     failed_employees = []
     jira_issues_created = []
-    
+
     for assignee in assignees:
         try:
             print(f"\n📝 Processing assignment for: {assignee}")
-            
+
             # Get employee email and name for Jira
-            emp_details = run_query("""
-                SELECT email, name 
-                FROM users 
-                WHERE username = ?
-            """, (assignee,))
-            
+            emp_details = run_query(
+                "SELECT email, name FROM users WHERE username = ?",
+                (assignee,)
+            )
             emp_email = emp_details.iloc[0]['email'] if not emp_details.empty else None
             emp_name = emp_details.iloc[0]['name'] if not emp_details.empty else assignee
-            
+
             print(f"   📧 Email: {emp_email}")
             print(f"   👤 Name: {emp_name}")
-            
-            # CREATE JIRA ISSUE
+
+            # Create Jira issue
             jira_summary = f"{project or '(non-project)'} - {emp_name}"
-            jira_description = f"""Task Assignment from Manager
+            jira_description = (
+                "Task Assignment from Manager\n\n"
+                f"Assigned To: {emp_name} ({assignee})\n"
+                f"Assigned By: {user} (Manager)\n"
+                f"Project: {project or 'General Task'}\n"
+                f"Start Date: {start_date or 'Not specified'}\n"
+                f"Due Date: {due_date or 'No deadline'}\n\n"
+                "Task Description:\n"
+                f"{description}\n\n"
+                "---\n"
+                "This task was automatically created from the Timesheet Management System.\n"
+                "Dashboard: https://nexus.chervicaon.com"
+            )
 
-Assigned To: {emp_name} ({assignee})
-Assigned By: {user} (Manager)
-Project: {project or 'General Task'}
-Start Date: {start_date or 'Not specified'}
-Due Date: {due_date or 'No deadline'}
-
-Task Description:
-{description}
-
----
-This task was automatically created from the Timesheet Management System.
-Dashboard: https://nexus.chervicaon.com"""
-            
             print(f"   🔄 Creating Jira issue: {jira_summary}")
-            
+
             jira_result = create_jira_issue(
                 summary=jira_summary,
                 description=jira_description,
                 assignee_email=emp_email
             )
-            
+
             jira_issue_key = jira_result.get("issue_key") if jira_result.get("success") else None
             jira_status = "To Do" if jira_result.get("success") else None
             jira_status_color = "6B7280" if jira_result.get("success") else None
-            
+
             if jira_result.get("success"):
                 print(f"   ✅ Jira issue created: {jira_issue_key}")
                 jira_issues_created.append({
-                    'employee': assignee,
-                    'issue_key': jira_issue_key,
-                    'url': f"{JIRA_URL}/browse/{jira_issue_key}"
+                    "employee": assignee,
+                    "issue_key": jira_issue_key,
+                    "url": f"{JIRA_URL}/browse/{jira_issue_key}",
                 })
             else:
                 print(f"   ⚠️ Jira creation failed: {jira_result.get('error', 'Unknown error')}")
-            
-            # INSERT INTO DATABASE WITH JIRA INFO
-            ok = run_exec("""
-                INSERT INTO assigned_work 
-                (assigned_by, assigned_to, project_name, task_desc, start_date, due_date, 
-                 assigned_on, manager_status, rm_status, work_type,
-                 jira_issue_key, jira_status, jira_status_color, 
-                 employee_status, last_updated)
+
+            # Insert into DB
+            ok = run_exec(
+                """
+                INSERT INTO assigned_work
+                    (assigned_by, assigned_to, project_name, task_desc, start_date, due_date,
+                     assigned_on, manager_status, rm_status, work_type,
+                     jira_issue_key, jira_status, jira_status_color,
+                     employee_status, last_updated)
                 VALUES (?, ?, ?, ?, ?, ?, GETDATE(), 'Pending', 'Approved', 'Task Assignment',
                         ?, ?, ?, 'Not Started', GETDATE())
-            """, (user, assignee, project, description, start_date, due_date,
-                  jira_issue_key, jira_status, jira_status_color))
-            
+                """,
+                (user, assignee, project, description, start_date, due_date,
+                 jira_issue_key, jira_status, jira_status_color),
+            )
+
             if ok:
                 success_count += 1
-                print(f"   💾 Database entry created successfully")
-                
-                # SEND EMAIL NOTIFICATION WITH JIRA LINK
+                print("   💾 Database entry created successfully")
                 if emp_email:
                     subject = f"New Work Assignment - {assignee}"
-                    jira_link = f"\n\n🎫 View in Jira: {JIRA_URL}/browse/{jira_issue_key}" if jira_issue_key else ""
-                    text_content = f"""Dear {emp_name},
-
-You have been assigned new work by your Manager {user}.
-
-Assignment Details:
-━━━━━━━━━━━━━━━━━━━━
-• Assigned by: {user} (Manager)
-• Project: {project or 'General Task'}
-• Task: {description[:200]}
-• Start Date: {start_date or 'Not specified'}
-• Due Date: {due_date or 'No deadline'}
-• Jira Issue: {jira_issue_key or 'Not created'}
-{jira_link}
-
-Please log in to your dashboard to view the complete assignment details and update status as you progress.
-
-🔗 Dashboard: https://nexus.chervicaon.com
-
-This is an automated notification from the Timesheet & Leave Management System."""
-                    
+                    jira_link = f"\n\nView in Jira: {JIRA_URL}/browse/{jira_issue_key}" if jira_issue_key else ""
+                    text_content = (
+                        f"Dear {emp_name},\n\n"
+                        f"You have been assigned new work by your Manager {user}.\n\n"
+                        "Assignment Details:\n"
+                        f"- Assigned by: {user} (Manager)\n"
+                        f"- Project: {project or 'General Task'}\n"
+                        f"- Task: {description[:200]}\n"
+                        f"- Start Date: {start_date or 'Not specified'}\n"
+                        f"- Due Date: {due_date or 'No deadline'}\n"
+                        f"- Jira Issue: {jira_issue_key or 'Not created'}{jira_link}\n\n"
+                        "Please log in to your dashboard to view the complete assignment details and "
+                        "update status as you progress.\n\n"
+                        "Dashboard: https://nexus.chervicaon.com\n\n"
+                        "This is an automated notification from the Timesheet & Leave Management System."
+                    )
                     send_email(emp_email, subject, text_content)
-                    print(f"   📧 Email notification sent")
+                    print("   📧 Email notification sent")
             else:
                 failed_employees.append(assignee)
-                print(f"   ❌ Database insertion failed")
-                
+                print("   ❌ Database insertion failed")
+
         except Exception as e:
             print(f"   ❌ Error assigning to {assignee}: {e}")
             import traceback
             traceback.print_exc()
             failed_employees.append(assignee)
+
+
     
     # SUMMARY
     print(f"\n{'='*60}")
@@ -6001,9 +5984,10 @@ def update_total_budget_action():
 @app.route('/hr_assign_work_action', methods=['POST'])
 def hr_assign_work_action():
     """HR Finance assigns work to multiple employees WITH FULL JIRA INTEGRATION"""
-    if 'username' not in session or session['role'] != 'Hr Finance Controller':
-        flash('Access denied. HR Finance Controller privileges required.', 'error')
+    if 'username' not in session or session['role'] != 'Hr & Finance Controller':
+        flash("Access denied. HR & Finance Controller privileges required.")
         return redirect(url_for('dashboard'))
+
     
     user = session['username']
     
@@ -9477,42 +9461,49 @@ def view_team_member_details(username):
 
 @app.route('/edit_project_hr', methods=['POST'])
 def edit_project_hr():
-    """Edit project details (HR Finance)"""
-    if 'username' not in session or session['role'] != 'Hr & Finance Controller':
-        flash(" Access denied. HR & Finance Controller privileges required.")
+    """Edit project details (HR & Finance)"""
+    if 'username' not in session or session.get('role') != 'Hr & Finance Controller':
+        flash("Access denied. HR & Finance Controller privileges required.")
         return redirect(url_for('dashboard'))
-    
-    project_id = request.form.get('project_id')
+
+    # Only use name as key
     project_name = request.form.get('project_name')
     description = request.form.get('description')
     cost_center = request.form.get('cost_center')
     end_date = request.form.get('end_date')
     budget_amount = request.form.get('budget_amount')
-    
-    if not project_id or not project_name:
-        flash(" Project ID and name are required.")
+
+    if not project_name:
+        flash("Project name is required.")
         return redirect(url_for('dashboard'))
-    
+
     try:
-        # Update project details
-        ok = run_exec("""
-            UPDATE projects 
-            SET project_name = ?, description = ?, cost_center = ?, end_date = ?, budget_amount = ?
-            WHERE project_id = ?
-        """, (project_name, description, cost_center, end_date, 
-              float(budget_amount) if budget_amount else None, int(project_id)))
-        
+        ok = run_exec(
+            """
+            UPDATE projects
+            SET description = ?, cost_center = ?, end_date = ?, budget_amount = ?
+            WHERE project_name = ?
+            """,
+            (
+                description,
+                cost_center,
+                end_date,
+                float(budget_amount) if budget_amount else None,
+                project_name,
+            ),
+        )
+
         if ok:
-            flash(f" Project '{project_name}' updated successfully.")
+            flash(f"Project '{project_name}' updated successfully.")
         else:
-            flash(" Failed to update project.")
-    
+            flash("Failed to update project.")
     except ValueError:
-        flash(" Invalid budget amount.")
+        flash("Invalid budget amount.")
     except Exception as e:
-        flash(f" Error updating project: {str(e)}")
-    
+        flash(f"Error updating project: {str(e)}")
+
     return redirect(url_for('dashboard'))
+
 
 @app.route('/delete_project_hr', methods=['POST'])
 def delete_project_hr():
