@@ -37,7 +37,7 @@ import json
 # Jira Configuration
 JIRA_URL = "https://sai8903.atlassian.net"  # Your Jira URL from the screenshot
 JIRA_EMAIL = "chowdarysai955@gmail.com"
-JIRA_API_TOKEN = "ATATT3xFfGF0xs0c6oAf4eKHnNXMy9IM8ytFcQOSHj7_MAbhmuOt3ZcpkieHG9FVnMVdF0qcyTAUJS5PQpAWEiJFWI2s3KJpAPjfmHcQps2lGxTNau7mONvtn7yD2YiLE2iriCkr9uoRbEX1w-se6-bncIB775c1HVcerbGBWkcz1RRwDy0x6UI=3188705F"
+JIRA_API_TOKEN = "ATATT3xFfGF0tkPn91938Bo8Z1uyqGnCw_q4CfR6AMxTAfWno3fxSxlYQdVCy5WjCqsST9NxxqgnS9QPIHCr_bLuV4BrsdmqfT-LJV-W35Hz-cUeBcEp9QxhSFrUL9Z4ScTti0S7rnA7eDAmw1oep7uMSsbHi-paDqR0eLiCOidr-ShGp6ee1E8=E4CBDDC5"
 JIRA_PROJECT_KEY = "TIM"  # From your screenshot
   # From your screenshot
 JIRA_AUTH = HTTPBasicAuth(JIRA_EMAIL, JIRA_API_TOKEN)
