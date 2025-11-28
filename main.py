@@ -245,6 +245,10 @@ def get_user_role(username: str) -> str:
     return None
 
 # --------------------
+# --------------------
+# Jira helpers
+# --------------------
+
 def create_jira_issue(summary, description, assignee_email=None, project_key=JIRA_PROJECT_KEY):
     url = f"{JIRA_URL}/rest/api/3/issue"
     payload = {
@@ -271,9 +275,15 @@ def create_jira_issue(summary, description, assignee_email=None, project_key=JIR
         if account_id:
             payload["fields"]["assignee"] = {"accountId": account_id}
 
-    response = requests.post(url, data=json.dumps(payload), headers=JIRA_HEADERS, auth=JIRA_AUTH)
-    print(response.text)
-    if response.status_code in [200, 201]:
+    response = requests.post(
+        url,
+        data=json.dumps(payload),
+        headers=JIRA_HEADERS,
+        auth=JIRA_AUTH
+    )
+    print("CREATE ISSUE", response.status_code, response.text)
+
+    if response.status_code in (200, 201):
         issue_data = response.json()
         return {
             "success": True,
@@ -285,97 +295,153 @@ def create_jira_issue(summary, description, assignee_email=None, project_key=JIR
         return {"success": False, "error": response.text}
 
 
-
-
-
-
 def get_jira_account_id(email):
     """Get Jira account ID from email"""
     try:
         url = f"{JIRA_URL}/rest/api/3/user/search"
         params = {"query": email}
-        
+
         response = requests.get(
             url,
             params=params,
             headers=JIRA_HEADERS,
             auth=JIRA_AUTH
         )
-        
+        print("USER SEARCH", response.status_code, response.text)
+
         if response.status_code == 200:
             users = response.json()
-            if users and len(users) > 0:
+            if users:
                 return users[0]["accountId"]
         return None
     except Exception as e:
         print(f"Error getting Jira account ID: {str(e)}")
         return None
 
-def update_jira_issue_status(issue_key, status_name):
-    """Update Jira issue status via transition"""
+
+# Map your internal employee statuses to Jira status names
+APP_TO_JIRA_STATUS = {
+    "Not Started": "Backlog",
+    "In Progress": "In Progress",
+    "On Hold": "Selected for Development",
+    "Completed": "Done",
+    "Blocked": "Selected for Development",
+}
+
+
+
+def check_issue_exists(issue_key):
+    """Return True if Jira issue is visible to the API user."""
+    url = f"{JIRA_URL}/rest/api/3/issue/{issue_key}"
+    resp = requests.get(url, headers=JIRA_HEADERS, auth=JIRA_AUTH)
+    print("CHECK ISSUE", issue_key, resp.status_code, resp.text)
+    return resp.status_code == 200
+
+
+def update_jira_issue_status(issue_key, app_status):
+    """
+    Update Jira issue status via transition.
+    app_status is your internal status (Not Started / In Progress / Completed / …).
+    """
     try:
-        # Get available transitions
+        # First verify issue exists and is visible
+        if not check_issue_exists(issue_key):
+            return {
+                "success": False,
+                "error": f"Issue {issue_key} does not exist or cannot be seen by API user"
+            }
+
+        # Map to Jira status name
+        jira_status = APP_TO_JIRA_STATUS.get(app_status, app_status)
+        desired = jira_status.lower()
+        print(
+            f"Updating Jira issue {issue_key} "
+            f"to app_status='{app_status}' -> jira_status='{jira_status}'"
+        )
+
         transitions_url = f"{JIRA_URL}/rest/api/3/issue/{issue_key}/transitions"
+
+        # Get available transitions
         response = requests.get(
             transitions_url,
             headers=JIRA_HEADERS,
             auth=JIRA_AUTH
         )
-        
+        print("TRANSITIONS GET", response.status_code, response.text)
+
         if response.status_code != 200:
-            return {"success": False, "error": "Could not fetch transitions"}
-        
-        transitions = response.json()["transitions"]
-        
-        # Find the transition ID for the desired status
+            return {
+                "success": False,
+                "error": f"Could not fetch transitions: {response.status_code}"
+            }
+
+        data = response.json()
+        transitions = data.get("transitions", [])
+        print("Available transitions:")
+        for t in transitions:
+            print(
+                " id=", t.get("id"),
+                " name=", t.get("name"),
+                " to.name=", t.get("to", {}).get("name")
+            )
+
+        # Find a matching transition
         transition_id = None
         for trans in transitions:
-            if trans["name"].lower() == status_name.lower() or trans["to"]["name"].lower() == status_name.lower():
+            name = (trans.get("name") or "").lower()
+            to_name = (trans.get("to", {}).get("name") or "").lower()
+
+            if desired in (name, to_name):
                 transition_id = trans["id"]
                 break
-        
+
         if not transition_id:
-            return {"success": False, "error": f"Transition to '{status_name}' not found"}
-        
-        # Perform the transition
-        payload = {
-            "transition": {
-                "id": transition_id
+            print("No matching transition for desired status:", desired)
+            return {
+                "success": False,
+                "error": f"Transition to '{jira_status}' not found for issue {issue_key}"
             }
-        }
-        
+
+        payload = {"transition": {"id": transition_id}}
+
         response = requests.post(
             transitions_url,
             data=json.dumps(payload),
             headers=JIRA_HEADERS,
             auth=JIRA_AUTH
         )
-        
+        print("TRANSITION POST", response.status_code, response.text)
+
         if response.status_code == 204:
             return {"success": True}
         else:
-            return {"success": False, "error": response.text}
-            
+            return {
+                "success": False,
+                "error": f"Transition failed {response.status_code}: {response.text}"
+            }
+
     except Exception as e:
         print(f"Error updating Jira status: {str(e)}")
         return {"success": False, "error": str(e)}
+
 
 def get_jira_issue_details(issue_key):
     """Get Jira issue details"""
     try:
         url = f"{JIRA_URL}/rest/api/3/issue/{issue_key}"
-        
+
         response = requests.get(
             url,
             headers=JIRA_HEADERS,
             auth=JIRA_AUTH
         )
-        
+        print("ISSUE DETAILS", response.status_code, response.text)
+
         if response.status_code == 200:
             issue_data = response.json()
             fields = issue_data["fields"]
             status = fields["status"]
-            
+
             return {
                 "success": True,
                 "status_name": status["name"],
@@ -385,40 +451,42 @@ def get_jira_issue_details(issue_key):
             }
         else:
             return {"success": False, "error": response.text}
-            
+
     except Exception as e:
         print(f"Error getting Jira issue: {str(e)}")
         return {"success": False, "error": str(e)}
+
 
 def sync_jira_status_to_db(issue_key):
     """Sync Jira status back to database"""
     try:
         jira_details = get_jira_issue_details(issue_key)
-        
+
         if jira_details["success"]:
-            # Map Jira color to hex
             color_map = {
                 "blue-gray": "6B7280",
                 "yellow": "F59E0B",
                 "green": "10B981",
                 "blue": "3B82F6"
             }
-            
+
             status_color = color_map.get(jira_details["status_color"], "6B7280")
-            
-            # Update database
-            run_exec("""
-                UPDATE assigned_work 
-                SET jira_status = ?, 
+
+            run_exec(
+                """
+                UPDATE assigned_work
+                SET jira_status = ?,
                     jira_status_color = ?,
                     last_updated = GETDATE()
                 WHERE jira_issue_key = ?
-            """, (jira_details["status_name"], status_color, issue_key))
-            
+                """,
+                (jira_details["status_name"], status_color, issue_key)
+            )
+
             return {"success": True, "status": jira_details["status_name"]}
         else:
             return jira_details
-            
+
     except Exception as e:
         print(f"Error syncing Jira status: {str(e)}")
         return {"success": False, "error": str(e)}
