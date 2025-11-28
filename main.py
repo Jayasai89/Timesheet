@@ -34,12 +34,13 @@ import requests
 from requests.auth import HTTPBasicAuth
 import json
 
-# Jira Configuration
-JIRA_URL = "https://sai8903.atlassian.net"  # Your Jira URL from the screenshot
-JIRA_EMAIL = "chowdarysai955@gmail.com"
-JIRA_API_TOKEN = "ATATT3xFfGF0tkPn91938Bo8Z1uyqGnCw_q4CfR6AMxTAfWno3fxSxlYQdVCy5WjCqsST9NxxqgnS9QPIHCr_bLuV4BrsdmqfT-LJV-W35Hz-cUeBcEp9QxhSFrUL9Z4ScTti0S7rnA7eDAmw1oep7uMSsbHi-paDqR0eLiCOidr-ShGp6ee1E8=E4CBDDC5"
-JIRA_PROJECT_KEY = "TIM"  # From your screenshot
-  # From your screenshot
+load_dotenv()
+
+JIRA_URL = os.getenv("JIRA_URL")
+JIRA_EMAIL = os.getenv("JIRA_EMAIL")
+JIRA_API_TOKEN = os.getenv("JIRA_API_TOKEN")
+JIRA_PROJECT_KEY = os.getenv("JIRA_PROJECT_KEY")
+
 JIRA_AUTH = HTTPBasicAuth(JIRA_EMAIL, JIRA_API_TOKEN)
 JIRA_HEADERS = {
     "Accept": "application/json",
