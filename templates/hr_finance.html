@@ -3187,7 +3187,12 @@ function viewEmployeeDetails(username) {
                       <i class="fas fa-file-pdf text-red-500 text-2xl"></i>
                       <div><p class="text-sm font-semibold text-gray-900">${doc.name}</p><p class="text-xs text-gray-500">${doc.size_readable}</p></div>
                     </div>
-                    <a href="/download-document/${encodeURIComponent(username)}/${encodeURIComponent(doc.name)}" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-xs font-semibold"><i class="fas fa-download mr-1"></i>Download</a>
+                    <a href="view_employee_document/${encodeURIComponent(username)}/${encodeURIComponent(doc.name)}"
+   target="_blank"
+   class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-xs font-semibold">
+   <i class="fas fa-eye mr-1"></i>View
+</a>
+
                   </div>
                 `).join('')
               }</div>`
