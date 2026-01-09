@@ -33,7 +33,8 @@ import os
 import requests
 from requests.auth import HTTPBasicAuth
 import json
-
+from flask import Response
+import mimetypes
 load_dotenv()
 
 JIRA_URL = os.getenv("JIRA_URL")
@@ -13696,6 +13697,93 @@ def migrate_all_tasks_to_jira():
             "error": error_msg
         }), 500
 
+# ===== 1. LIST DOCUMENTS API =====
+@app.route('/getemployeedocumentslist')
+def getemployeedocumentslist():
+    username = request.args.get('username', '').strip()
+    if not username or 'username' not in session:
+        return jsonify({'success': False, 'error': 'Unauthorized'}), 401
+    
+    try:
+        result = run_query("SELECT documents_folder_path FROM employee_details WHERE username=?", (username,))
+        if result.empty or pd.isna(result.iloc[0].documents_folder_path):
+            return jsonify({'success': True, 'documents': []})
+        
+        folderpath = os.path.join(app.config['UPLOAD_FOLDER'], result.iloc[0].documents_folder_path)
+        documents = []
+        
+        if os.path.exists(folderpath):
+            for filename in os.listdir(folderpath):
+                filepath = os.path.join(folderpath, filename)
+                if os.path.isfile(filepath) and allowed_file(filename):
+                    size = os.path.getsize(filepath) / (1024 * 1024)
+                    documents.append({
+                        'filename': filename,
+                        'size': f"{size:.1f} MB",
+                        'viewurl': url_for('viewemployeedocument', username=username, filename=filename),
+                        'downloadurl': url_for('downloademployeedocument', username=username, filename=filename)
+                    })
+        return jsonify({'success': True, 'documents': documents})
+    except Exception as e:
+        print(f"Docs list error: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+# ===== 2. VIEW DOCUMENT (Browser) =====
+
+
+@app.route('/view_employee_document/<username>/<filename>')
+def view_employee_document(username, filename):
+    if 'username' not in session:
+        return redirect(url_for('loginsso'))
+    try:
+        result = run_query("SELECT documents_folder_path FROM employee_details WHERE username=?", (username,))
+        if result.empty or pd.isna(result.iloc[0].documents_folder_path):
+            flash("No document folder found")
+            return redirect(url_for('dashboard'))
+        
+        folder = os.path.join(app.config['UPLOAD_FOLDER'], result.iloc[0].documents_folder_path)
+        file_path = os.path.join(folder, filename)
+        
+        if not os.path.exists(file_path):
+            flash("File not found")
+            return redirect(url_for('dashboard'))
+        
+        # Get MIME type
+        mime_type, _ = mimetypes.guess_type(file_path)
+        if not mime_type:
+            mime_type = 'application/octet-stream'
+        
+        with open(file_path, 'rb') as f:
+            data = f.read()
+        
+        return Response(
+            data,
+            mimetype=mime_type,
+            headers={
+                "Content-Disposition": "inline; filename=" + filename
+            }
+        )
+    except Exception as e:
+        print(f"View doc error: {e}")
+        flash("Document not found")
+        return redirect(url_for('dashboard'))
+
+# ===== 3. DOWNLOAD DOCUMENT =====
+@app.route('/downloademployeedocument/<username>/<filename>')
+def downloademployeedocument(username, filename):
+    if 'username' not in session: return redirect(url_for('loginsso'))
+    try:
+        result = run_query("SELECT documents_folder_path FROM employee_details WHERE username=?", (username,))
+        if result.empty or pd.isna(result.iloc[0].documents_folderpath):
+            flash("No document folder found")
+            return redirect(url_for('dashboard'))
+        
+        folder = os.path.join(app.config['UPLOAD_FOLDER'], result.iloc[0].documents_folder_path)
+        return send_from_directory(folder, filename, as_attachment=True)
+    except Exception as e:
+        print(f"Download error: {e}")
+        flash("Download failed")
+        return redirect(url_for('dashboard'))
 
 def auto_check_and_migrate_tasks():
     """Check for tasks without Jira issues on startup"""
@@ -13738,7 +13826,6 @@ def auto_check_and_migrate_tasks():
             print("✅ All tasks have Jira issues")
     except Exception as e:
         print(f"⚠️  Could not check for unmigrated tasks: {e}")
-
 
 
 @app.route('/api/employee-details/<username>')
@@ -13797,7 +13884,7 @@ def api_employee_details(username):
         
         employee = df.to_dict('records')[0]
         
-        # Map database columns
+        # Map database columns to frontend keys
         employee_mapped = {
             'username': employee.get('username', ''),
             'name': employee.get('name', ''),
@@ -13820,42 +13907,49 @@ def api_employee_details(username):
             'assetdetails': employee.get('asset_details', ''),
             'duration': employee.get('duration', ''),
             'employmentid': employee.get('employmentid', ''),
-            'documentsfolderpath': employee.get('documents_folder_path', ''),
+            'documents_folder_path': employee.get('documents_folder_path', ''),
             'rm': employee.get('rm', ''),
             'manager': employee.get('manager', '')
         }
         
-        # Handle None values
+        # Clean None/nan values
         for key, value in employee_mapped.items():
-            if value is None or str(value) == 'None' or str(value) == 'nan' or str(value) == 'NaT':
+            if value is None or str(value) in ['None', 'nan', 'NaT']:
                 employee_mapped[key] = '' if key not in ['monthlysalary', 'yearlysalary'] else 0
         
-        # Check for documents
+        # === FIXED: List documents correctly ===
         documents = []
-        if employee_mapped.get('documentsfolderpath'):
-            doc_folder = employee_mapped['documentsfolderpath']
+        if employee_mapped.get('documents_folder_path'):
+            doc_folder = os.path.join(app.config['UPLOAD_FOLDER'], employee_mapped['documents_folder_path'])
+            
             if os.path.exists(doc_folder) and os.path.isdir(doc_folder):
                 try:
                     for filename in os.listdir(doc_folder):
                         filepath = os.path.join(doc_folder, filename)
                         if os.path.isfile(filepath):
                             size = os.path.getsize(filepath)
+                            size_readable = (
+                                f"{size / 1024:.2f} KB" 
+                                if size < 1024 * 1024 
+                                else f"{size / (1024 * 1024):.2f} MB"
+                            )
                             documents.append({
                                 'name': filename,
                                 'size': size,
-                                'size_readable': f"{size / 1024:.2f} KB" if size < 1024*1024 else f"{size / (1024*1024):.2f} MB"
+                                'size_readable': size_readable
                             })
                 except Exception as e:
-                    print(f"Error reading documents: {e}")
-        
+                    print(f"Error reading documents folder '{doc_folder}': {e}")
+
+        # Successful response
         return jsonify({
             'success': True,
             'employee': employee_mapped,
             'documents': documents
         })
-    
+
     except Exception as e:
-        print(f"ERROR: Exception in api_employee_details: {e}")
+        print(f"ERROR in api_employee_details: {e}")
         import traceback
         traceback.print_exc()
         return jsonify({'error': f'Server error: {str(e)}'}), 500
