@@ -2,7 +2,7 @@ from multiprocessing import connection
 import os
 from traceback import print_list
 from dotenv import load_dotenv
-from flask import Flask, render_template, request, redirect, send_file, send_from_directory, url_for, session, flash, jsonify
+from flask import Flask, render_template, render_template_string, request, redirect, send_file, send_from_directory, url_for, session, flash, jsonify
 from flask_moment import Moment
 from werkzeug.utils import secure_filename
 import pyodbc
@@ -2147,6 +2147,7 @@ def view_hr_finance(user):
 
 def view_lead(user):
     """Lead dashboard with complete oversight of all company data - ENHANCED WITH JIRA"""
+    
     
     # STEP 1: Get total budget
     try:
@@ -7455,6 +7456,12 @@ def generate_payroll_report():
 
 @app.route('/generate-payslip')
 def generate_payslip():
+    """Redirect legacy route to the PDF generator or show error when username missing"""
+    username = request.args.get('username')
+    if not username:
+        flash("Username required for payslip generation.")
+        return redirect(url_for('dashboard'))
+    return redirect(url_for('generate_payslip_pdf', username=username))
     """Generate payslip for specific employee"""
     username = request.args.get('username')
     flash(f"Payslip generation for {username} would be implemented here.")
@@ -14067,6 +14074,382 @@ def debug_reporting_structure(username):
     print(f"Active users: {users.to_dict('records') if not users.empty else 'None'}")
     
     print("=== END DEBUG ===\n")
+
+
+@app.route('/generate_payslip/<username>', endpoint='generate_payslip_pdf')
+def generate_payslip(username):
+    """Generate and display payslip with download option"""
+    if 'username' not in session:
+        return redirect(url_for('login_sso'))
+    
+    # Fetch user and salary info
+    user_df = run_query(
+        "SELECT username, name, role, CAST(COALESCE(monthly_salary,0) AS DECIMAL(18,2)) as monthly_salary, CAST(COALESCE(yearly_salary,0) AS DECIMAL(18,2)) as yearly_salary, email FROM users WHERE username = ?",
+        (username,)
+    )
+    if user_df.empty:
+        flash('User not found or inactive.')
+        return redirect(url_for('dashboard'))
+
+    u = user_df.iloc[0].to_dict()
+    now = datetime.now()
+    period = now.strftime('%B %Y')
+
+    gross_monthly = float(u.get('monthly_salary') or 0)
+    gross_yearly = float(u.get('yearly_salary') or 0)
+
+    pf = round(gross_monthly * 0.12, 2)
+    tax = round(gross_monthly * 0.10, 2)
+    total_deductions = round(pf + tax, 2)
+    net_monthly = round(gross_monthly - total_deductions, 2)
+
+    # Generate HTML content
+    html_content = f"""
+    <!doctype html>
+    <html>
+    <head>
+      <meta charset="utf-8"> 
+      <title>Payslip - {u.get('name') or username} - {period}</title>
+      <style>
+        * {{ margin: 0; padding: 0; }}
+        body {{ font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f5f5f5; color: #222 }}
+        .container {{ max-width: 900px; margin: 20px auto; }}
+        
+        .toolbar {{
+          background: white;
+          padding: 15px;
+          border-radius: 8px 8px 0 0;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }}
+        
+        .toolbar button {{
+          background: #0f172a;
+          color: white;
+          border: none;
+          padding: 10px 20px;
+          border-radius: 6px;
+          cursor: pointer;
+          font-size: 14px;
+          transition: background 0.3s;
+        }}
+        
+        .toolbar button:hover {{ background: #1e293b; }}
+        .toolbar button.secondary {{ background: #64748b; }}
+        .toolbar button.secondary:hover {{ background: #475569; }}
+        
+        .payslip-card {{
+          max-width: 900px;
+          background: white;
+          margin: 0 auto 20px;
+          border: 1px solid #e5e7eb;
+          padding: 40px;
+          border-radius: 0 0 8px 8px;
+          box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }}
+        
+        .header {{
+          display: flex;
+          justify-content: space-between;
+          align-items: flex-start;
+          border-bottom: 3px solid #0f172a;
+          padding-bottom: 20px;
+          margin-bottom: 30px;
+        }}
+        
+        .company {{
+          font-weight: 700;
+          color: #0f172a;
+          font-size: 18px;
+        }}
+        
+        .company-subtext {{ color: #555; font-size: 12px; margin-top: 5px; }}
+        
+        .employee-info {{
+          text-align: right;
+        }}
+        
+        .employee-name {{ font-weight: 700; font-size: 16px; color: #0f172a; }}
+        .employee-role {{ color: #666; font-size: 13px; }}
+        .employee-id {{ color: #888; font-size: 12px; }}
+        
+        .section {{
+          margin-bottom: 30px;
+        }}
+        
+        .section-title {{
+          font-weight: 700;
+          color: #0f172a;
+          font-size: 14px;
+          background: #f9fafb;
+          padding: 10px 15px;
+          border-left: 4px solid #0f172a;
+          margin-bottom: 15px;
+        }}
+        
+        table {{
+          width: 100%;
+          border-collapse: collapse;
+        }}
+        
+        table td {{
+          padding: 12px 15px;
+          border-bottom: 1px solid #e5e7eb;
+          font-size: 13px;
+        }}
+        
+        table td:first-child {{ width: 60%; }}
+        table td:last-child {{ text-align: right; font-weight: 500; }}
+        
+        .total-row {{ 
+          background: #f0f9ff; 
+          font-weight: 700;
+          border-top: 2px solid #0f172a;
+          border-bottom: 2px solid #0f172a;
+        }}
+        
+        .footer {{
+          margin-top: 40px;
+          padding-top: 20px;
+          border-top: 1px solid #e5e7eb;
+          color: #666;
+          font-size: 12px;
+          text-align: center;
+        }}
+        
+        @media print {{
+          .toolbar {{ display: none; }}
+          .payslip-card {{ box-shadow: none; border: none; }}
+          body {{ background: white; }}
+        }}
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <!-- Toolbar -->
+        <div class="toolbar">
+          <div>
+            <h2 style="color: #0f172a;">Payslip for {period}</h2>
+          </div>
+          <div>
+            <button class="secondary" onclick="window.print()">🖨️ Print</button>
+            <button onclick="downloadPDF()">⬇️ Download PDF</button>
+            <button class="secondary" onclick="window.history.back()">❌ Close</button>
+          </div>
+        </div>
+
+        <!-- Payslip Content -->
+        <div class="payslip-card">
+          <!-- Header -->
+          <div class="header">
+            <div>
+              <div class="company">🏢 Company Name Pvt Ltd</div>
+              <div class="company-subtext">Authorized to issue payslips</div>
+            </div>
+            <div class="employee-info">
+              <div class="employee-name">{u.get('name') or username}</div>
+              <div class="employee-role">{u.get('role') or 'Employee'}</div>
+              <div class="employee-id">Username: {u.get('username')}</div>
+            </div>
+          </div>
+
+          <!-- Earnings Section -->
+          <div class="section">
+            <div class="section-title">💰 Earnings</div>
+            <table>
+              <tr>
+                <td>Gross Monthly Salary</td>
+                <td>₹ {gross_monthly:,.2f}</td>
+              </tr>
+              <tr>
+                <td>Gross Yearly Salary</td>
+                <td>₹ {gross_yearly:,.2f}</td>
+              </tr>
+            </table>
+          </div>
+
+          <!-- Deductions Section -->
+          <div class="section">
+            <div class="section-title">📉 Deductions</div>
+            <table>
+              <tr>
+                <td>Provident Fund (PF) @ 12%</td>
+                <td>₹ {pf:,.2f}</td>
+              </tr>
+              <tr>
+                <td>Income Tax (Example @ 10%)</td>
+                <td>₹ {tax:,.2f}</td>
+              </tr>
+              <tr class="total-row">
+                <td>Total Deductions</td>
+                <td>₹ {total_deductions:,.2f}</td>
+              </tr>
+            </table>
+          </div>
+
+          <!-- Net Pay Section -->
+          <div class="section">
+            <div class="section-title">✅ Net Pay</div>
+            <table>
+              <tr class="total-row" style="background: #dcfce7;">
+                <td>Net Monthly Pay (After Deductions)</td>
+                <td style="font-size: 16px; color: #15803d;">₹ {net_monthly:,.2f}</td>
+              </tr>
+            </table>
+          </div>
+
+          <!-- Footer -->
+          <div class="footer">
+            <p>This is a system-generated payslip. For detailed payroll breakdown or queries, please contact the HR department.</p>
+            <p style="margin-top: 10px; color: #999;">Generated on: {now.strftime('%d-%m-%Y %H:%M:%S')}</p>
+          </div>
+        </div>
+      </div>
+
+      <script>
+        function downloadPDF() {{
+          const username = '{username}';
+          const timestamp = new Date().toISOString().split('T')[0];
+          const filename = `payslip_${{username}}_${{timestamp}}.pdf`;
+          
+          // Show download in progress
+          const btn = event.target;
+          const originalText = btn.innerHTML;
+          btn.innerHTML = '⏳ Generating PDF...';
+          btn.disabled = true;
+          
+          // Call backend to generate PDF
+          fetch('/download-payslip-pdf/' + username)
+            .then(response => {{
+              if (!response.ok) throw new Error('Failed to generate PDF');
+              return response.blob();
+            }})
+            .then(blob => {{
+              // Create download link
+              const url = window.URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.href = url;
+              a.download = filename;
+              document.body.appendChild(a);
+              a.click();
+              window.URL.revokeObjectURL(url);
+              document.body.removeChild(a);
+              
+              // Reset button
+              btn.innerHTML = originalText;
+              btn.disabled = false;
+            }})
+            .catch(error => {{
+              alert('Error generating PDF: ' + error.message);
+              btn.innerHTML = originalText;
+              btn.disabled = false;
+            }});
+        }}
+      </script>
+    </body>
+    </html>
+    """
+    
+    return render_template_string(html_content)
+
+
+@app.route('/download-payslip-pdf/<username>')
+def download_payslip_pdf(username):
+    """Generate PDF and download"""
+    if 'username' not in session:
+        return "Unauthorized", 401
+    
+    # Fetch user and salary info
+    user_df = run_query(
+        "SELECT username, name, role, CAST(COALESCE(monthly_salary,0) AS DECIMAL(18,2)) as monthly_salary, CAST(COALESCE(yearly_salary,0) AS DECIMAL(18,2)) as yearly_salary FROM users WHERE username = ?",
+        (username,)
+    )
+    
+    if user_df.empty:
+        return "User not found", 404
+
+    u = user_df.iloc[0].to_dict()
+    now = datetime.now()
+    period = now.strftime('%B %Y')
+
+    gross_monthly = float(u.get('monthly_salary') or 0)
+    gross_yearly = float(u.get('yearly_salary') or 0)
+    pf = round(gross_monthly * 0.12, 2)
+    tax = round(gross_monthly * 0.10, 2)
+    total_deductions = round(pf + tax, 2)
+    net_monthly = round(gross_monthly - total_deductions, 2)
+
+    # Simple HTML for PDF conversion
+    html = f"""
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <style>
+        body{{ font-family: Arial, sans-serif; margin: 40px; }}
+        table{{ width: 100%; border-collapse: collapse; margin: 20px 0; }}
+        td{{ padding: 10px; border-bottom: 1px solid #ddd; }}
+        .header{{ font-weight: bold; background: #f0f0f0; }}
+        .total{{ font-weight: bold; background: #e0f0ff; }}
+      </style>
+    </head>
+    <body>
+      <h2>Payslip - {period}</h2>
+      <p><strong>Employee:</strong> {u.get('name')} ({username})</p>
+      <p><strong>Role:</strong> {u.get('role')}</p>
+      
+      <h3>Earnings</h3>
+      <table>
+        <tr><td>Gross Monthly Salary</td><td>₹ {gross_monthly:,.2f}</td></tr>
+        <tr><td>Gross Yearly Salary</td><td>₹ {gross_yearly:,.2f}</td></tr>
+      </table>
+      
+      <h3>Deductions</h3>
+      <table>
+        <tr><td>Provident Fund (12%)</td><td>₹ {pf:,.2f}</td></tr>
+        <tr><td>Tax (10%)</td><td>₹ {tax:,.2f}</td></tr>
+        <tr class="total"><td>Total Deductions</td><td>₹ {total_deductions:,.2f}</td></tr>
+      </table>
+      
+      <h3>Net Pay</h3>
+      <table>
+        <tr class="total"><td>Net Monthly Pay</td><td>₹ {net_monthly:,.2f}</td></tr>
+      </table>
+    </body>
+    </html>
+    """
+
+    try:
+        # Try pdfkit first
+        try:
+            import pdfkit
+            pdf_bytes = pdfkit.from_string(html, False)
+            filename = f"payslip_{username}_{now.strftime('%Y%m%d')}.pdf"
+            return send_file(
+                io.BytesIO(pdf_bytes),
+                mimetype='application/pdf',
+                as_attachment=True,
+                download_name=filename
+            )
+        except:
+            # Fallback to weasyprint
+            from weasyprint import HTML
+            import io
+            pdf_bytes = HTML(string=html).write_pdf()
+            filename = f"payslip_{username}_{now.strftime('%Y%m%d')}.pdf"
+            return send_file(
+                io.BytesIO(pdf_bytes),
+                mimetype='application/pdf',
+                as_attachment=True,
+                download_name=filename
+            )
+    except Exception as e:
+        print(f"PDF generation error: {e}")
+        # Return HTML as fallback
+        return html, 200, {'Content-Type': 'text/html; charset=utf-8'}
+   
+
 if __name__ == '__main__':
     print(f"\n{'='*60}")
     print("🚀 Starting Flask app with SocketIO on 0.0.0.0:8084...")
