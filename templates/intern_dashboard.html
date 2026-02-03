@@ -844,15 +844,20 @@ Examples:
                                 <option value="Lead">Lead</option>
                             </select>
                         </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Reporting Manager</label>
-                            <select name="reporting_manager" class="form-select w-full rounded-lg border-gray-300">
-                                <option value="">Select Manager</option>
-                                {% for manager in all_managers %}
-                                <option value="{{ manager.username }}">{{ manager.name }} ({{ manager.username }})</option>
-                                {% endfor %}
-                            </select>
-                        </div>
+<!-- In the "Add Employee" tab, replace the Reporting Manager dropdown: -->
+
+<div>
+    <label class="block text-sm font-medium text-gray-700 mb-2">Reporting Manager</label>
+    <select name="reporting_manager" class="form-select w-full rounded-lg border-gray-300">
+        <option value="">Select Manager (Optional)</option>
+        {% for employee in all_employees %}
+            <option value="{{ employee.username }}">
+                {{ employee.name or employee.username }} ({{ employee.role }})
+            </option>
+        {% endfor %}
+    </select>
+    <p class="text-xs text-gray-500 mt-1">Select any employee as reporting manager</p>
+</div>
                     </div>
                 </div>
 
@@ -1235,15 +1240,20 @@ Examples:
                                     <label class="block text-sm font-medium text-gray-700 mb-2">New Password</label>
                                     <input type="password" name="password" id="edit_password" class="form-input w-full rounded-lg border-gray-300" placeholder="Leave empty to keep current password">
                                 </div>
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700 mb-2">Reporting Manager</label>
-                                    <select name="reporting_manager" id="edit_reporting_manager" class="form-select w-full rounded-lg border-gray-300">
-                                        <option value="">Keep Current Manager</option>
-                                        {% for manager in all_managers %}
-                                        <option value="{{ manager.username }}">{{ manager.name }} ({{ manager.username }})</option>
-                                        {% endfor %}
-                                    </select>
-                                </div>
+<!-- In the Edit Employee Modal, replace the Reporting Manager dropdown: -->
+
+<div>
+    <label class="block text-sm font-medium text-gray-700 mb-2">Reporting Manager</label>
+    <select name="reporting_manager" id="edit_reporting_manager" class="form-select w-full rounded-lg border-gray-300">
+        <option value="">Keep Current Manager</option>
+        {% for employee in all_employees %}
+            <option value="{{ employee.username }}">
+                {{ employee.name or employee.username }} ({{ employee.role }})
+            </option>
+        {% endfor %}
+    </select>
+    <p class="text-xs text-gray-500 mt-1">Leave blank to keep current manager</p>
+</div>
                             </div>
                         </div>
 
