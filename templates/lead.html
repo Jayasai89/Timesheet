@@ -135,7 +135,7 @@
             <button class="tab-button py-4 px-1 border-b-2 font-medium text-sm text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300" data-tab="assets">
                 <i class="fas fa-box mr-2"></i>Assets
             </button>
-            <!-- ADD THIS PENDING APPROVALS TAB -->
+            <!-- ADD THIS S TAB -->
             {% if has_team %}
             <button class="tab-button py-4 px-1 border-b-2 font-medium text-sm text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300" data-tab="approvals">
                 <i class="fas fa-check-circle mr-2"></i>Pending Approvals
@@ -177,7 +177,13 @@
                                         <td class="px-4 py-4 whitespace-nowrap text-sm font-medium">{{ work.employee_name or work.username }}</td>
                                         <td class="px-4 py-4 whitespace-nowrap text-sm">{{ work.work_date }}</td>
                                         <td class="px-4 py-4 whitespace-nowrap text-sm">{{ work.project_name }}</td>
-                                        <td class="px-4 py-4 text-sm max-w-xs truncate">{{ work.work_desc }}</td>
+                                        <td class="px-4 py-3 text-sm max-w-xs truncate"
+                                            title="{{ work.work_desc or 'No description provided' }}">
+                                            
+                                            {{ work.work_desc[:60] if work.work_desc else 'No description' }}
+                                            {%- if work.work_desc and work.work_desc|length > 60 -%}...{%- endif -%}
+                                            
+                                        </td>
                                         <td class="px-4 py-4 whitespace-nowrap text-sm font-semibold">{{ work.hours }}h</td>
                                         <td class="px-4 py-4 whitespace-nowrap text-sm font-medium space-x-2">
                                             <form method="POST" action="{{ url_for('approve_timesheet_action') }}" style="display: inline;">
